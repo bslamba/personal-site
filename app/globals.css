@@ -1,26 +1,230 @@
+/* ============================================================
+   app/globals.css
+   O'Reilly-inspired palette · editorial / poster aesthetic
+   Tailwind CSS v4
+   ============================================================ */
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* ---- O'Reilly signature red ---- */
+  --color-signal-50:  #FFF1F3;
+  --color-signal-100: #FFE0E5;
+  --color-signal-200: #FFC2CB;
+  --color-signal-300: #FF8A9C;
+  --color-signal-400: #F5384F;
+  --color-signal-500: #D3002D;   /* the O'Reilly red */
+  --color-signal-600: #B80027;
+  --color-signal-700: #93001F;
+  --color-signal-800: #6B0017;
+  --color-signal-900: #40000E;
+
+  /* ---- Ink: near-black, warmer than pure #000 ---- */
+  --color-ink-950: #08080A;
+  --color-ink-900: #0C0C0E;
+  --color-ink-800: #17171A;
+  --color-ink-700: #232327;
+  --color-ink-600: #3A3A40;
+  --color-ink-500: #5C5C64;
+  --color-ink-400: #8A8A93;
+  --color-ink-300: #B5B5BC;
+  --color-ink-200: #D9D9DE;
+  --color-ink-100: #ECECEF;
+
+  /* ---- Paper: warm off-white, like a book page ---- */
+  --color-paper: #FAF8F5;
+  --color-paper-dim: #F1EEE9;
+
+  /* ---- Fonts, wired up by next/font in layout.tsx ---- */
+  --font-display: var(--font-anton), "Arial Black", sans-serif;
+  --font-heading: var(--font-syne), ui-sans-serif, sans-serif;
+  --font-sans:    var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ------------------------------------------------------------
+   BASE
+   ------------------------------------------------------------ */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-signal-500);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-signal-500);
+    outline-offset: 3px;
+  }
+
+  /* Thin red scrollbar. Small detail, sets the tone. */
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: var(--color-paper-dim); }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-signal-500);
+    border: 3px solid var(--color-paper-dim);
+    border-radius: 99px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ------------------------------------------------------------
+   COMPONENTS
+   ------------------------------------------------------------ */
+@layer components {
+
+  .container-page {
+    width: 100%;
+    max-width: 82rem;
+    margin-inline: auto;
+    padding-inline: 1.5rem;
+  }
+
+  /* Giant poster type — the celebrity treatment */
+  .display-xl {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+    line-height: 0.82;
+    letter-spacing: -0.02em;
+  }
+
+  /* Section headings */
+  .heading {
+    font-family: var(--font-heading);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.02;
+  }
+
+  /* Small tracked-out label */
+  .label {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.6875rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+  }
+
+  /* Nav links with a red underline that grows on hover */
+  .nav-link {
+    position: relative;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding-block: 0.25rem;
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 0;
+    background: var(--color-signal-500);
+    transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-link:hover::after,
+  .nav-link:focus-visible::after { width: 100%; }
+
+  /* Outlined type — used for the big section numbers */
+  .outline-type {
+    color: transparent;
+    -webkit-text-stroke: 1.5px var(--color-ink-300);
+  }
+
+  .btn-signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    background: var(--color-signal-500);
+    color: #fff;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 1rem 1.75rem;
+    transition: background 180ms ease, transform 180ms ease;
+  }
+  .btn-signal:hover {
+    background: var(--color-ink-900);
+    transform: translateY(-2px);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    border: 1.5px solid var(--color-ink-900);
+    color: var(--color-ink-900);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 1rem 1.75rem;
+    transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+  .btn-ghost:hover {
+    background: var(--color-ink-900);
+    color: var(--color-paper);
+    transform: translateY(-2px);
+  }
+}
+
+/* ------------------------------------------------------------
+   REVEAL ON SCROLL
+   Elements start slightly low and faded, then rise into place.
+   Driven by the IntersectionObserver in page.tsx.
+   ------------------------------------------------------------ */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ------------------------------------------------------------
+   INTRO GATE
+   ------------------------------------------------------------ */
+@keyframes pulse-hint {
+  0%, 100% { opacity: 0.45; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(4px); }
+}
+.hint-pulse { animation: pulse-hint 2.4s ease-in-out infinite; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up      { animation: fade-up 1s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.fade-up-slow { animation: fade-up 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both; }
+
+/* Stops the page scrolling while the gate is closed */
+body.gate-locked { overflow: hidden; }
+
+/* ------------------------------------------------------------
+   ACCESSIBILITY
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .hint-pulse, .fade-up, .fade-up-slow { animation: none; opacity: 1; }
+  .btn-signal:hover, .btn-ghost:hover { transform: none; }
 }
