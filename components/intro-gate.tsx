@@ -132,15 +132,6 @@ export default function IntroGate() {
         </div>
       </div>
 
-      {/* ---------- CENTRE SEAM ---------- */}
-      {/* A hairline of red down the join. It fades as the doors part. */}
-      <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-signal-500 transition-opacity duration-500 ${
-          open ? 'opacity-0' : 'opacity-70'
-        }`}
-        aria-hidden="true"
-      />
-
       {/* ---------- ENTER HINT ---------- */}
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-10 flex flex-col items-center gap-3 transition-opacity duration-300 ${
