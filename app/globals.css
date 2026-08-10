@@ -5,6 +5,7 @@
    ============================================================ */
 
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   /* ---- O'Reilly signature red ---- */
@@ -228,3 +229,123 @@ body.gate-locked { overflow: hidden; }
   .hint-pulse, .fade-up, .fade-up-slow { animation: none; opacity: 1; }
   .btn-signal:hover, .btn-ghost:hover { transform: none; }
 }
+/* ============================================================
+   ARTICLE BODY
+   Typography for published articles.
+   ============================================================ */
+.article-body {
+  font-size: 1.125rem;
+  line-height: 1.75;
+  color: var(--color-ink-700);
+}
+
+.article-body > * + * { margin-top: 1.5rem; }
+
+.article-body h2 {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: clamp(1.625rem, 3.5vw, 2.25rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--color-ink-950);
+  margin-top: 3.5rem;
+  scroll-margin-top: 6rem;
+}
+
+.article-body h3 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  letter-spacing: -0.01em;
+  color: var(--color-ink-950);
+  margin-top: 2.5rem;
+  scroll-margin-top: 6rem;
+}
+
+.article-body a {
+  color: var(--color-signal-500);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.article-body a:hover { color: var(--color-ink-950); }
+
+.article-body strong { font-weight: 700; color: var(--color-ink-950); }
+
+.article-body ul, .article-body ol { padding-left: 1.5rem; }
+.article-body ul { list-style: disc; }
+.article-body ol { list-style: decimal; }
+.article-body li { margin-top: 0.625rem; }
+.article-body li::marker { color: var(--color-signal-500); }
+
+.article-body blockquote {
+  border-left: 3px solid var(--color-signal-500);
+  padding-left: 1.5rem;
+  font-style: italic;
+  color: var(--color-ink-600);
+  border-radius: 0;
+}
+
+.article-body img {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 2.5rem 0;
+}
+
+.article-body hr {
+  border: none;
+  border-top: 2px solid var(--color-ink-200);
+  margin: 3rem 0;
+}
+
+/* Inline code */
+.article-body code {
+  background: var(--color-signal-50);
+  color: var(--color-signal-700);
+  padding: 0.15em 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+/* Code blocks */
+.article-body pre {
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  padding: 1.375rem 1.625rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.article-body pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Tables */
+.article-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.article-body th, .article-body td {
+  border: 1px solid var(--color-ink-200);
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  vertical-align: top;
+}
+.article-body th {
+  background: var(--color-signal-50);
+  font-weight: 700;
+  color: var(--color-signal-900);
+}
+
+/* Syntax highlighting */
+.hljs-comment, .hljs-quote                       { color: #8A8A93; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: #FF8A9C; }
+.hljs-string, .hljs-attr                         { color: #9FE1CB; }
+.hljs-number, .hljs-built_in                     { color: #FAC775; }
+.hljs-title, .hljs-function, .hljs-name          { color: #85B7EB; }
+.hljs-meta, .hljs-symbol                         { color: #B5B5BC; }
