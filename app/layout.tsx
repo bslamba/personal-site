@@ -185,7 +185,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
-      lang="en"
+      lang="en" data-scroll-behavior="smooth"
       className={`${anton.variable} ${interTight.variable} ${literata.variable}`}
     >
       <body className="flex min-h-screen flex-col">
