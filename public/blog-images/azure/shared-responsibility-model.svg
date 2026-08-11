@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 714 452" width="100%" role="img" aria-label="Shared responsibility model across on-premises, IaaS, PaaS and SaaS">
+<rect width="714" height="452" fill="#FAF8F5"/>
+<rect x="266" y="16" width="106" height="40" fill="#0C0C0E"/>
+<text x="319.0" y="39.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#FAF8F5" text-anchor="middle">On-prem</text>
+<rect x="374" y="16" width="106" height="40" fill="#0C0C0E"/>
+<text x="427.0" y="39.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#FAF8F5" text-anchor="middle">IaaS</text>
+<rect x="482" y="16" width="106" height="40" fill="#0C0C0E"/>
+<text x="535.0" y="39.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#FAF8F5" text-anchor="middle">PaaS</text>
+<rect x="590" y="16" width="106" height="40" fill="#0C0C0E"/>
+<text x="643.0" y="39.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#FAF8F5" text-anchor="middle">SaaS</text>
+<text x="16" y="82.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Information and data</text>
+<rect x="266" y="64" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="82.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="64" width="106" height="28" fill="#D3002D"/>
+<text x="427.0" y="82.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="482" y="64" width="106" height="28" fill="#D3002D"/>
+<text x="535.0" y="82.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="590" y="64" width="106" height="28" fill="#D3002D"/>
+<text x="643.0" y="82.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<text x="16" y="114.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Devices (mobile, PCs)</text>
+<rect x="266" y="96" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="114.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="96" width="106" height="28" fill="#D3002D"/>
+<text x="427.0" y="114.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="482" y="96" width="106" height="28" fill="#D3002D"/>
+<text x="535.0" y="114.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="590" y="96" width="106" height="28" fill="#D3002D"/>
+<text x="643.0" y="114.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<text x="16" y="146.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Accounts and identities</text>
+<rect x="266" y="128" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="146.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="128" width="106" height="28" fill="#D3002D"/>
+<text x="427.0" y="146.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="482" y="128" width="106" height="28" fill="#D3002D"/>
+<text x="535.0" y="146.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="590" y="128" width="106" height="28" fill="#D3002D"/>
+<text x="643.0" y="146.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<text x="16" y="178.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Identity and directory infra</text>
+<rect x="266" y="160" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="178.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="160" width="106" height="28" fill="#FF8A9C"/>
+<text x="427.0" y="178.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#6B0017" text-anchor="middle">Shared</text>
+<rect x="482" y="160" width="106" height="28" fill="#FF8A9C"/>
+<text x="535.0" y="178.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#6B0017" text-anchor="middle">Shared</text>
+<rect x="590" y="160" width="106" height="28" fill="#FF8A9C"/>
+<text x="643.0" y="178.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#6B0017" text-anchor="middle">Shared</text>
+<text x="16" y="210.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Applications</text>
+<rect x="266" y="192" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="210.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="192" width="106" height="28" fill="#D3002D"/>
+<text x="427.0" y="210.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="482" y="192" width="106" height="28" fill="#FF8A9C"/>
+<text x="535.0" y="210.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#6B0017" text-anchor="middle">Shared</text>
+<rect x="590" y="192" width="106" height="28" fill="#B5B5BC"/>
+<text x="643.0" y="210.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<text x="16" y="242.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Network controls</text>
+<rect x="266" y="224" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="242.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="224" width="106" height="28" fill="#D3002D"/>
+<text x="427.0" y="242.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="482" y="224" width="106" height="28" fill="#FF8A9C"/>
+<text x="535.0" y="242.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#6B0017" text-anchor="middle">Shared</text>
+<rect x="590" y="224" width="106" height="28" fill="#B5B5BC"/>
+<text x="643.0" y="242.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<text x="16" y="274.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Operating system</text>
+<rect x="266" y="256" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="274.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="256" width="106" height="28" fill="#D3002D"/>
+<text x="427.0" y="274.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="482" y="256" width="106" height="28" fill="#B5B5BC"/>
+<text x="535.0" y="274.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="590" y="256" width="106" height="28" fill="#B5B5BC"/>
+<text x="643.0" y="274.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<text x="16" y="306.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Physical hosts</text>
+<rect x="266" y="288" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="306.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="288" width="106" height="28" fill="#B5B5BC"/>
+<text x="427.0" y="306.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="482" y="288" width="106" height="28" fill="#B5B5BC"/>
+<text x="535.0" y="306.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="590" y="288" width="106" height="28" fill="#B5B5BC"/>
+<text x="643.0" y="306.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<text x="16" y="338.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Physical network</text>
+<rect x="266" y="320" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="338.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="320" width="106" height="28" fill="#B5B5BC"/>
+<text x="427.0" y="338.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="482" y="320" width="106" height="28" fill="#B5B5BC"/>
+<text x="535.0" y="338.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="590" y="320" width="106" height="28" fill="#B5B5BC"/>
+<text x="643.0" y="338.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<text x="16" y="370.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#0C0C0E">Physical datacenter</text>
+<rect x="266" y="352" width="106" height="28" fill="#D3002D"/>
+<text x="319.0" y="370.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#FAF8F5" text-anchor="middle">Customer</text>
+<rect x="374" y="352" width="106" height="28" fill="#B5B5BC"/>
+<text x="427.0" y="370.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="482" y="352" width="106" height="28" fill="#B5B5BC"/>
+<text x="535.0" y="370.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="590" y="352" width="106" height="28" fill="#B5B5BC"/>
+<text x="643.0" y="370.0" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#0C0C0E" text-anchor="middle">Provider</text>
+<rect x="16" y="398" width="13" height="13" fill="#D3002D"/>
+<text x="36" y="409" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Customer responsibility</text>
+<rect x="166" y="398" width="13" height="13" fill="#FF8A9C"/>
+<text x="186" y="409" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Shared responsibility</text>
+<rect x="316" y="398" width="13" height="13" fill="#B5B5BC"/>
+<text x="336" y="409" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Provider responsibility</text>
+</svg>

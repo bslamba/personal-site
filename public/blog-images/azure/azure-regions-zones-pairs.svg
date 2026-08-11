@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 330" width="100%" role="img" aria-label="Azure geography, region, availability zone and region pair relationship">
+<rect width="820" height="330" fill="#FAF8F5"/>
+<rect x="24" y="24" width="772" height="260" fill="none" stroke="#D9D9DE" stroke-dasharray="5 4"/>
+<text x="40" y="48" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#5C5C64" letter-spacing="1.4">GEOGRAPHY — data residency boundary</text>
+<rect x="56" y="66" width="332" height="192" fill="#F1EEE9" stroke="#D9D9DE"/>
+<text x="74" y="94" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0C0C0E">Region A</text>
+<rect x="74" y="110" width="92" height="82" fill="#FAF8F5" stroke="#D3002D"/>
+<text x="120" y="142" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#D3002D" text-anchor="middle">AZ 1</text>
+<text x="120" y="162" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">independent</text>
+<text x="120" y="176" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">power · cooling</text>
+<rect x="176" y="110" width="92" height="82" fill="#FAF8F5" stroke="#D3002D"/>
+<text x="222" y="142" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#D3002D" text-anchor="middle">AZ 2</text>
+<text x="222" y="162" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">independent</text>
+<text x="222" y="176" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">power · cooling</text>
+<rect x="278" y="110" width="92" height="82" fill="#FAF8F5" stroke="#D3002D"/>
+<text x="324" y="142" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#D3002D" text-anchor="middle">AZ 3</text>
+<text x="324" y="162" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">independent</text>
+<text x="324" y="176" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">power · cooling</text>
+<text x="74" y="222" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">Datacenters within a latency-defined perimeter</text>
+<text x="74" y="240" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">Zones are far enough apart to fail independently</text>
+<rect x="432" y="66" width="332" height="192" fill="#F1EEE9" stroke="#D9D9DE"/>
+<text x="450" y="94" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0C0C0E">Region B</text>
+<rect x="450" y="110" width="92" height="82" fill="#FAF8F5" stroke="#D3002D"/>
+<text x="496" y="142" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#D3002D" text-anchor="middle">AZ 1</text>
+<text x="496" y="162" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">independent</text>
+<text x="496" y="176" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">power · cooling</text>
+<rect x="552" y="110" width="92" height="82" fill="#FAF8F5" stroke="#D3002D"/>
+<text x="598" y="142" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#D3002D" text-anchor="middle">AZ 2</text>
+<text x="598" y="162" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">independent</text>
+<text x="598" y="176" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">power · cooling</text>
+<rect x="654" y="110" width="92" height="82" fill="#FAF8F5" stroke="#D3002D"/>
+<text x="700" y="142" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#D3002D" text-anchor="middle">AZ 3</text>
+<text x="700" y="162" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">independent</text>
+<text x="700" y="176" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64" text-anchor="middle">power · cooling</text>
+<text x="450" y="222" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">Datacenters within a latency-defined perimeter</text>
+<text x="450" y="240" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">Zones are far enough apart to fail independently</text>
+<path d="M 392 160 L 428 160" stroke="#D3002D" stroke-width="2" stroke-dasharray="4 3"/>
+<text x="410" y="150" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" font-weight="700" fill="#D3002D" text-anchor="middle">pair</text>
+<text x="24" y="316" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">Many newer regions have no pair and rely on availability zones instead — check before assuming one exists.</text>
+</svg>
