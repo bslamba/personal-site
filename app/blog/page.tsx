@@ -1,11 +1,5 @@
 // ============================================================
-// app/blog/page.tsx
-//
-// The Journal index. Server Component — the article list is built
-// into the HTML at deploy time, so Google sees every article
-// immediately without running any JavaScript.
-//
-// The search box is a small client component layered on top.
+// app/blog/page.tsx — retuned typography
 // ============================================================
 
 import type { Metadata } from 'next'
@@ -37,7 +31,6 @@ export default function BlogIndex() {
 
   return (
     <>
-      {/* Tells Google this page is a list of articles, and what's on it */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -48,11 +41,7 @@ export default function BlogIndex() {
             description:
               'Technical writing on network access control and infrastructure security.',
             url: `${SITE_URL}/blog`,
-            author: {
-              '@type': 'Person',
-              name: 'Bhawneet Singh Lamba',
-              url: SITE_URL,
-            },
+            author: { '@type': 'Person', name: 'Bhawneet Singh Lamba', url: SITE_URL },
             blogPost: posts.slice(0, 20).map(p => ({
               '@type': 'BlogPosting',
               headline: p.title,
@@ -66,16 +55,17 @@ export default function BlogIndex() {
       />
 
       {/* ---------------- HEADER ---------------- */}
-      <section className="border-b border-ink-900/10 bg-paper-dim py-24 sm:py-32">
+      <section className="border-b border-ink-900/10 bg-paper-dim py-20 sm:py-24">
         <div className="container-page">
           <div className="flex items-center gap-4">
             <span className="h-px w-14 bg-signal-500" />
             <span className="label text-signal-500">Field notes</span>
           </div>
 
-          <h1 className="heading mt-6 text-[clamp(2.5rem,8vw,6rem)]">Journal</h1>
+          {/* Was clamp(2.5rem, 8vw, 6rem) */}
+          <h1 className="heading mt-6 text-[clamp(2.25rem,5vw,3.75rem)]">Journal</h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-600">
+          <p className="measure mt-5 text-lg leading-relaxed text-ink-600">
             Notes from inside the access layer — network access control,
             identity, AAA protocols, and keeping enterprise infrastructure
             answering. Written from thirteen years of doing it.
@@ -84,7 +74,7 @@ export default function BlogIndex() {
       </section>
 
       {/* ---------------- SEARCH + LIST ---------------- */}
-      <section className="py-16 sm:py-20">
+      <section className="py-14 sm:py-16">
         <div className="container-page max-w-4xl">
           {posts.length > 0 ? (
             <BlogSearch posts={posts} tags={tags} />

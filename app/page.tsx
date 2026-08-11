@@ -226,7 +226,7 @@ export default function HomePage() {
             <span className="label text-signal-500">Est. 2013 · Bangalore</span>
           </div>
 
-          <h2 className="reveal heading mt-9 max-w-5xl text-[clamp(2.5rem,7.5vw,6.5rem)]">
+          <h2 className="reveal heading mt-9 max-w-5xl text-[clamp(1.875rem,4.2vw,3.25rem)]">
             I make enterprise networks decide{' '}
             <span className="text-signal-500">who gets in</span>
             {' '}— and prove it.
@@ -322,13 +322,13 @@ export default function HomePage() {
 
             {/* --- Name, role, numbers --- */}
             <div className="reveal">
-              <p className="display-xl text-[clamp(3.25rem,9.5vw,8rem)]">
+              <p className="display-xl text-[clamp(2.75rem,7vw,5.5rem)]">
                 Bhawneet
                 <span className="block text-signal-500">Lamba</span>
               </p>
 
               <p
-                className="mt-8 text-2xl leading-snug text-ink-800 sm:text-3xl"
+                className="mt-8 text-lg leading-snug text-ink-800 sm:text-xl"
                 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '-0.02em' }}
               >
                 {PROFILE.role}
@@ -339,7 +339,7 @@ export default function HomePage() {
                 {STATS.map(stat => (
                   <div key={stat.label}>
                     <dt className="label text-ink-400">{stat.label}</dt>
-                    <dd className="display-xl mt-3 text-[clamp(2.25rem,5.5vw,4rem)] text-ink-950">
+                    <dd className="display-xl mt-3 text-[clamp(1.75rem,3.6vw,2.75rem)] text-ink-950">
                       {stat.value}
                     </dd>
                   </div>
@@ -358,7 +358,7 @@ export default function HomePage() {
           <div className="reveal flex flex-wrap items-end justify-between gap-6 border-b-2 border-ink-950 pb-7">
             <div>
               <span className="label text-signal-500">Chapter one</span>
-              <h2 className="heading mt-3 text-[clamp(2.5rem,8vw,6rem)]">Experience</h2>
+              <h2 className="heading mt-3 text-[clamp(1.875rem,4vw,3rem)]">Experience</h2>
             </div>
             <span className="label text-ink-400">2013 — Present</span>
           </div>
@@ -370,7 +370,7 @@ export default function HomePage() {
                 className="reveal grid gap-8 border-b border-ink-200 pb-16 last:border-0 lg:grid-cols-[auto_1fr] lg:gap-14"
               >
                 <div className="lg:w-48">
-                  <span className="display-xl outline-type block text-[clamp(3.5rem,9vw,7rem)] leading-none">
+                  <span className="display-xl outline-type block text-[clamp(2.25rem,5vw,4rem)] leading-none">
                     {job.no}
                   </span>
                   <span className="label mt-4 block text-ink-400">{job.period}</span>
@@ -384,8 +384,8 @@ export default function HomePage() {
 
                 <div className="min-w-0">
                   <h3
-                    className="text-3xl text-ink-950 sm:text-4xl"
-                    style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, letterSpacing: '-0.02em' }}
+                    className="text-xl text-ink-950 sm:text-2xl"
+                    style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '-0.02em' }}
                   >
                     {job.role}
                   </h3>
@@ -415,7 +415,7 @@ export default function HomePage() {
 
           <div className="reveal border-b-2 border-paper pb-7">
             <span className="label text-signal-500">Chapter two</span>
-            <h2 className="heading mt-3 text-[clamp(2.5rem,8vw,6rem)]">Expertise</h2>
+            <h2 className="heading mt-3 text-[clamp(1.875rem,4vw,3rem)]">Expertise</h2>
           </div>
 
           <div className="mt-16 grid gap-px bg-ink-800 sm:grid-cols-2">
@@ -426,7 +426,7 @@ export default function HomePage() {
                   <Icon className="h-8 w-8 text-signal-500" aria-hidden="true" />
                   <h3
                     className="mt-7 text-2xl"
-                    style={{ fontFamily: 'var(--font-heading)', fontWeight: 800 }}
+                    style={{ fontFamily: 'var(--font-heading)', fontWeight: 700 }}
                   >
                     {group.title}
                   </h3>
@@ -454,7 +454,7 @@ export default function HomePage() {
 
           <div className="reveal">
             <span className="label text-signal-500">Academic</span>
-            <h2 className="heading mt-3 text-[clamp(2.25rem,5vw,4rem)]">Education</h2>
+            <h2 className="heading mt-3 text-[clamp(1.625rem,3.2vw,2.5rem)]">Education</h2>
             <div className="mt-10 space-y-8">
               {EDUCATION.map(item => (
                 <div key={item.degree} className="grid grid-cols-[auto_1fr] gap-7 border-t border-ink-200 pt-7">
@@ -470,7 +470,7 @@ export default function HomePage() {
 
           <div className="reveal">
             <span className="label text-signal-500">Credentials</span>
-            <h2 className="heading mt-3 text-[clamp(2.25rem,5vw,4rem)]">Certifications</h2>
+            <h2 className="heading mt-3 text-[clamp(1.625rem,3.2vw,2.5rem)]">Certifications</h2>
             <div className="mt-10 space-y-8">
               {CERTIFICATIONS.map((cert, i) => (
                 <div key={cert.name} className="grid grid-cols-[auto_1fr] gap-7 border-t border-ink-200 pt-7">
@@ -502,7 +502,7 @@ export default function HomePage() {
             {CLIENTS.map(client => (
               <li
                 key={client}
-                className="display-xl text-[clamp(1.5rem,3.4vw,2.75rem)] text-ink-300 transition-colors hover:text-signal-500"
+                className="display-xl text-[clamp(1.125rem,2.2vw,1.75rem)] text-ink-300 transition-colors hover:text-signal-500"
               >
                 {client}
               </li>
@@ -518,7 +518,7 @@ export default function HomePage() {
 
           <div className="reveal">
             <span className="label">Chapter three</span>
-            <h2 className="heading mt-4 max-w-4xl text-[clamp(2.5rem,8vw,6.5rem)]">
+            <h2 className="heading mt-4 max-w-4xl text-[clamp(1.875rem,4.2vw,3.25rem)]">
               Let&apos;s talk about who gets on your network.
             </h2>
             <p className="mt-8 max-w-xl text-lg leading-relaxed text-signal-50 sm:text-xl">

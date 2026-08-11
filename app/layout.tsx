@@ -1,19 +1,18 @@
 // ============================================================
 // app/layout.tsx
-// Fonts, SEO, header, footer, and the intro gate.
+//
+// TYPE SYSTEM
+//   Anton       — the name, brand moments only
+//   Inter Tight — headings, nav, labels, buttons
+//   Literata    — all reading text (built for long-form on screen)
 // ============================================================
 
 import type { Metadata } from 'next'
-import { Anton, Syne, Space_Grotesk } from 'next/font/google'
+import { Anton, Inter_Tight, Literata } from 'next/font/google'
 import Link from 'next/link'
 import IntroGate from '@/components/intro-gate'
 import './globals.css'
 
-// --- Fonts -------------------------------------------------
-// next/font downloads these at build time and serves them from
-// your own domain: fast, and no request to Google at runtime.
-
-// Poster display face. Used only for the giant name.
 const anton = Anton({
   subsets: ['latin'],
   weight: '400',
@@ -21,20 +20,19 @@ const anton = Anton({
   variable: '--font-anton',
 })
 
-// Distinctive modern face. Nav, headings, labels, buttons.
-const syne = Syne({
+const interTight = Inter_Tight({
   subsets: ['latin'],
-  weight: ['600', '700', '800'],
+  weight: ['500', '600', '700'],
   display: 'swap',
-  variable: '--font-syne',
+  variable: '--font-inter-tight',
 })
 
-// Body copy. Technical but warm.
-const grotesk = Space_Grotesk({
+const literata = Literata({
   subsets: ['latin'],
-  weight: ['400', '500', '700'],
+  weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
   display: 'swap',
-  variable: '--font-grotesk',
+  variable: '--font-literata',
 })
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
@@ -63,6 +61,9 @@ export const metadata: Metadata = {
     description: '13+ years securing enterprise networks.',
   },
   robots: { index: true, follow: true },
+
+  // Google Search Console — paste your content value here
+  // verification: { google: 'your-verification-string' },
 }
 
 const NAV = [
@@ -75,36 +76,30 @@ const NAV = [
 function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-ink-900/10 bg-paper/85 backdrop-blur-lg">
-      <div className="container-page flex h-[72px] items-center justify-between">
+      <div className="container-page flex h-[68px] items-center justify-between">
 
         <Link href="/" className="group flex items-center gap-2.5">
           <span className="block h-2.5 w-2.5 bg-signal-500 transition-transform duration-300 group-hover:rotate-45" />
           <span
-            className="text-sm font-extrabold uppercase tracking-[0.2em]"
+            className="text-sm font-bold uppercase tracking-[0.16em]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
             Bhawneet
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-9 md:flex">
+        <nav className="hidden items-center gap-8 md:flex">
           {NAV.map(item => (
             <Link key={item.href} href={item.href} className="nav-link text-ink-700 hover:text-ink-950">
               {item.label}
             </Link>
           ))}
-          <Link
-            href="/#contact"
-            className="nav-link bg-signal-500 px-4 py-2 text-paper hover:bg-ink-950"
-          >
+          <Link href="/#contact" className="nav-link bg-signal-500 px-4 py-2 text-paper hover:bg-ink-950">
             Contact
           </Link>
         </nav>
 
-        <Link
-          href="/#contact"
-          className="nav-link bg-signal-500 px-4 py-2 text-paper md:hidden"
-        >
+        <Link href="/#contact" className="nav-link bg-signal-500 px-4 py-2 text-paper md:hidden">
           Contact
         </Link>
 
@@ -121,11 +116,11 @@ function Footer() {
         <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="lg:col-span-2">
-            <p className="display-xl text-[clamp(2rem,6vw,4rem)] leading-[0.85]">
+            <p className="display-xl text-[clamp(1.75rem,4.5vw,3rem)] leading-[0.9]">
               Bhawneet
               <span className="block text-signal-500">Lamba</span>
             </p>
-            <p className="mt-5 max-w-sm text-sm leading-relaxed text-ink-400">
+            <p className="mt-5 max-w-sm text-base leading-relaxed text-ink-400">
               Infrastructure Security Consultant &amp; Network Expert.
               Whitefield, Bangalore, India.
             </p>
@@ -136,7 +131,7 @@ function Footer() {
             <ul className="mt-5 space-y-3">
               {NAV.map(item => (
                 <li key={item.href}>
-                  <Link href={item.href} className="text-sm text-ink-300 transition-colors hover:text-paper">
+                  <Link href={item.href} className="text-base text-ink-300 transition-colors hover:text-paper">
                     {item.label}
                   </Link>
                 </li>
@@ -148,24 +143,22 @@ function Footer() {
             <span className="label text-signal-500">Direct</span>
             <ul className="mt-5 space-y-3">
               <li>
-                <a
-                  href="mailto:bhawneetlamba@outlook.com"
-                  className="text-sm text-ink-300 transition-colors hover:text-paper"
-                >
+                <a href="mailto:bhawneetlamba@outlook.com"
+                   className="text-base text-ink-300 transition-colors hover:text-paper">
                   bhawneetlamba@outlook.com
                 </a>
               </li>
               <li>
-                <a href="tel:+918447732553" className="text-sm text-ink-300 transition-colors hover:text-paper">
+                <a href="tel:+918447732553"
+                   className="text-base text-ink-300 transition-colors hover:text-paper">
                   +91 8447732553
                 </a>
               </li>
               <li>
                 <a
                   href="https://www.linkedin.com/in/bhawneet-singh-lamba-92632064/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-ink-300 transition-colors hover:text-paper"
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-base text-ink-300 transition-colors hover:text-paper"
                 >
                   LinkedIn
                 </a>
@@ -176,7 +169,7 @@ function Footer() {
         </div>
 
         <div className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-ink-800 pt-7">
-          <span className="text-xs text-ink-500">
+          <span className="text-sm text-ink-500">
             © {new Date().getFullYear()} Bhawneet Singh Lamba
           </span>
           <span className="label text-ink-600">Built from scratch</span>
@@ -193,7 +186,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${anton.variable} ${syne.variable} ${grotesk.variable}`}
+      className={`${anton.variable} ${interTight.variable} ${literata.variable}`}
     >
       <body className="flex min-h-screen flex-col">
 

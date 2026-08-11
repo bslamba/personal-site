@@ -1,17 +1,7 @@
 'use client'
 
 // ============================================================
-// components/blog-search.tsx
-//
-// The search box and tag filters on the Journal index.
-//
-// All filtering happens in the browser against a small index
-// built at build time — no server call, no database, instant
-// results as you type. Fine up to a few hundred articles.
-//
-// The full article list is rendered as plain HTML on the server
-// first, so search engines and anyone without JavaScript still
-// see every article. This component only filters what's there.
+// components/blog-search.tsx — retuned typography
 // ============================================================
 
 import { useMemo, useState } from 'react'
@@ -35,19 +25,12 @@ export default function BlogSearch({
   const [activeTags, setActiveTags] = useState<string[]>([])
 
   const results = useMemo(() => {
-    // Split the query into words so "ise upgrade" matches an article
-    // containing both, in any order.
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
-
     return posts.filter(post => {
       const matchesTags =
-        activeTags.length === 0 ||
-        activeTags.every(t => post.tags.includes(t))
-
+        activeTags.length === 0 || activeTags.every(t => post.tags.includes(t))
       const matchesQuery =
-        terms.length === 0 ||
-        terms.every(term => post.searchText.includes(term))
-
+        terms.length === 0 || terms.every(term => post.searchText.includes(term))
       return matchesTags && matchesQuery
     })
   }, [posts, query, activeTags])
@@ -59,6 +42,7 @@ export default function BlogSearch({
   }
 
   const filtering = query.length > 0 || activeTags.length > 0
+  const headingFont = { fontFamily: 'var(--font-heading)' }
 
   return (
     <div>
@@ -74,6 +58,7 @@ export default function BlogSearch({
           onChange={e => setQuery(e.target.value)}
           placeholder="Search articles — try 'ISE upgrade' or 'RADIUS'"
           aria-label="Search articles"
+          style={headingFont}
           className="w-full border border-ink-200 bg-paper py-4 pl-12 pr-12 text-base outline-none transition-colors placeholder:text-ink-400 focus:border-signal-500"
         />
         {query && (
@@ -101,6 +86,7 @@ export default function BlogSearch({
                   type="button"
                   onClick={() => toggleTag(tag)}
                   aria-pressed={on}
+                  style={headingFont}
                   className={`border px-3.5 py-2 text-xs font-medium transition-colors ${
                     on
                       ? 'border-signal-500 bg-signal-500 text-paper'
@@ -138,48 +124,43 @@ export default function BlogSearch({
 
       {/* ---------------- RESULTS ---------------- */}
       {results.length > 0 ? (
-        <div className="mt-12 space-y-14">
+        <div className="mt-10 space-y-11">
           {results.map((post, i) => (
             <article
               key={post.slug}
-              className="group grid gap-6 border-b border-ink-200 pb-14 last:border-0 lg:grid-cols-[auto_1fr] lg:gap-14"
+              className="group grid gap-5 border-b border-ink-200 pb-11 last:border-0 lg:grid-cols-[auto_1fr] lg:gap-10"
             >
-              <div className="lg:w-28">
-                <span className="display-xl outline-type block text-5xl leading-none">
+              <div className="lg:w-20">
+                <span className="display-xl outline-type block text-3xl leading-none">
                   {String(i + 1).padStart(2, '0')}
                 </span>
               </div>
 
               <div className="min-w-0">
                 <Link href={`/blog/${post.slug}`}>
-                  <h2
-                    className="text-3xl text-ink-950 transition-colors group-hover:text-signal-500 sm:text-4xl"
-                    style={{
-                      fontFamily: 'var(--font-heading)',
-                      fontWeight: 800,
-                      letterSpacing: '-0.02em',
-                    }}
-                  >
+                  {/* Was text-3xl / sm:text-4xl in Syne 800 */}
+                  <h2 className="heading text-xl transition-colors group-hover:text-signal-500 sm:text-2xl">
                     {post.title}
                   </h2>
                 </Link>
 
-                <div className="label mt-3 text-ink-400">
+                <div className="label mt-2.5 text-ink-400">
                   <time dateTime={post.date}>{formatDate(post.date)}</time>
                   {' · '}{post.readingMinutes} min read
                 </div>
 
-                <p className="mt-5 max-w-2xl text-lg leading-relaxed text-ink-600">
+                <p className="measure mt-4 leading-relaxed text-ink-600">
                   {post.excerpt}
                 </p>
 
                 {post.tags.length > 0 && (
-                  <ul className="mt-5 flex flex-wrap gap-2">
+                  <ul className="mt-4 flex flex-wrap gap-2">
                     {post.tags.map(tag => (
                       <li key={tag}>
                         <button
                           type="button"
                           onClick={() => toggleTag(tag)}
+                          style={headingFont}
                           className="border border-ink-200 px-2.5 py-1 text-xs text-ink-500 transition-colors hover:border-signal-300 hover:text-signal-600"
                         >
                           {tag}
@@ -191,7 +172,7 @@ export default function BlogSearch({
 
                 <Link
                   href={`/blog/${post.slug}`}
-                  className="label mt-6 inline-flex items-center gap-2 text-signal-500 hover:text-ink-950"
+                  className="label mt-5 inline-flex items-center gap-2 text-signal-500 hover:text-ink-950"
                 >
                   Read article
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
