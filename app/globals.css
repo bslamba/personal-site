@@ -349,3 +349,179 @@ body.gate-locked { overflow: hidden; }
 .hljs-number, .hljs-built_in                     { color: #FAC775; }
 .hljs-title, .hljs-function, .hljs-name          { color: #85B7EB; }
 .hljs-meta, .hljs-symbol                         { color: #B5B5BC; }
+
+/* ============================================================
+   ARTICLE EXTRAS
+   Enhanced tables and version cards for technical articles.
+   ============================================================ */
+
+/* ---- Version release cards ---- */
+.ver-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--color-ink-200);
+  border: 1px solid var(--color-ink-200);
+  margin: 2.5rem 0;
+}
+
+@media (min-width: 640px) {
+  .ver-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .ver-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.ver-card {
+  background: var(--color-paper);
+  padding: 1.5rem 1.375rem;
+  transition: background 180ms ease;
+}
+.ver-card:hover { background: var(--color-signal-50); }
+
+.ver-card .ver-num {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  line-height: 1;
+  color: var(--color-signal-500);
+  letter-spacing: -0.02em;
+}
+
+.ver-card .ver-tag {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.625rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-ink-400);
+  margin-top: 0.625rem;
+}
+
+.ver-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+.ver-card li {
+  position: relative;
+  padding-left: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-ink-600);
+}
+.ver-card li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  background: var(--color-signal-500);
+}
+
+/* ---- Enhanced comparison table ---- */
+.fancy-table {
+  margin: 2.5rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-ink-200);
+}
+
+.fancy-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  min-width: 640px;
+}
+
+.fancy-table thead th {
+  background: var(--color-ink-950);
+  color: var(--color-paper);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.875rem 1rem;
+  border: none;
+  white-space: nowrap;
+}
+
+.fancy-table thead th:first-child {
+  background: var(--color-signal-500);
+}
+
+.fancy-table tbody td {
+  padding: 0.875rem 1rem;
+  border-top: 1px solid var(--color-ink-200);
+  vertical-align: top;
+  line-height: 1.55;
+}
+
+.fancy-table tbody tr:nth-child(even) {
+  background: var(--color-paper-dim);
+}
+
+.fancy-table tbody tr:hover {
+  background: var(--color-signal-50);
+}
+
+.fancy-table tbody td:first-child {
+  font-weight: 700;
+  color: var(--color-ink-950);
+  white-space: nowrap;
+}
+
+/* Status pills inside tables */
+.pill-good,
+.pill-warn,
+.pill-bad {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.625rem;
+  white-space: nowrap;
+}
+.pill-good { background: #E1F5EE; color: #085041; }
+.pill-warn { background: #FAEEDA; color: #633806; }
+.pill-bad  { background: var(--color-signal-50); color: var(--color-signal-700); }
+
+/* ---- Callout box ---- */
+.callout {
+  border-left: 3px solid var(--color-signal-500);
+  background: var(--color-paper-dim);
+  padding: 1.125rem 1.375rem;
+  margin: 2rem 0;
+}
+.callout p { margin: 0; }
+.callout p + p { margin-top: 0.75rem; }
+.callout strong { color: var(--color-signal-700); }
+
+/* ---- Numbered step list ---- */
+.steps {
+  counter-reset: step;
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0;
+}
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 3.25rem;
+  margin-top: 1.5rem;
+  min-height: 2rem;
+}
+.steps > li::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: -0.15em;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-signal-500);
+}
