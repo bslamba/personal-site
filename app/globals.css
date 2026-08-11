@@ -487,3 +487,188 @@ body.gate-locked { overflow: hidden; }
   .btn-signal:hover, .btn-ghost:hover { transform: none; }
   .ver-card { transition: none; }
 }
+
+/* ============================================================
+   ARTICLE LAYOUT V2
+   Sticky table of contents on the left, content centred in the
+   remaining space, wide elements allowed to break the measure.
+   ============================================================ */
+
+/* ---- Reading column: centred, comfortable measure ---- */
+.article-body {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+/* Wide content breaks out of the text measure */
+.article-body pre,
+.article-body table,
+.article-body .fancy-table,
+.article-body .ver-grid,
+.article-body .callout,
+.article-body img { max-width: none; }
+
+/* ---- FIX: .steps was inheriting decimal markers ---- */
+.article-body ol.steps {
+  list-style: none;
+  padding-left: 0;
+}
+.article-body ol.steps > li {
+  padding-left: 3rem;
+  margin-top: 1.375rem;
+}
+.article-body ol.steps > li::marker { content: none; }
+
+/* ---- FIX: version-card lists were inheriting disc markers ---- */
+.article-body .ver-card ul {
+  list-style: none;
+  padding-left: 0;
+}
+.article-body .ver-card li {
+  padding-left: 1rem;
+  margin-top: 0.5rem;
+}
+.article-body .ver-card li::marker { content: none; }
+
+/* ============================================================
+   TABLE OF CONTENTS
+   ============================================================ */
+
+.toc-desktop { display: none; }
+
+@media (min-width: 1024px) {
+  .toc-desktop { display: block; }
+  .toc-mobile  { display: none; }
+}
+
+.toc-inner {
+  position: sticky;
+  top: 6.5rem;
+  max-height: calc(100vh - 9rem);
+  display: flex;
+  flex-direction: column;
+  padding-left: 1.125rem;
+}
+
+.toc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.875rem;
+  margin-left: -1.125rem;
+  padding-left: 1.125rem;
+}
+
+.toc-pct {
+  font-family: var(--font-heading);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-300);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress rail down the left edge */
+.toc-rail {
+  position: absolute;
+  left: 0;
+  top: 2.25rem;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-ink-200);
+}
+.toc-rail-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--color-signal-500);
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 120ms linear;
+}
+
+.toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.5rem 1rem 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.toc-list::-webkit-scrollbar { width: 4px; }
+.toc-list::-webkit-scrollbar-track { background: transparent; }
+.toc-list::-webkit-scrollbar-thumb {
+  background: var(--color-ink-200);
+  border: none;
+  border-radius: 99px;
+}
+
+.toc-list li { margin: 0; }
+.toc-sub { padding-left: 0.875rem; }
+
+.toc-link {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  color: var(--color-ink-500);
+  padding: 0.375rem 0;
+  text-decoration: none;
+  transform-origin: left center;
+  transition: color 160ms ease,
+              font-size 160ms ease,
+              font-weight 160ms ease,
+              transform 160ms ease;
+}
+.toc-sub .toc-link {
+  font-size: 0.6875rem;
+  color: var(--color-ink-400);
+}
+
+.toc-link:hover { color: var(--color-ink-900); }
+
+/* The section you're currently reading */
+.toc-link.is-active,
+.toc-sub .toc-link.is-active {
+  color: var(--color-signal-500);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  transform: translateX(2px);
+}
+
+/* ---- Mobile collapsible ---- */
+.toc-mobile {
+  border: 1px solid var(--color-ink-200);
+  background: var(--color-paper-dim);
+  padding: 1rem 1.125rem;
+  margin-bottom: 2.5rem;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+.toc-mobile summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+.toc-mobile summary::-webkit-details-marker { display: none; }
+.toc-mobile .toc-count {
+  font-family: var(--font-heading);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-ink-400);
+}
+.toc-mobile .toc-list {
+  max-height: 55vh;
+  padding-right: 0;
+}
+.toc-mobile .toc-link { font-size: 0.8125rem; }
+.toc-mobile .toc-link.is-active { font-size: 0.875rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-link { transition: color 160ms ease; }
+  .toc-link.is-active { transform: none; }
+  .toc-rail-fill { transition: none; }
+}

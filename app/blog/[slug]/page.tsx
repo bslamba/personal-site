@@ -1,7 +1,8 @@
 // ============================================================
 // app/blog/[slug]/page.tsx
-// Retuned typography — the headline is now a readable size and
-// the body sits at a proper measure.
+//
+// Layout: sticky table of contents on the left, article centred
+// in the remaining space. Full page width is used.
 // ============================================================
 
 import type { Metadata } from 'next'
@@ -9,6 +10,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, ArrowUpRight, Clock, Calendar } from 'lucide-react'
 import { getPost, getPostSlugs, getRelatedPosts } from '@/lib/blog'
+import ArticleToc from '@/components/article-toc'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
@@ -110,10 +112,10 @@ export default async function ArticlePage({
         }}
       />
 
-      {/* ---------------- HEADER ---------------- */}
-      <header className="border-b border-ink-900/10 bg-paper-dim py-16 sm:py-20">
+      {/* ================= HEADER ================= */}
+      <header className="border-b border-ink-900/10 bg-paper-dim py-14 sm:py-16">
         <div className="container-page">
-          <div className="measure-wide">
+          <div className="mx-auto max-w-[52rem]">
 
             <nav aria-label="Breadcrumb">
               <Link
@@ -124,13 +126,12 @@ export default async function ArticlePage({
               </Link>
             </nav>
 
-            {/* Readable headline. Was clamp(2rem, 5.5vw, 4rem). */}
             <h1 className="heading mt-7 text-[clamp(1.75rem,3.4vw,2.625rem)]">
               {post.title}
             </h1>
 
             {post.excerpt && (
-              <p className="measure mt-5 text-lg leading-relaxed text-ink-600">
+              <p className="mt-5 max-w-[46rem] text-lg leading-relaxed text-ink-600">
                 {post.excerpt}
               </p>
             )}
@@ -166,82 +167,70 @@ export default async function ArticlePage({
         </div>
       </header>
 
-      {/* ---------------- BODY ---------------- */}
-      <div className="container-page py-14 sm:py-16">
+      {/* ================= BODY ================= */}
+      <div className="container-page py-12 sm:py-14">
+        <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-14 xl:gap-20">
 
-        {post.headings.length >= 3 && (
-          <nav aria-label="On this page" className="measure mb-12 border-l-2 border-signal-500 pl-6">
-            <span className="label text-signal-500">On this page</span>
-            <ul className="mt-4 space-y-2.5">
-              {post.headings.map(h => (
-                <li key={h.id} className={h.level === 3 ? 'pl-5' : ''}>
-                  <a
-                    href={`#${h.id}`}
-                    className="text-base text-ink-600 transition-colors hover:text-signal-500"
-                    style={{ fontFamily: 'var(--font-heading)' }}
-                  >
-                    {h.text}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
+          {/* ---- Sticky contents rail ---- */}
+          <ArticleToc headings={post.headings} />
 
-        <article
-          className="article-body"
-          dangerouslySetInnerHTML={{ __html: post.html }}
-        />
+          {/* ---- Article ---- */}
+          <div className="min-w-0">
+            <article
+              className="article-body"
+              dangerouslySetInnerHTML={{ __html: post.html }}
+            />
 
-        {/* ---------------- AUTHOR ---------------- */}
-        <aside className="measure mt-16 border-t border-ink-200 pt-9">
-          <span className="label text-signal-500">Written by</span>
-          <p
-            className="heading mt-3 text-xl"
-            style={{ fontFamily: 'var(--font-heading)' }}
-          >
-            Bhawneet Singh Lamba
-          </p>
-          <p className="mt-3 leading-relaxed text-ink-600">
-            Infrastructure Security Consultant with 13+ years in network access
-            control, AAA protocols and enterprise network architecture. Cisco ISE,
-            Aruba ClearPass, and the incidents that happen at 2am.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-4">
-            <Link href="/#contact" className="label text-signal-500 hover:text-ink-950">
-              Get in touch →
-            </Link>
-            <a
-              href="https://www.linkedin.com/in/bhawneet-singh-lamba-92632064/"
-              target="_blank" rel="noopener noreferrer"
-              className="label text-signal-500 hover:text-ink-950"
-            >
-              LinkedIn →
-            </a>
+            {/* ---- Author ---- */}
+            <aside className="mx-auto mt-16 max-w-[46rem] border-t border-ink-200 pt-9">
+              <span className="label text-signal-500">Written by</span>
+              <p className="heading mt-3 text-xl">Bhawneet Singh Lamba</p>
+              <p className="mt-3 leading-relaxed text-ink-600">
+                Infrastructure Security Consultant with 13+ years in network access
+                control, AAA protocols and enterprise network architecture. Cisco ISE,
+                Aruba ClearPass, and the incidents that happen at 2am.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-4">
+                <Link href="/#contact" className="label text-signal-500 hover:text-ink-950">
+                  Get in touch →
+                </Link>
+                <a
+                  href="https://www.linkedin.com/in/bhawneet-singh-lamba-92632064/"
+                  target="_blank" rel="noopener noreferrer"
+                  className="label text-signal-500 hover:text-ink-950"
+                >
+                  LinkedIn →
+                </a>
+              </div>
+            </aside>
+
+            {/* ---- Related ---- */}
+            {related.length > 0 && (
+              <aside className="mx-auto mt-14 max-w-[46rem] border-t border-ink-200 pt-9">
+                <span className="label text-signal-500">Related reading</span>
+                <ul className="mt-6 grid gap-5 sm:grid-cols-2">
+                  {related.map(r => (
+                    <li key={r.slug}>
+                      <Link href={`/blog/${r.slug}`} className="group block">
+                        <span className="heading text-base transition-colors group-hover:text-signal-500">
+                          {r.title}
+                        </span>
+                        <ArrowUpRight
+                          className="ml-1 inline h-3.5 w-3.5 text-signal-500"
+                          aria-hidden="true"
+                        />
+                        <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-ink-500">
+                          {r.excerpt}
+                        </p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            )}
           </div>
-        </aside>
 
-        {/* ---------------- RELATED ---------------- */}
-        {related.length > 0 && (
-          <aside className="measure mt-14 border-t border-ink-200 pt-9">
-            <span className="label text-signal-500">Related reading</span>
-            <ul className="mt-6 space-y-5">
-              {related.map(r => (
-                <li key={r.slug}>
-                  <Link href={`/blog/${r.slug}`} className="group block">
-                    <span className="heading text-lg transition-colors group-hover:text-signal-500">
-                      {r.title}
-                    </span>
-                    <ArrowUpRight className="ml-1.5 inline h-4 w-4 text-signal-500" aria-hidden="true" />
-                    <p className="mt-1.5 text-base leading-relaxed text-ink-500">
-                      {r.excerpt}
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        )}
+        </div>
       </div>
     </>
   )

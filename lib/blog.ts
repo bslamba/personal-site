@@ -1,12 +1,8 @@
 // ============================================================
 // lib/blog.ts
 //
-// Reads your markdown articles from content/blog/ and turns them
-// into data the site can use.
-//
-// This runs at BUILD TIME, not when a visitor arrives. By the time
-// someone opens your site every article is already plain HTML,
-// which is why this approach is fast and why Google likes it.
+// Reads markdown articles from content/blog/ at BUILD TIME and
+// turns them into data the site can use.
 // ============================================================
 
 import fs from 'node:fs'
@@ -18,21 +14,18 @@ import hljs from 'highlight.js'
 
 const BLOG_DIR = path.join(process.cwd(), 'content', 'blog')
 
-// ------------------------------------------------------------
-// What every article looks like once parsed
-// ------------------------------------------------------------
 export interface Post {
   slug: string
   title: string
   excerpt: string
-  date: string           // ISO, e.g. "2026-08-14"
+  date: string
   updated?: string
   tags: string[]
   cover?: string
   coverAlt?: string
   draft: boolean
-  html: string           // the article body, rendered
-  plain: string          // body as plain text, used for search
+  html: string
+  plain: string
   readingMinutes: number
   headings: { id: string; text: string; level: number }[]
 }
@@ -45,12 +38,9 @@ export interface PostSummary {
   tags: string[]
   cover?: string
   readingMinutes: number
-  searchText: string     // everything searchable, lowercased
+  searchText: string
 }
 
-// ------------------------------------------------------------
-// Markdown renderer, configured once
-// ------------------------------------------------------------
 const marked = new Marked(
   markedHighlight({
     emptyLangClass: 'hljs',
@@ -60,20 +50,15 @@ const marked = new Marked(
       return hljs.highlight(code, { language }).value
     },
   }),
-  {
-    gfm: true,       // tables, strikethrough, task lists
-    breaks: false,
-  }
+  { gfm: true, breaks: false }
 )
 
-// YAML turns an unquoted 2026-08-14 into a JavaScript Date object,
-// but a quoted "2026-08-14" stays a string. Handle both, and always
-// return a clean YYYY-MM-DD.
+// YAML turns an unquoted 2026-08-14 into a Date object, but a
+// quoted "2026-08-14" stays a string. Handle both.
 function toISODate(value: unknown): string | undefined {
   if (!value) return undefined
 
   if (value instanceof Date) {
-    // Use UTC parts so a timezone offset can't shift the day
     const y = value.getUTCFullYear()
     const m = String(value.getUTCMonth() + 1).padStart(2, '0')
     const d = String(value.getUTCDate()).padStart(2, '0')
@@ -85,8 +70,19 @@ function toISODate(value: unknown): string | undefined {
   return match ? match[0] : undefined
 }
 
-// Turn "Configuring the Policy Set" into "configuring-the-policy-set"
-// so headings can be linked to directly.
+// Marked escapes quotes and ampersands in heading text. The table
+// of contents shows that text as-is, so decode it back.
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')   // last, so we don't double-decode
+}
+
 function slugifyHeading(text: string): string {
   return text
     .toLowerCase()
@@ -95,23 +91,19 @@ function slugifyHeading(text: string): string {
     .replace(/\s+/g, '-')
 }
 
-// ------------------------------------------------------------
-// Read one file
-// ------------------------------------------------------------
 function parseFile(filename: string): Post {
   const slug = filename.replace(/\.md$/, '')
   const raw = fs.readFileSync(path.join(BLOG_DIR, filename), 'utf8')
   const { data, content } = matter(raw)
 
-  // Collect headings for the table of contents, and give each an id
   const headings: Post['headings'] = []
   const renderer = new marked.Renderer()
   renderer.heading = function ({ tokens, depth }: any) {
-    const text = this.parser.parseInline(tokens)
-    const plain = text.replace(/<[^>]+>/g, '')
+    const html = this.parser.parseInline(tokens)
+    const plain = decodeEntities(html.replace(/<[^>]+>/g, ''))
     const id = slugifyHeading(plain)
     if (depth === 2 || depth === 3) headings.push({ id, text: plain, level: depth })
-    return `<h${depth} id="${id}">${text}</h${depth}>\n`
+    return `<h${depth} id="${id}">${html}</h${depth}>\n`
   }
 
   const html = marked.parse(content, { renderer }) as string
@@ -135,10 +127,6 @@ function parseFile(filename: string): Post {
   }
 }
 
-// ------------------------------------------------------------
-// Public API
-// ------------------------------------------------------------
-
 /** Every published article, newest first. Drafts excluded. */
 export function getAllPosts(): Post[] {
   if (!fs.existsSync(BLOG_DIR)) return []
@@ -151,7 +139,7 @@ export function getAllPosts(): Post[] {
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
-/** One article by its slug, or null. */
+/** One article by slug, or null. */
 export function getPost(slug: string): Post | null {
   const file = path.join(BLOG_DIR, `${slug}.md`)
   if (!fs.existsSync(file)) return null
@@ -159,10 +147,7 @@ export function getPost(slug: string): Post | null {
   return post.draft ? null : post
 }
 
-/**
- * Lightweight version for the index page. Strips the rendered HTML
- * so the search payload sent to the browser stays small.
- */
+/** Lightweight version for the index, with a search field. */
 export function getPostSummaries(): PostSummary[] {
   return getAllPosts().map(p => ({
     slug: p.slug,
@@ -172,30 +157,23 @@ export function getPostSummaries(): PostSummary[] {
     tags: p.tags,
     cover: p.cover,
     readingMinutes: p.readingMinutes,
-    searchText: [p.title, p.excerpt, p.tags.join(' '), p.plain]
-      .join(' ')
-      .toLowerCase(),
+    searchText: [p.title, p.excerpt, p.tags.join(' '), p.plain].join(' ').toLowerCase(),
   }))
 }
 
-/** Every tag in use, with how many articles carry it. */
+/** Every tag in use, with counts. */
 export function getAllTags(): { tag: string; count: number }[] {
   const counts = new Map<string, number>()
   for (const post of getAllPosts()) {
-    for (const tag of post.tags) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1)
-    }
+    for (const tag of post.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
   }
   return [...counts.entries()]
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 }
 
-/**
- * Articles related to this one, by shared tags. Used for internal
- * linking, which genuinely helps both readers and search ranking.
- */
-export function getRelatedPosts(slug: string, limit = 3): PostSummary[] {
+/** Articles sharing tags with this one. Used for internal linking. */
+export function getRelatedPosts(slug: string, limit = 4): PostSummary[] {
   const current = getPost(slug)
   if (!current) return []
 
@@ -211,7 +189,6 @@ export function getRelatedPosts(slug: string, limit = 3): PostSummary[] {
     .map(x => x.post)
 }
 
-/** Newest and oldest article dates, for the sitemap. */
 export function getPostSlugs(): string[] {
   return getAllPosts().map(p => p.slug)
 }
