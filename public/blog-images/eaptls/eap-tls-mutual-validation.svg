@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 430" width="100%" role="img" aria-label="Mutual certificate validation in EAP-TLS">
+<rect width="880" height="430" fill="#FAF8F5"/>
+<rect x="24" y="24" width="400" height="360" fill="#FAF8F5" stroke="#D9D9DE"/>
+<rect x="24" y="24" width="400" height="6" fill="#D3002D"/>
+<text x="46" y="60" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0C0C0E">Supplicant validates the server</text>
+<text x="46" y="80" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">The client must trust ISE before sending anything</text>
+<rect x="46" y="101" width="6" height="6" fill="#D3002D"/>
+<text x="62" y="107" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is the issuing CA in my trust store?</text>
+<rect x="46" y="135" width="6" height="6" fill="#D3002D"/>
+<text x="62" y="141" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is the certificate within its validity dates?</text>
+<rect x="46" y="169" width="6" height="6" fill="#D3002D"/>
+<text x="62" y="175" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Does the name match what I expect?</text>
+<rect x="46" y="203" width="6" height="6" fill="#D3002D"/>
+<text x="62" y="209" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is Server Authentication in the EKU?</text>
+<rect x="46" y="237" width="6" height="6" fill="#D3002D"/>
+<text x="62" y="243" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Has it been revoked (CRL or OCSP)?</text>
+<rect x="46" y="271" width="6" height="6" fill="#D3002D"/>
+<text x="62" y="277" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is the full chain present?</text>
+<rect x="456" y="24" width="400" height="360" fill="#FAF8F5" stroke="#D9D9DE"/>
+<rect x="456" y="24" width="400" height="6" fill="#D3002D"/>
+<text x="478" y="60" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0C0C0E">Server validates the supplicant</text>
+<text x="478" y="80" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="11" fill="#5C5C64">ISE decides whether this endpoint is who it claims</text>
+<rect x="478" y="101" width="6" height="6" fill="#D3002D"/>
+<text x="494" y="107" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is the issuing CA trusted for client auth?</text>
+<rect x="478" y="135" width="6" height="6" fill="#D3002D"/>
+<text x="494" y="141" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is the certificate within its validity dates?</text>
+<rect x="478" y="169" width="6" height="6" fill="#D3002D"/>
+<text x="494" y="175" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Is Client Authentication in the EKU?</text>
+<rect x="478" y="203" width="6" height="6" fill="#D3002D"/>
+<text x="494" y="209" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Has it been revoked?</text>
+<rect x="478" y="237" width="6" height="6" fill="#D3002D"/>
+<text x="494" y="243" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Does the subject or SAN map to an identity?</text>
+<rect x="478" y="271" width="6" height="6" fill="#D3002D"/>
+<text x="494" y="277" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#5C5C64">Binary comparison against AD, if configured?</text>
+<text x="24" y="414" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" fill="#5C5C64">Both directions must succeed. A missing intermediate CA on either side fails in a way that looks identical to an expired certificate.</text>
+</svg>

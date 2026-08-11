@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 956" width="100%" role="img" aria-label="EAP-TLS full message exchange between supplicant, authenticator and authentication server">
+<rect width="900" height="956" fill="#FAF8F5"/>
+<rect x="8" y="92" width="884" height="188" fill="#FFF1F3" opacity="0.6"/>
+<text x="16" y="106" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9.5" font-weight="700" fill="#D3002D" letter-spacing="1.3">IDENTITY EXCHANGE</text>
+<rect x="8" y="284" width="884" height="140" fill="#F1EEE9" opacity="0.6"/>
+<text x="16" y="298" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9.5" font-weight="700" fill="#D3002D" letter-spacing="1.3">TLS — SERVER AUTHENTICATION</text>
+<rect x="8" y="428" width="884" height="140" fill="#FFF1F3" opacity="0.6"/>
+<text x="16" y="442" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9.5" font-weight="700" fill="#D3002D" letter-spacing="1.3">TLS — CLIENT AUTHENTICATION</text>
+<rect x="8" y="572" width="884" height="92" fill="#F1EEE9" opacity="0.6"/>
+<text x="16" y="586" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9.5" font-weight="700" fill="#D3002D" letter-spacing="1.3">RESULT</text>
+<rect x="8" y="668" width="884" height="188" fill="#FFF1F3" opacity="0.6"/>
+<text x="16" y="682" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9.5" font-weight="700" fill="#D3002D" letter-spacing="1.3">KEY DERIVATION (802.11 ONLY)</text>
+<rect x="35" y="18" width="230" height="46" fill="#0C0C0E"/>
+<text x="150" y="38" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#FAF8F5" text-anchor="middle">Supplicant</text>
+<text x="150" y="55" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#B5B5BC" text-anchor="middle">Client device</text>
+<line x1="150" y1="64" x2="150" y2="916" stroke="#D9D9DE" stroke-width="2"/>
+<rect x="335" y="18" width="230" height="46" fill="#0C0C0E"/>
+<text x="450" y="38" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#FAF8F5" text-anchor="middle">Authenticator</text>
+<text x="450" y="55" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#B5B5BC" text-anchor="middle">Switch / WLC</text>
+<line x1="450" y1="64" x2="450" y2="916" stroke="#D9D9DE" stroke-width="2"/>
+<rect x="645" y="18" width="230" height="46" fill="#0C0C0E"/>
+<text x="760" y="38" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#FAF8F5" text-anchor="middle">Authentication Server</text>
+<text x="760" y="55" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#B5B5BC" text-anchor="middle">ISE / RADIUS</text>
+<line x1="760" y1="64" x2="760" y2="916" stroke="#D9D9DE" stroke-width="2"/>
+<text x="300.0" y="82" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#5C5C64" text-anchor="middle" letter-spacing="1.2">EAPOL</text>
+<text x="605.0" y="82" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#5C5C64" text-anchor="middle" letter-spacing="1.2">RADIUS</text>
+<line x1="150" y1="118" x2="450" y2="118" stroke="#0C0C0E" stroke-width="1.6" stroke-dasharray="5 4"/>
+<path d="M 450 118 L 442 113.5 L 442 122.5 Z" fill="#0C0C0E"/>
+<circle cx="150" cy="118" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="109" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">EAPOL-Start</text>
+<text x="300.0" y="131" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">optional</text>
+<line x1="450" y1="166" x2="150" y2="166" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 150 166 L 158 161.5 L 158 170.5 Z" fill="#0C0C0E"/>
+<circle cx="450" cy="166" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="157" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">EAP-Request / Identity</text>
+<line x1="150" y1="214" x2="450" y2="214" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 450 214 L 442 209.5 L 442 218.5 Z" fill="#0C0C0E"/>
+<circle cx="150" cy="214" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="205" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">EAP-Response / Identity</text>
+<text x="300.0" y="227" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">outer identity — cleartext</text>
+<line x1="450" y1="262" x2="760" y2="262" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 760 262 L 752 257.5 L 752 266.5 Z" fill="#0C0C0E"/>
+<circle cx="450" cy="262" r="3" fill="#0C0C0E"/>
+<text x="605.0" y="253" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">RADIUS Access-Request</text>
+<text x="605.0" y="275" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">EAP payload encapsulated</text>
+<line x1="760" y1="310" x2="150" y2="310" stroke="#D3002D" stroke-width="1.6"/>
+<path d="M 150 310 L 158 305.5 L 158 314.5 Z" fill="#D3002D"/>
+<circle cx="760" cy="310" r="3" fill="#D3002D"/>
+<text x="455.0" y="301" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">EAP-Request / TLS Start</text>
+<text x="455.0" y="323" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">Type 13 (TLS), Code 1 (Request)</text>
+<line x1="150" y1="358" x2="760" y2="358" stroke="#D3002D" stroke-width="1.6"/>
+<path d="M 760 358 L 752 353.5 L 752 362.5 Z" fill="#D3002D"/>
+<circle cx="150" cy="358" r="3" fill="#D3002D"/>
+<text x="455.0" y="349" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">TLS Client Hello</text>
+<text x="455.0" y="371" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">versions, cipher suites, client random</text>
+<line x1="760" y1="406" x2="150" y2="406" stroke="#D3002D" stroke-width="1.6"/>
+<path d="M 150 406 L 158 401.5 L 158 410.5 Z" fill="#D3002D"/>
+<circle cx="760" cy="406" r="3" fill="#D3002D"/>
+<text x="455.0" y="397" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">Server Hello · Certificate · Cert Request · Server Hello Done</text>
+<text x="455.0" y="419" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">FRAGMENTED — several EAP rounds</text>
+<line x1="150" y1="454" x2="760" y2="454" stroke="#D3002D" stroke-width="1.6"/>
+<path d="M 760 454 L 752 449.5 L 752 458.5 Z" fill="#D3002D"/>
+<circle cx="150" cy="454" r="3" fill="#D3002D"/>
+<text x="455.0" y="445" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">Client Certificate · Client Key Exchange · Certificate Verify · Change Cipher Spec · Finished</text>
+<text x="455.0" y="467" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">FRAGMENTED — several EAP rounds</text>
+<line x1="760" y1="502" x2="150" y2="502" stroke="#D3002D" stroke-width="1.6"/>
+<path d="M 150 502 L 158 497.5 L 158 506.5 Z" fill="#D3002D"/>
+<circle cx="760" cy="502" r="3" fill="#D3002D"/>
+<text x="455.0" y="493" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">Change Cipher Spec · Finished</text>
+<text x="455.0" y="515" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">server confirms the negotiated keys</text>
+<line x1="150" y1="550" x2="760" y2="550" stroke="#D3002D" stroke-width="1.6"/>
+<path d="M 760 550 L 752 545.5 L 752 554.5 Z" fill="#D3002D"/>
+<circle cx="150" cy="550" r="3" fill="#D3002D"/>
+<text x="455.0" y="541" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">EAP-Response (empty)</text>
+<text x="455.0" y="563" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">acknowledgement — handshake complete</text>
+<line x1="760" y1="598" x2="450" y2="598" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 450 598 L 458 593.5 L 458 602.5 Z" fill="#0C0C0E"/>
+<circle cx="760" cy="598" r="3" fill="#0C0C0E"/>
+<text x="605.0" y="589" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">RADIUS Access-Accept</text>
+<text x="605.0" y="611" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">carries the MSK in MPPE key attributes</text>
+<line x1="450" y1="646" x2="150" y2="646" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 150 646 L 158 641.5 L 158 650.5 Z" fill="#0C0C0E"/>
+<circle cx="450" cy="646" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="637" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">EAP-Success</text>
+<text x="300.0" y="659" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">Code 3</text>
+<line x1="450" y1="694" x2="150" y2="694" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 150 694 L 158 689.5 L 158 698.5 Z" fill="#0C0C0E"/>
+<circle cx="450" cy="694" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="685" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">4-Way Handshake M1 — ANonce</text>
+<line x1="150" y1="742" x2="450" y2="742" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 450 742 L 442 737.5 L 442 746.5 Z" fill="#0C0C0E"/>
+<circle cx="150" cy="742" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="733" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">4-Way Handshake M2 — SNonce + MIC</text>
+<line x1="450" y1="790" x2="150" y2="790" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 150 790 L 158 785.5 L 158 794.5 Z" fill="#0C0C0E"/>
+<circle cx="450" cy="790" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="781" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">4-Way Handshake M3 — GTK + MIC</text>
+<line x1="150" y1="838" x2="450" y2="838" stroke="#0C0C0E" stroke-width="1.6"/>
+<path d="M 450 838 L 442 833.5 L 442 842.5 Z" fill="#0C0C0E"/>
+<circle cx="150" cy="838" r="3" fill="#0C0C0E"/>
+<text x="300.0" y="829" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="600" fill="#0C0C0E" text-anchor="middle">4-Way Handshake M4 — ACK</text>
+<text x="300.0" y="851" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="9" fill="#5C5C64" text-anchor="middle">port authorised, data flows</text>
+<text x="16" y="942" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="10" fill="#5C5C64">No inner tunnel: unlike PEAP or EAP-TTLS, EAP-TLS authenticates with certificates alone — there is no second credential exchanged inside.</text>
+</svg>
