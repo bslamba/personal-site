@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
 import {
   StoreBuilder, analyse, looksLikeRadius, detectColumns,
-  DIMENSION_LABELS, toCsv,
+  DIMENSION_LABELS, toCsv, BUCKET_STEPS,
   type Store, type Analysis, type Bucket, type Filter,
   type Dimension, type Finding,
 } from '@/lib/tools/radius'
@@ -43,8 +43,20 @@ function duration(msTotal: number): string {
   const m = Math.round(s / 60)
   if (m < 60) return `${m} min`
   const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}m`
+  if (h < 48) return `${h}h ${m % 60}m`
+  return `${Math.floor(h / 24)}d ${h % 24}h`
 }
+
+/** Short label for a bucket size, for the granularity control. */
+function bucketLabel(msValue: number): string {
+  if (msValue < 60_000) return `${msValue / 1000}s`
+  if (msValue < 3_600_000) return `${msValue / 60_000}m`
+  if (msValue < 86_400_000) return `${msValue / 3_600_000}h`
+  return `${msValue / 86_400_000}d`
+}
+
+const bytes = (v: number) =>
+  v > 1024 * 1024 ? `${(v / 1024 / 1024).toFixed(1)} MB` : `${Math.round(v / 1024)} KB`
 
 function clock(t: number): string {
   const d = new Date(t)
@@ -373,7 +385,11 @@ function Kpi({ label, value, sub, tone = 'ink' }: {
   )
 }
 
-function Timeline({ analysis }: { analysis: Analysis }) {
+function Timeline({ analysis, bucketChoice, onBucketChange }: {
+  analysis: Analysis
+  bucketChoice: number
+  onBucketChange: (v: number) => void
+}) {
   const data = analysis.timeline
   if (data.length < 2) return null
 
@@ -396,15 +412,39 @@ function Timeline({ analysis }: { analysis: Analysis }) {
 
   return (
     <section className="border border-ink-200 bg-paper">
-      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2.5">
-        <h3 className="text-[13px] font-bold text-ink-950"
-            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
-          Authentications over time
-        </h3>
-        <p className="text-[10.5px] text-ink-400">
-          One bar per {duration(analysis.bucketMs)} · grey bar = total · red bar = failed ·
-          red line = failure rate · peak {n(analysis.peakPerMinute)}/min
-        </p>
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 px-3 py-2">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className="text-[13px] font-bold text-ink-950"
+              style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+            Authentications over time
+          </h3>
+          <p className="text-[10.5px] text-ink-400">
+            {n(data.length)} bars of {bucketLabel(analysis.bucketMs)} · grey = total ·
+            red = failed · line = failure rate · peak {n(analysis.peakPerMinute)}/min
+          </p>
+        </div>
+
+        <label className="flex shrink-0 items-center gap-1.5">
+          <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">
+            Granularity
+          </span>
+          <select
+            value={bucketChoice}
+            onChange={e => onBucketChange(Number(e.target.value))}
+            className="border border-ink-200 bg-paper px-2 py-1 text-[11px] text-ink-800 outline-none focus:border-signal-500"
+          >
+            <option value={0}>Auto</option>
+            {BUCKET_STEPS
+              // only offer sizes that produce a sensible number of bars
+              .filter(s => {
+                const count = analysis.windowMs / s
+                return count >= 4 && count <= 1400
+              })
+              .map(s => (
+                <option key={s} value={s}>{bucketLabel(s)}</option>
+              ))}
+          </select>
+        </label>
       </header>
       <div className="p-2">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
@@ -469,12 +509,15 @@ function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: 
 type Phase = 'idle' | 'reading' | 'ready' | 'error'
 
 export default function RadiusAnalyser() {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState(0)
   const [rowsSeen, setRowsSeen] = useState(0)
+  const [nowReading, setNowReading] = useState('')
   const [error, setError] = useState('')
+  const [warnings, setWarnings] = useState<string[]>([])
   const [filters, setFilters] = useState<Filter[]>([])
+  const [bucketChoice, setBucketChoice] = useState(0)   // 0 = automatic
   const [detail, setDetail] = useState<PanelData | null>(null)
   const [, forceRender] = useState(0)
 
@@ -483,23 +526,40 @@ export default function RadiusAnalyser() {
 
   const analysis: Analysis | null = useMemo(() => {
     if (!storeRef.current) return null
-    return analyse(storeRef.current, filters)
+    return analyse(storeRef.current, filters, { bucketMs: bucketChoice || undefined })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, phase])
+  }, [filters, phase, bucketChoice])
 
-  const pick = (f: File | null) => {
-    setFile(f); setPhase('idle'); setError(''); setFilters([]); storeRef.current = null
+  const reset = () => {
+    setPhase('idle'); setError(''); setWarnings([]); setFilters([])
+    setBucketChoice(0); storeRef.current = null
   }
 
-  const run = useCallback(() => {
-    if (!file) return
-    setPhase('reading'); setProgress(0); setRowsSeen(0); setError('')
-    setFilters([]); storeRef.current = null
+  /** Files accumulate rather than replace, so you can add in batches. */
+  const addFiles = (incoming: FileList | File[] | null) => {
+    if (!incoming) return
+    const list = Array.from(incoming).filter(f => /\.(csv|txt|tsv)$/i.test(f.name) || f.type.includes('csv'))
+    if (list.length === 0) return
+    setFiles(prev => {
+      const seen = new Set(prev.map(f => f.name + f.size))
+      return [...prev, ...list.filter(f => !seen.has(f.name + f.size))]
+    })
+    reset()
+  }
 
-    let builder: StoreBuilder | null = null
+  const removeFile = (name: string, size: number) => {
+    setFiles(prev => prev.filter(f => !(f.name === name && f.size === size)))
+    reset()
+  }
+
+  /** Parse one file into the shared builder. Resolves with a warning string if skipped. */
+  const parseOne = (
+    f: File, builder: StoreBuilder, doneBytes: number, totalBytes: number,
+  ) => new Promise<string | null>((resolve, reject) => {
     let headerChecked = false
+    let skipped = false
 
-    Papa.parse<Record<string, string>>(file, {
+    Papa.parse<Record<string, string>>(f, {
       header: true,
       skipEmptyLines: 'greedy',
       worker: true,
@@ -510,33 +570,73 @@ export default function RadiusAnalyser() {
           headerChecked = true
           const headers = results.meta.fields ?? []
           if (!looksLikeRadius(detectColumns(headers))) {
+            skipped = true
             parser.abort()
-            setPhase('error')
-            setError(
-              'This does not look like a RADIUS Authentications export. Columns found: ' +
-              headers.slice(0, 14).join(', ') +
-              (headers.length > 14 ? ` … and ${headers.length - 14} more.` : '')
-            )
             return
           }
-          builder = new StoreBuilder(headers)
+          builder.setSource(headers, f.name)
         }
-        if (!builder) return
+        if (skipped) return
         for (const rec of results.data) builder.push(rec)
         setRowsSeen(builder.count)
         const cursor = (results.meta as { cursor?: number }).cursor ?? 0
-        if (file.size) setProgress(Math.min(99, (cursor / file.size) * 100))
+        if (totalBytes) setProgress(Math.min(99, ((doneBytes + cursor) / totalBytes) * 100))
       },
 
-      complete: () => {
-        if (!builder) return
-        storeRef.current = builder.finish()
-        setProgress(100); setPhase('ready'); forceRender(v => v + 1)
-      },
+      complete: () => resolve(
+        skipped ? `${f.name} — skipped, not a RADIUS Authentications export` : null
+      ),
 
-      error: err => { setPhase('error'); setError(err.message || 'The file could not be read.') },
+      error: err => reject(new Error(`${f.name} — ${err.message || 'could not be read'}`)),
     })
-  }, [file])
+  })
+
+  const run = useCallback(async () => {
+    if (files.length === 0) return
+    setPhase('reading'); setProgress(0); setRowsSeen(0)
+    setError(''); setWarnings([]); setFilters([]); storeRef.current = null
+
+    const builder = new StoreBuilder()
+    const totalBytes = files.reduce((s, f) => s + f.size, 0)
+    const notes: string[] = []
+    let doneBytes = 0
+
+    try {
+      // Sequential on purpose. Parsing several 40MB files at once
+      // would spawn a worker each and thrash memory for no gain —
+      // the bottleneck is the aggregation, not the disk.
+      for (const f of files) {
+        setNowReading(f.name)
+        const note = await parseOne(f, builder, doneBytes, totalBytes)
+        if (note) notes.push(note)
+        doneBytes += f.size
+      }
+    } catch (err) {
+      setPhase('error')
+      setError(err instanceof Error ? err.message : 'The files could not be read.')
+      return
+    }
+
+    setNowReading('')
+
+    if (builder.count === 0) {
+      setPhase('error')
+      setError(
+        notes.length
+          ? 'None of the selected files is a RADIUS Authentications export.'
+          : 'No rows were found in the selected files.'
+      )
+      setWarnings(notes)
+      return
+    }
+
+    storeRef.current = builder.finish()
+    setWarnings(notes)
+    setProgress(100)
+    setPhase('ready')
+    forceRender(v => v + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files])
 
   const addFilter = useCallback((dimension: Dimension, key: string) => {
     setDetail(null)
@@ -552,7 +652,7 @@ export default function RadiusAnalyser() {
     if (!analysis) return
     const body = kind === 'csv' ? toCsv(analysis) : JSON.stringify({
       generated: new Date().toISOString(),
-      source: file?.name, filters,
+      sources: files.map(f => f.name), filters,
       summary: {
         total: analysis.total, pass: analysis.pass, fail: analysis.fail,
         failRate: analysis.failRate,
@@ -584,35 +684,60 @@ export default function RadiusAnalyser() {
           onDrop={e => {
             e.preventDefault()
             dropRef.current?.classList.remove('drop-live')
-            const f = e.dataTransfer.files?.[0]
-            if (f) pick(f)
+            addFiles(e.dataTransfer.files)
           }}
           className="tool-drop border-2 border-dashed border-ink-200 bg-paper p-8 text-center transition-colors"
         >
           <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
-            Drop the CSV here
+            Drop your CSV files here
           </p>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-ink-500">
-            A Cisco ISE <strong>RADIUS Authentications</strong> export. The file stays on this
-            computer — it is read in your browser and never uploaded.
+            Cisco ISE <strong>RADIUS Authentications</strong> exports. Add as many as you like —
+            they are merged into one consolidated dashboard. Files stay on this computer; they
+            are read in your browser and never uploaded.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <label className="btn-ghost cursor-pointer">
-              Choose file
-              <input type="file" accept=".csv,text/csv" className="sr-only"
-                     onChange={e => pick(e.target.files?.[0] ?? null)} />
+              {files.length ? 'Add more files' : 'Choose files'}
+              <input type="file" accept=".csv,text/csv,.tsv,.txt" multiple className="sr-only"
+                     onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
             </label>
-            <button onClick={run} disabled={!file || phase === 'reading'}
+            <button onClick={run} disabled={files.length === 0 || phase === 'reading'}
                     className="btn-signal disabled:cursor-not-allowed disabled:opacity-40">
-              {phase === 'reading' ? 'Analysing…' : 'Analyse'}
+              {phase === 'reading'
+                ? 'Analysing…'
+                : files.length > 1 ? `Analyse ${files.length} files` : 'Analyse'}
             </button>
+            {files.length > 0 && phase !== 'reading' && (
+              <button onClick={() => { setFiles([]); reset() }}
+                      className="text-xs font-bold uppercase tracking-wider text-ink-400 hover:text-signal-500">
+                Clear
+              </button>
+            )}
           </div>
 
-          {file && (
-            <p className="mt-4 font-mono text-xs text-ink-600">
-              {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
-            </p>
+          {files.length > 0 && (
+            <div className="mx-auto mt-5 max-w-2xl">
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {files.map(f => (
+                  <span key={f.name + f.size}
+                        className="inline-flex items-center gap-2 border border-ink-200 bg-paper-dim px-2.5 py-1 font-mono text-[11px] text-ink-600">
+                    <span className="max-w-[22rem] truncate" title={f.name}>{f.name}</span>
+                    <span className="text-ink-400">{bytes(f.size)}</span>
+                    {phase !== 'reading' && (
+                      <button onClick={() => removeFile(f.name, f.size)}
+                              aria-label={`Remove ${f.name}`}
+                              className="text-ink-400 hover:text-signal-500">×</button>
+                    )}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-ink-400">
+                {files.length} file{files.length === 1 ? '' : 's'} ·{' '}
+                {bytes(files.reduce((s, f) => s + f.size, 0))} total
+              </p>
+            </div>
           )}
 
           {phase === 'reading' && (
@@ -621,14 +746,19 @@ export default function RadiusAnalyser() {
                 <div className="h-full bg-signal-500 transition-[width] duration-150"
                      style={{ width: `${progress}%` }} />
               </div>
-              <p className="mt-2 font-mono text-xs text-ink-500">{n(rowsSeen)} rows read</p>
+              <p className="mt-2 font-mono text-xs text-ink-500">
+                {n(rowsSeen)} rows read{nowReading && ` · ${nowReading}`}
+              </p>
             </div>
           )}
 
           {phase === 'error' && (
-            <p className="mx-auto mt-5 max-w-xl border border-signal-500 bg-signal-50 p-3 text-sm text-signal-700">
-              {error}
-            </p>
+            <div className="mx-auto mt-5 max-w-xl border border-signal-500 bg-signal-50 p-3 text-sm text-signal-700">
+              <p>{error}</p>
+              {warnings.map(w => (
+                <p key={w} className="mt-1 font-mono text-xs">{w}</p>
+              ))}
+            </div>
           )}
         </div>
 
@@ -773,7 +903,14 @@ export default function RadiusAnalyser() {
 
   const byFail = (list: Bucket[]) => [...list].sort((x, y) => y.fail - x.fail).filter(b => b.fail > 0)
 
+  const multiSource = a.dims.source.filter(b => b.key !== '(none)').length > 1
+
   const panels: PanelData[] = [
+    ...(multiSource
+      ? [dimensionPanel('Source files', a.dims.source, 'File',
+          'Each file that contributed to this view. Filter to one to isolate its rows.',
+          'source', F)]
+      : []),
     failureReasons,
     failureFamilies,
     dimensionPanel('ISE nodes', a.dims.server, 'ISE node (PSN)',
@@ -824,7 +961,11 @@ export default function RadiusAnalyser() {
       {/* ---------- toolbar ---------- */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 pb-3">
         <div className="min-w-0">
-          <p className="truncate font-mono text-[11px] text-ink-500">{file?.name}</p>
+          <p className="truncate font-mono text-[11px] text-ink-500">
+            {files.length === 1
+              ? files[0].name
+              : `${files.length} files merged · ${files.map(f => f.name).join(', ')}`}
+          </p>
           <p className="text-xs text-ink-700">
             {n(a.rows)} rows · {stamp(a.windowStart)} to {clock(a.windowEnd)} · {duration(a.windowMs)}
           </p>
@@ -832,9 +973,15 @@ export default function RadiusAnalyser() {
         <div className="flex flex-wrap gap-2">
           <button onClick={() => download('csv')} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">Export CSV</button>
           <button onClick={() => download('json')} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">Export JSON</button>
-          <button onClick={() => { pick(null); setPhase('idle') }} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">New file</button>
+          <button onClick={() => { setFiles([]); reset() }} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">New files</button>
         </div>
       </div>
+
+      {warnings.length > 0 && (
+        <div className="mb-3 border border-[#B45309] bg-[#FFF7ED] p-2.5 text-xs text-[#7C2D12]">
+          {warnings.map(w => <p key={w} className="font-mono">{w}</p>)}
+        </div>
+      )}
 
       {a.truncated && (
         <p className="mb-3 border border-[#B45309] bg-[#FFF7ED] p-2.5 text-xs text-[#7C2D12]">
@@ -877,11 +1024,15 @@ export default function RadiusAnalyser() {
         <Kpi label="Network devices" value={n(a.distinct.device)} />
         <Kpi label="ISE nodes" value={n(a.distinct.server)} />
         <Kpi label="Failure reasons" value={n(a.failures.length)} />
-        <Kpi label="Policy sets" value={n(a.distinct.policySet)} />
+        {multiSource
+          ? <Kpi label="Source files" value={n(a.distinct.source)} sub="merged into one view" />
+          : <Kpi label="Policy sets" value={n(a.distinct.policySet)} />}
       </div>
 
       {/* ---------- timeline ---------- */}
-      <div className="mb-4"><Timeline analysis={a} /></div>
+      <div className="mb-4">
+        <Timeline analysis={a} bucketChoice={bucketChoice} onBucketChange={setBucketChoice} />
+      </div>
 
       {/* ---------- findings ---------- */}
       <section className="mb-4 border border-ink-200 bg-paper-dim p-3">

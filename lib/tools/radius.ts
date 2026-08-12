@@ -202,6 +202,7 @@ export const DIMENSIONS = [
   'method', 'protocol', 'credential',
   'identityStore', 'identityGroup', 'user', 'mac',
   'endpointProfile', 'serviceType', 'ssid', 'failure',
+  'source',
 ] as const
 
 export type Dimension = typeof DIMENSIONS[number]
@@ -226,6 +227,7 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   serviceType:     'Service type',
   ssid:            'SSID',
   failure:         'Failure reason',
+  source:          'Source file',
 }
 
 class Dict {
@@ -264,9 +266,19 @@ export interface Store {
 
 const MAX_ROWS = 3_000_000
 
+/**
+ * Accumulates any number of files into one dataset.
+ *
+ * Each file declares its own headers through setSource(), so a
+ * batch can mix exports from different ISE versions — the column
+ * map is recomputed per file while the encoded columns keep
+ * accumulating into the same arrays.
+ */
 export class StoreBuilder {
-  private map: ColumnMap
-  private headers: string[]
+  private map: ColumnMap = {}
+  private headers: string[] = []
+  private headerSet = new Set<string>()
+  private sourceName = ''
   private dicts: Record<string, Dict> = {}
   private cols: Record<string, number[]> = {}
   private tsArr: number[] = []
@@ -276,12 +288,19 @@ export class StoreBuilder {
   private n = 0
   truncated = false
 
-  constructor(headers: string[]) {
-    this.headers = headers
-    this.map = detectColumns(headers)
+  constructor() {
     for (const d of DIMENSIONS) {
       this.dicts[d] = new Dict()
       this.cols[d] = []
+    }
+  }
+
+  /** Call once per file, before pushing that file's rows. */
+  setSource(headers: string[], name: string): void {
+    this.map = detectColumns(headers)
+    this.sourceName = name
+    for (const h of headers) {
+      if (!this.headerSet.has(h)) { this.headerSet.add(h); this.headers.push(h) }
     }
   }
 
@@ -300,6 +319,7 @@ export class StoreBuilder {
 
     // Track which source columns actually carry data, so the UI can
     // explain why a panel is empty rather than just showing nothing.
+    // A column counts as populated if ANY file filled it.
     for (const h of this.headers) {
       if (!this.nonEmpty.has(h)) {
         const v = rec[h]
@@ -345,6 +365,7 @@ export class StoreBuilder {
     put('serviceType',     get('serviceType'))
     put('ssid',            ssid)
     put('failure',         failureRaw)
+    put('source',          this.sourceName)
 
     this.n++
   }
@@ -456,6 +477,21 @@ export interface Analysis {
 
 export interface Filter { dimension: Dimension; key: string }
 
+export interface AnalyseOptions {
+  /** Force a timeline bucket size in ms. Omit for automatic. */
+  bucketMs?: number
+}
+
+/** Bucket sizes offered in the timeline control, smallest first. */
+export const BUCKET_STEPS = [
+  1_000, 2_000, 5_000, 10_000, 15_000, 20_000, 30_000, 45_000,
+  60_000, 2 * 60_000, 5 * 60_000, 10 * 60_000, 15 * 60_000, 30 * 60_000,
+  60 * 60_000, 3 * 3_600_000, 6 * 3_600_000, 12 * 3_600_000, 24 * 3_600_000,
+]
+
+/** Rendering more than this many bars stops being readable. */
+const MAX_BUCKETS = 1_400
+
 function bucketsFor(
   store: Store, dim: Dimension, mask: Uint8Array | null, baseline: number,
 ): Bucket[] {
@@ -512,7 +548,9 @@ function percentile(hist: Int32Array, totalCount: number, q: number): number {
 
 const RT_MAX = 60_000
 
-export function analyse(store: Store, filters: Filter[] = []): Analysis {
+export function analyse(
+  store: Store, filters: Filter[] = [], options: AnalyseOptions = {},
+): Analysis {
   // ---- build the row mask from active filters ----
   let mask: Uint8Array | null = null
   if (filters.length) {
@@ -611,12 +649,23 @@ export function analyse(store: Store, filters: Filter[] = []): Analysis {
   let bucketMs = 60_000
   let peakPerMinute = 0
   if (hasWindow && windowMs > 0) {
-    const targetBuckets = 90
-    const raw = windowMs / targetBuckets
-    const steps = [1e3, 5e3, 10e3, 15e3, 30e3, 60e3, 2 * 60e3, 5 * 60e3,
-                   10 * 60e3, 15 * 60e3, 30 * 60e3, 60 * 60e3,
-                   3 * 3600e3, 6 * 3600e3, 12 * 3600e3, 24 * 3600e3]
-    bucketMs = steps.find(s => s >= raw) ?? steps[steps.length - 1]
+    if (options.bucketMs && options.bucketMs > 0) {
+      bucketMs = options.bucketMs
+    } else {
+      // Aim for a fine-grained picture. 240 buckets across the window
+      // means a one-hour export lands on 15-second bars, which is
+      // enough resolution to see a burst of failures rather than an
+      // hour-long average that hides it.
+      const raw = windowMs / 240
+      bucketMs = BUCKET_STEPS.find(s => s >= raw) ?? BUCKET_STEPS[BUCKET_STEPS.length - 1]
+    }
+
+    // Never render so many bars that they stop being distinguishable.
+    while (windowMs / bucketMs > MAX_BUCKETS) {
+      const next = BUCKET_STEPS.find(s => s > bucketMs)
+      if (!next) break
+      bucketMs = next
+    }
 
     const start = Math.floor(tMin / bucketMs) * bucketMs
     const count = Math.floor((tMax - start) / bucketMs) + 1
