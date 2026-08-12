@@ -97,9 +97,9 @@ function VaultMark({ className = '' }: { className?: string }) {
     >
       <defs>
         <linearGradient id="vaultGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor="#8CFFB8" />
-          <stop offset="55%"  stopColor="#46FF8C" />
-          <stop offset="100%" stopColor="#17E8A0" />
+          <stop offset="0%"   stopColor="#FF7D91" />
+          <stop offset="55%"  stopColor="#FF3B57" />
+          <stop offset="100%" stopColor="#D3002D" />
         </linearGradient>
       </defs>
 
@@ -128,9 +128,11 @@ function VaultMark({ className = '' }: { className?: string }) {
   )
 }
 
+// The bar is `position: fixed` — that is set on .brand-bar in
+// globals.css, together with the body padding that reserves its 48px.
 function Header() {
   return (
-    <header className="brand-bar sticky top-0 z-50">
+    <header className="brand-bar z-50">
       {/* decorative shine sweep — sits behind .brand-inner */}
       <span className="brand-sheen" aria-hidden="true" />
 
