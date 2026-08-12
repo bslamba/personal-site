@@ -75,7 +75,8 @@ function KpmTimeline({ a }: { a: KpmAnalysis }) {
         </h3>
         <p className="text-[10.5px] text-ink-400">
           {data.length} samples every {duration(a.intervalMs)} · bars = RADIUS requests per hour
-          across all nodes · line = mean system load
+          summed across all nodes · line = mean system load · busiest single node peaked at{' '}
+          {a.totals.tpsPeakNode.toFixed(1)} tps
         </p>
       </header>
       <div className="p-2">
@@ -196,7 +197,7 @@ export function buildKpmPanels(a: KpmAnalysis): PanelData[] {
 
   const throughput: PanelData = {
     title: 'Throughput by node',
-    note: 'Transactions per second, averaged across samples and at peak.',
+    note: 'TPS is the report’s own RADIUS_REQUESTS_HR divided by 3600 — RADIUS transactions on the wire, not completed authentications. One EAP-TLS authentication is many request packets plus accounting.',
     columns: [
       { head: 'ISE node', align: 'left' },
       { head: 'TPS avg', align: 'right', width: 'w-16' },
@@ -290,12 +291,12 @@ export function buildKpmPanels(a: KpmAnalysis): PanelData[] {
 
   const samples: PanelData = {
     title: 'Sample timeline',
-    note: 'Every collection point in the file, with deployment totals at that moment.',
+    note: 'Every collection point, summed across all nodes. These are deployment totals — no single node carries this rate.',
     columns: [
       { head: 'Sampled at', align: 'left' },
-      { head: 'Req/hr', align: 'right', width: 'w-20' },
-      { head: 'TPS', align: 'right', width: 'w-16' },
-      { head: 'Load', align: 'right', width: 'w-14' },
+      { head: 'Req/hr all', align: 'right', width: 'w-20' },
+      { head: 'TPS all', align: 'right', width: 'w-16' },
+      { head: 'Load mean', align: 'right', width: 'w-16' },
       { head: 'To MnT', align: 'right', width: 'w-20' },
     ],
     rows: a.timeline.map(p => ({
@@ -331,9 +332,11 @@ export default function KpmSection({ a, onExpand }: {
         <Kpi label="Serving RADIUS" value={n(a.serving.length)}
              sub={`${a.nodes.length - a.serving.length} idle`} />
         <Kpi label="Requests per hour" value={n(a.totals.requestsPerHourAvg)}
-             sub="deployment total, mean" />
-        <Kpi label="Peak throughput" value={a.totals.tpsPeak.toFixed(0) + ' tps'}
-             sub="all nodes combined" />
+             sub="all nodes, mean" />
+        <Kpi label="Busiest node peak" value={a.totals.tpsPeakNode.toFixed(1) + ' tps'}
+             sub={a.totals.tpsPeakNodeName || 'highest single node'} />
+        <Kpi label="All nodes combined" value={a.totals.tpsPeakDeployment.toFixed(0) + ' tps'}
+             sub={`sum across ${a.serving.length} serving nodes`} />
         <Kpi label="Peak load" value={a.totals.loadPeak.toFixed(1)}
              tone={a.totals.loadPeak >= 80 ? 'red' : 'ink'} sub="highest on any node" />
         <Kpi label="Worst latency" value={ms(a.totals.latencyWorst)}

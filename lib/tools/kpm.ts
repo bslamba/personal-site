@@ -262,7 +262,11 @@ export interface KpmAnalysis {
   totals: {
     requestsTotal: number
     requestsPerHourAvg: number
-    tpsPeak: number
+    /** Highest TPS reached by any single node — the figure ISE sizing is about. */
+    tpsPeakNode: number
+    tpsPeakNodeName: string
+    /** Sum across every node at one sample. A deployment aggregate, not a node figure. */
+    tpsPeakDeployment: number
     latencyWorst: number
     loadPeak: number
     noiseTotal: number
@@ -352,10 +356,20 @@ export function analyseKpm(data: KpmData): KpmAnalysis {
   })
 
   // ---- headline numbers ----
+  // Per-node peak is kept separate from the deployment sum on purpose.
+  // TPS is a per-node sizing measure, so presenting a summed figure
+  // under a "TPS" label reads as a node figure many times over budget.
+  const busiestNode = nodes.reduce(
+    (best, x) => (x.tpsMax > (best?.tpsMax ?? -1) ? x : best),
+    undefined as KpmNode | undefined,
+  )
+
   const totals = {
     requestsTotal,
     requestsPerHourAvg: nodes.reduce((a, x) => a + x.requestsAvg, 0),
-    tpsPeak: Math.max(0, ...timeline.map(p => p.tps)),
+    tpsPeakNode: busiestNode?.tpsMax ?? 0,
+    tpsPeakNodeName: busiestNode?.server ?? '',
+    tpsPeakDeployment: Math.max(0, ...timeline.map(p => p.tps)),
     latencyWorst: Math.max(0, ...serving.map(x => x.latencyMax)),
     loadPeak: Math.max(0, ...nodes.map(x => x.loadMax)),
     noiseTotal: nodes.reduce((a, x) => a + x.noiseTotal, 0),
