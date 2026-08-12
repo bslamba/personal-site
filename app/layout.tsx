@@ -97,9 +97,9 @@ function VaultMark({ className = '' }: { className?: string }) {
     >
       <defs>
         <linearGradient id="vaultGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor="#9CF9E4" />
-          <stop offset="55%"  stopColor="#7FE8FF" />
-          <stop offset="100%" stopColor="#C9A6FF" />
+          <stop offset="0%"   stopColor="#8CFFB8" />
+          <stop offset="55%"  stopColor="#46FF8C" />
+          <stop offset="100%" stopColor="#17E8A0" />
         </linearGradient>
       </defs>
 
@@ -134,43 +134,34 @@ function Header() {
       {/* decorative shine sweep — sits behind .brand-inner */}
       <span className="brand-sheen" aria-hidden="true" />
 
-      <div className="brand-inner container-page flex h-[68px] items-center justify-between gap-4">
+      <div className="brand-inner container-page flex h-12 items-center justify-between gap-4">
 
-        {/* ---------- wordmark ---------- */}
-        <Link href="/" className="group flex items-center gap-2.5">
-          <span
-            className="block h-2.5 w-2.5 bg-[#8FF9E4] shadow-[0_0_10px_rgba(110,243,214,0.9)] transition-transform duration-300 group-hover:rotate-45"
-            aria-hidden="true"
-          />
-          <span
-            className="neon-wordmark whitespace-nowrap text-[0.78rem] font-bold uppercase tracking-[0.18em] sm:text-sm"
-            style={{ fontFamily: 'var(--font-heading)' }}
-          >
-            Bhawneet Lamba
+        {/* ---------- wordmark ----------
+            Stacked Anton lockup on a black plate. Sized taller than
+            the bar and pushed down, so it hangs below the edge; the
+            tilt and the hover zoom live in .brand-logo in CSS.      */}
+        <Link href="/" className="brand-logo" aria-label="Bhawneet Lamba — home">
+          <span className="brand-logo-plate">
+            <span className="brand-logo-line brand-logo-line-1">Bhawneet</span>
+            <span className="brand-logo-line brand-logo-line-2">Lamba</span>
           </span>
         </Link>
 
         {/* ---------- desktop nav ---------- */}
-        <nav className="hidden items-center gap-7 md:flex">
+        <nav className="hidden items-center gap-6 md:flex">
           {NAV.map(item => (
             <Link key={item.href} href={item.href} className="nav-link neon-link">
               {item.label}
             </Link>
           ))}
 
-          <Link href="/vault" className="vault-badge" title="Private vault">
-            <VaultMark className="h-[22px] w-[22px]" />
-            <span
-              className="neon-link text-[0.68rem] font-bold uppercase tracking-[0.16em]"
-              style={{ fontFamily: 'var(--font-heading)' }}
-            >
-              Vault
-            </span>
+          <Link href="/vault" className="vault-badge" title="Private vault" aria-label="Private vault">
+            <VaultMark className="h-[19px] w-[19px]" />
           </Link>
 
           <Link
             href="/#contact"
-            className="neon-pill px-4 py-2 text-[0.68rem] font-bold uppercase tracking-[0.16em]"
+            className="neon-pill px-3.5 py-1.5 text-[0.66rem] font-bold uppercase tracking-[0.15em]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
             Contact
@@ -179,12 +170,12 @@ function Header() {
 
         {/* ---------- mobile ---------- */}
         <div className="flex items-center gap-2.5 md:hidden">
-          <Link href="/vault" className="vault-badge !px-2" title="Private vault" aria-label="Private vault">
-            <VaultMark className="h-[22px] w-[22px]" />
+          <Link href="/vault" className="vault-badge" title="Private vault" aria-label="Private vault">
+            <VaultMark className="h-[18px] w-[18px]" />
           </Link>
           <Link
             href="/#contact"
-            className="neon-pill px-3.5 py-2 text-[0.65rem] font-bold uppercase tracking-[0.14em]"
+            className="neon-pill px-3 py-1.5 text-[0.62rem] font-bold uppercase tracking-[0.14em]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
             Contact

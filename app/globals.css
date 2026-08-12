@@ -675,36 +675,29 @@ body.gate-locked { overflow: hidden; }
 
 /* ===== BRAND-BAR START ===== */
 /* ============================================================
-   Dark purple header, silver glitter, neon type, WhatsApp float.
+   Black header bar, silver glitter, neon-green nav, and an
+   oversized tilted wordmark that hangs below the bar.
 
    Appended to the end of app/globals.css and deliberately NOT
    inside @layer, so these rules sit above Tailwind's layers in
    the cascade and win without needing !important everywhere.
    ============================================================ */
 
-/* ---------- the bar itself ---------- */
+/* ---------- the bar itself ----------
+   Thin, black, and overflow-visible so the wordmark can escape. */
 .brand-bar {
   position: relative;
-  isolation: isolate;
-  background:
-    linear-gradient(
-      118deg,
-      #1E0736 0%,
-      #34114F 22%,
-      #4A1C74 45%,
-      #2E0D4A 68%,
-      #1B0630 100%
-    );
-  border-bottom: 1px solid rgba(198, 168, 255, 0.22);
+  overflow: visible;
+  background: linear-gradient(180deg, #0B0B0D 0%, #000000 55%, #08080A 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-    0 10px 34px -16px rgba(74, 28, 116, 0.85);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 26px -14px rgba(0, 0, 0, 0.9);
 }
 
 /* ---------- silver glitter ----------
-   A dozen tiny radial dots tiled across the bar, twinkling as a
-   group. Purely decorative and never clickable.                */
+   A dozen tiny specks tiled across the bar, twinkling together.
+   Purely decorative and never clickable.                        */
 .brand-bar::before {
   content: '';
   position: absolute;
@@ -712,18 +705,18 @@ body.gate-locked { overflow: hidden; }
   z-index: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(1.6px 1.6px at 6%  22%, rgba(255,255,255,.95), transparent 62%),
-    radial-gradient(1.1px 1.1px at 14% 68%, rgba(226,232,255,.85), transparent 62%),
-    radial-gradient(1.4px 1.4px at 23% 38%, rgba(255,255,255,.80), transparent 62%),
-    radial-gradient(1px   1px   at 31% 82%, rgba(214,224,255,.75), transparent 62%),
-    radial-gradient(1.7px 1.7px at 39% 16%, rgba(255,255,255,.92), transparent 62%),
-    radial-gradient(1.1px 1.1px at 47% 60%, rgba(232,238,255,.80), transparent 62%),
-    radial-gradient(1.3px 1.3px at 56% 30%, rgba(255,255,255,.88), transparent 62%),
-    radial-gradient(1px   1px   at 63% 74%, rgba(214,224,255,.70), transparent 62%),
-    radial-gradient(1.5px 1.5px at 71% 44%, rgba(255,255,255,.90), transparent 62%),
-    radial-gradient(1.1px 1.1px at 79% 20%, rgba(226,232,255,.82), transparent 62%),
-    radial-gradient(1.3px 1.3px at 86% 66%, rgba(255,255,255,.85), transparent 62%),
-    radial-gradient(1px   1px   at 94% 36%, rgba(220,228,255,.75), transparent 62%);
+    radial-gradient(1.5px 1.5px at 6%  22%, rgba(255,255,255,.95), transparent 62%),
+    radial-gradient(1px   1px   at 14% 68%, rgba(226,232,255,.80), transparent 62%),
+    radial-gradient(1.3px 1.3px at 23% 38%, rgba(255,255,255,.75), transparent 62%),
+    radial-gradient(1px   1px   at 31% 82%, rgba(214,224,255,.70), transparent 62%),
+    radial-gradient(1.6px 1.6px at 39% 16%, rgba(255,255,255,.90), transparent 62%),
+    radial-gradient(1px   1px   at 47% 60%, rgba(232,238,255,.75), transparent 62%),
+    radial-gradient(1.2px 1.2px at 56% 30%, rgba(255,255,255,.85), transparent 62%),
+    radial-gradient(1px   1px   at 63% 74%, rgba(214,224,255,.65), transparent 62%),
+    radial-gradient(1.4px 1.4px at 71% 44%, rgba(255,255,255,.88), transparent 62%),
+    radial-gradient(1px   1px   at 79% 20%, rgba(226,232,255,.78), transparent 62%),
+    radial-gradient(1.2px 1.2px at 86% 66%, rgba(255,255,255,.80), transparent 62%),
+    radial-gradient(1px   1px   at 94% 36%, rgba(220,228,255,.70), transparent 62%);
   background-repeat: repeat;
   background-size: 420px 100%;
   animation: brand-twinkle 5.5s ease-in-out infinite;
@@ -748,7 +741,7 @@ body.gate-locked { overflow: hidden; }
   background: linear-gradient(
     100deg,
     rgba(255, 255, 255, 0.00) 0%,
-    rgba(255, 255, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0.13) 50%,
     rgba(255, 255, 255, 0.00) 100%
   );
   transform: skewX(-18deg);
@@ -759,70 +752,142 @@ body.gate-locked { overflow: hidden; }
 .brand-bar > .brand-inner {
   position: relative;
   z-index: 1;
+  overflow: visible;
 }
 
-/* ---------- neon type ---------- */
-.neon-link {
-  color: #8FF9E4;
+/* ============================================================
+   THE WORDMARK
+   Stacked Anton, white over red — the same lockup as the footer
+   and the intro gate. Taller than the bar, pushed down so the
+   overflow falls below it, and tilted anticlockwise.
+
+   The black plate behind it means the white line stays readable
+   where it hangs over the cream page background.
+   ============================================================ */
+.brand-logo {
+  position: relative;
+  z-index: 3;
+  display: inline-block;
+  transform: translateY(9px) rotate(-6deg);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.brand-logo-plate {
+  display: block;
+  padding: 0.34rem 0.85rem 0.4rem 0.7rem;
+  background: linear-gradient(180deg, #0B0B0D 0%, #000000 60%, #050506 100%);
+  border-radius: 3px;
+  box-shadow:
+    0 10px 22px -8px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: transform .28s cubic-bezier(.2, .8, .3, 1),
+              box-shadow .28s ease;
+  transform-origin: left center;
+}
+
+.brand-logo-line {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 1.05rem;
+  line-height: 0.84;
+  letter-spacing: -0.015em;
+  transition: text-shadow .28s ease, color .28s ease;
+}
+.brand-logo-line-1 { color: #FAF8F5; }
+.brand-logo-line-2 { color: #D3002D; }
+
+@media (min-width: 640px) {
+  .brand-logo-line { font-size: 1.6rem; }
+  .brand-logo { transform: translateY(11px) rotate(-6deg); }
+}
+
+/* ---------- hover: light up and zoom ---------- */
+.brand-logo:hover .brand-logo-plate,
+.brand-logo:focus-visible .brand-logo-plate {
+  transform: scale(1.09);
+  box-shadow:
+    0 16px 34px -8px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 0 26px rgba(211, 0, 45, 0.35);
+}
+.brand-logo:hover .brand-logo-line-1,
+.brand-logo:focus-visible .brand-logo-line-1 {
+  color: #FFFFFF;
   text-shadow:
-    0 0 6px  rgba(110, 243, 214, 0.55),
-    0 0 18px rgba(110, 243, 214, 0.22);
+    0 0 10px rgba(255, 255, 255, 0.85),
+    0 0 26px rgba(255, 255, 255, 0.40);
+}
+.brand-logo:hover .brand-logo-line-2,
+.brand-logo:focus-visible .brand-logo-line-2 {
+  color: #FF2246;
+  text-shadow:
+    0 0 12px rgba(255, 34, 70, 0.90),
+    0 0 30px rgba(211, 0, 45, 0.55);
+}
+
+/* ============================================================
+   NEON GREEN NAV
+   ============================================================ */
+.neon-link {
+  color: #46FF8C;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-shadow:
+    0 0 6px  rgba(70, 255, 140, 0.55),
+    0 0 18px rgba(70, 255, 140, 0.22);
   transition: color .22s ease, text-shadow .22s ease;
 }
 .neon-link:hover,
 .neon-link:focus-visible {
-  color: #D6FFF7;
+  color: #C9FFDD;
   text-shadow:
-    0 0 8px  rgba(170, 255, 236, 0.95),
-    0 0 22px rgba(110, 243, 214, 0.55),
-    0 0 40px rgba(110, 243, 214, 0.28);
+    0 0 8px  rgba(150, 255, 195, 0.95),
+    0 0 22px rgba(70, 255, 140, 0.55),
+    0 0 40px rgba(70, 255, 140, 0.28);
 }
 
-/* Underline sweep for nav items — neon rather than red. */
+/* Underline sweep for nav items — neon green rather than red. */
 .neon-link::after {
-  background: #8FF9E4;
-  box-shadow: 0 0 8px rgba(110, 243, 214, 0.85);
+  background: #46FF8C;
+  box-shadow: 0 0 8px rgba(70, 255, 140, 0.85);
 }
 
-.neon-wordmark {
-  color: #B9FFEE;
-  text-shadow:
-    0 0 7px  rgba(130, 250, 222, 0.70),
-    0 0 20px rgba(110, 243, 214, 0.35),
-    0 1px 0  rgba(0, 0, 0, 0.45);
-}
-
-/* ---------- contact pill on the purple bar ---------- */
+/* ---------- contact pill on the black bar ---------- */
 .neon-pill {
-  color: #061C18;
-  background: linear-gradient(135deg, #8FF9E4 0%, #5FE9CE 100%);
+  color: #04180C;
+  background: linear-gradient(135deg, #6BFFA6 0%, #2FF178 100%);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.30),
-    0 0 14px rgba(110, 243, 214, 0.45);
+    0 0 14px rgba(70, 255, 140, 0.45);
   transition: box-shadow .22s ease, transform .22s ease;
 }
 .neon-pill:hover {
   transform: translateY(-1px);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.45),
-    0 0 24px rgba(110, 243, 214, 0.80);
+    0 0 24px rgba(70, 255, 140, 0.80);
 }
 
-/* ---------- vault badge ---------- */
+/* ---------- vault badge: icon only ---------- */
 .vault-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.7rem 0.35rem 0.45rem;
-  border: 1px solid rgba(180, 150, 255, 0.45);
+  justify-content: center;
+  height: 1.95rem;
+  width: 1.95rem;
+  border: 1px solid rgba(70, 255, 140, 0.35);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(4px);
-  transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+  background: rgba(70, 255, 140, 0.06);
+  transition: border-color .25s ease, box-shadow .25s ease,
+              transform .25s ease, background-color .25s ease;
 }
 .vault-badge:hover {
-  border-color: rgba(143, 249, 228, 0.85);
-  box-shadow: 0 0 18px rgba(110, 243, 214, 0.40);
+  border-color: rgba(70, 255, 140, 0.90);
+  background: rgba(70, 255, 140, 0.14);
+  box-shadow: 0 0 18px rgba(70, 255, 140, 0.45);
   transform: translateY(-1px);
 }
 .vault-badge svg {
@@ -887,5 +952,6 @@ body.gate-locked { overflow: hidden; }
   .brand-bar > .brand-sheen::after,
   .wa-float { animation: none; }
   .brand-bar::before { opacity: 0.7; }
+  .brand-logo:hover .brand-logo-plate { transform: none; }
 }
 /* ===== BRAND-BAR END ===== */
