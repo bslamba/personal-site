@@ -87,6 +87,13 @@ interface PanelRow {
   /** 0–1 of that bar which is failure, drawn in red */
   barFail?: number
   cells: React.ReactNode[]
+  /**
+   * Sort keys, parallel to `cells`. Required because several cells
+   * are React elements carrying colour, and an element cannot be
+   * compared — stringifying one gives "[object Object]", which makes
+   * every row equal and sorting silently do nothing.
+   */
+  sort: (number | string)[]
   onClick?: () => void
 }
 
@@ -217,29 +224,24 @@ function DetailView({ data, onClose }: { data: PanelData; onClose: () => void })
     }
   }, [onClose])
 
-  const numeric = (v: React.ReactNode): number => {
-    if (typeof v === 'number') return v
-    if (typeof v === 'string') {
-      const cleaned = v.replace(/[^0-9.\-]/g, '')
-      const parsed = Number(cleaned)
-      return Number.isFinite(parsed) ? parsed : NaN
-    }
-    return NaN
-  }
-
   const rows = useMemo(() => {
     let list = data.rows
+
     if (q.trim()) {
       const needle = q.trim().toLowerCase()
-      list = list.filter(r => String(r.cells[0] ?? '').toLowerCase().includes(needle))
+      list = list.filter(r => String(r.sort[0] ?? '').toLowerCase().includes(needle))
     }
+
     if (sortCol !== null) {
       list = [...list].sort((a, b) => {
-        const av = a.cells[sortCol], bv = b.cells[sortCol]
-        const an = numeric(av), bn = numeric(bv)
-        const cmp = (!Number.isNaN(an) && !Number.isNaN(bn))
-          ? an - bn
-          : String(av ?? '').localeCompare(String(bv ?? ''))
+        const av = a.sort[sortCol]
+        const bv = b.sort[sortCol]
+        let cmp: number
+        if (typeof av === 'number' && typeof bv === 'number') {
+          cmp = av - bv
+        } else {
+          cmp = String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true })
+        }
         return desc ? -cmp : cmp
       })
     }
@@ -290,8 +292,12 @@ function DetailView({ data, onClose }: { data: PanelData; onClose: () => void })
                 } text-[9.5px] font-bold uppercase tracking-[0.09em] ${
                   sortCol === i ? 'text-signal-500' : 'text-ink-500'
                 } hover:text-signal-500`}
+                title={`Sort by ${c.head}`}
               >
-                {c.head}{sortCol === i ? (desc ? ' ↓' : ' ↑') : ''}
+                {c.head}
+                <span className={sortCol === i ? '' : 'text-ink-300'}>
+                  {sortCol === i ? (desc ? ' ↓' : ' ↑') : ' ⇅'}
+                </span>
               </button>
             ))}
           </div>
@@ -341,6 +347,7 @@ function dimensionPanel(
         b.fail ? n(b.fail) : '—',
         <span key="r" className={rateTone(b.failRate)}>{pc(b.failRate)}</span>,
       ],
+      sort: [b.key, b.total, b.fail, b.failRate],
     })),
   }
 }
@@ -651,6 +658,7 @@ export default function RadiusAnalyser() {
   const maxHist = Math.max(1, ...a.rtHistogram.map(r => r.count))
   const histTotal = a.rtHistogram.reduce((s, r) => s + r.count, 0)
   const maxSlow = Math.max(1, ...a.slowest.map(b => b.rtAvg))
+  const maxNodeRt = Math.max(1, ...a.dims.server.map(b => b.rtAvg))
 
   const failureReasons: PanelData = {
     title: 'Failure reasons',
@@ -673,6 +681,7 @@ export default function RadiusAnalyser() {
         pc(f.share),
         <span key="d" className="truncate text-ink-500">{f.topDevice || '—'}</span>,
       ],
+      sort: [f.text, Number(f.code) || 0, f.count, f.share, f.topDevice || ''],
     })),
     empty: 'No failures in this selection.',
   }
@@ -690,6 +699,7 @@ export default function RadiusAnalyser() {
       bar: c.total / maxCategory,
       barFail: 1,
       cells: [c.key, n(c.total), pc(a.fail ? c.total / a.fail : 0)],
+      sort: [c.key, c.total, a.fail ? c.total / a.fail : 0],
     })),
     empty: 'No failures in this selection.',
   }
@@ -710,6 +720,8 @@ export default function RadiusAnalyser() {
         n(r.count),
         pc(histTotal ? r.count / histTotal : 0),
       ],
+      // sorted by the lower edge, so the buckets stay in numeric order
+      sort: [r.from, r.count, histTotal ? r.count / histTotal : 0],
     })),
   }
 
@@ -728,6 +740,7 @@ export default function RadiusAnalyser() {
       onClick: () => F('device', b.key),
       cells: [b.key, ms(b.rtAvg), n(b.total),
         <span key="r" className={rateTone(b.failRate)}>{pc(b.failRate)}</span>],
+      sort: [b.key, b.rtAvg, b.total, b.failRate],
     })),
   }
 
@@ -742,10 +755,11 @@ export default function RadiusAnalyser() {
     ],
     rows: a.dims.server.filter(b => b.key !== '(none)').map(b => ({
       id: b.key,
-      bar: b.rtCount ? b.rtAvg / Math.max(1, ...a.dims.server.map(x => x.rtAvg)) : 0,
+      bar: b.rtCount ? b.rtAvg / maxNodeRt : 0,
       onClick: () => F('server', b.key),
       cells: [b.key, n(b.total), b.rtCount ? ms(b.rtAvg) : '—',
         <span key="r" className={rateTone(b.failRate)}>{pc(b.failRate)}</span>],
+      sort: [b.key, b.total, b.rtAvg, b.failRate],
     })),
   }
 
@@ -753,7 +767,7 @@ export default function RadiusAnalyser() {
     title: 'Columns with no data',
     note: 'Present in the export but empty on every row — ISE populates these only in certain deployments.',
     columns: [{ head: 'Column name', align: 'left' }],
-    rows: a.emptyColumns.map(c => ({ id: c, cells: [c] })),
+    rows: a.emptyColumns.map(c => ({ id: c, cells: [c], sort: [c] })),
     empty: 'Every column in the file contains data.',
   }
 
