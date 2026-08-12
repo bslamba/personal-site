@@ -12,9 +12,16 @@
 // contain usernames, MAC addresses and site names, and none of
 // that should be sitting on someone else's server to produce a
 // bar chart.
+//
+// LAYOUT
+// Everything is on one page. Each panel shows the top few rows
+// with proper column headers; clicking a panel opens the full
+// table with sorting and search. Nothing is hidden behind tabs,
+// because the point of a troubleshooting dashboard is to see the
+// shape of the whole thing at once.
 // ============================================================
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
 import {
   StoreBuilder, analyse, looksLikeRadius, detectColumns,
@@ -52,8 +59,294 @@ function stamp(t: number): string {
          `${d.getUTCFullYear()}, ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
 }
 
+const rateTone = (r: number) =>
+  r > 0.15 ? 'text-signal-500 font-bold'
+    : r > 0.08 ? 'text-[#B45309] font-bold'
+    : 'text-ink-400'
+
 // ------------------------------------------------------------
-// primitives
+// panel model
+//
+// One shape for every table on the page, so the column headers
+// are impossible to forget and every panel behaves the same way.
+// ------------------------------------------------------------
+
+type Align = 'left' | 'right'
+
+interface Column {
+  head: string
+  align: Align
+  /** tailwind width class; the first column takes the remainder */
+  width?: string
+}
+
+interface PanelRow {
+  id: string
+  /** 0–1, drives the grey volume bar behind the row */
+  bar?: number
+  /** 0–1 of that bar which is failure, drawn in red */
+  barFail?: number
+  cells: React.ReactNode[]
+  onClick?: () => void
+}
+
+interface PanelData {
+  title: string
+  note?: string
+  columns: Column[]
+  rows: PanelRow[]
+  /** shown when there are no rows */
+  empty?: React.ReactNode
+}
+
+const PREVIEW_ROWS = 6
+
+function Row({ row, columns, dense }: { row: PanelRow; columns: Column[]; dense: boolean }) {
+  const clickable = Boolean(row.onClick)
+  return (
+    <div
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={row.onClick}
+      onKeyDown={e => {
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); row.onClick!() }
+      }}
+      className={`relative flex items-center gap-2 border-t border-ink-100 ${
+        dense ? 'px-2.5 py-[5px]' : 'px-3 py-1.5'
+      } ${clickable ? 'cursor-pointer hover:bg-signal-50' : ''}`}
+    >
+      {row.bar !== undefined && (
+        <>
+          <span className="pointer-events-none absolute inset-y-0 left-0 bg-ink-100"
+                style={{ width: `${row.bar * 100}%` }} aria-hidden="true" />
+          {row.barFail !== undefined && row.barFail > 0 && (
+            <span className="pointer-events-none absolute inset-y-0 left-0 bg-signal-500/25"
+                  style={{ width: `${row.bar * row.barFail * 100}%` }} aria-hidden="true" />
+          )}
+        </>
+      )}
+      {columns.map((c, i) => (
+        <span
+          key={i}
+          className={`relative ${i === 0 ? 'min-w-0 flex-1 truncate' : `shrink-0 ${c.width ?? 'w-16'}`} ${
+            c.align === 'right' ? 'text-right' : ''
+          } ${dense ? 'text-[11px]' : 'text-xs'} ${i === 0 ? 'text-ink-900' : 'font-mono text-ink-600'}`}
+          title={i === 0 && typeof row.cells[0] === 'string' ? row.cells[0] : undefined}
+        >
+          {row.cells[i]}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function Headers({ columns, dense }: { columns: Column[]; dense: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 bg-paper-dim ${dense ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}>
+      {columns.map((c, i) => (
+        <span
+          key={i}
+          className={`${i === 0 ? 'min-w-0 flex-1' : `shrink-0 ${c.width ?? 'w-16'}`} ${
+            c.align === 'right' ? 'text-right' : ''
+          } text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-500`}
+        >
+          {c.head}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function Panel({ data, onExpand }: { data: PanelData; onExpand: (d: PanelData) => void }) {
+  const shown = data.rows.slice(0, PREVIEW_ROWS)
+  const more = data.rows.length - shown.length
+
+  return (
+    <section className="flex flex-col border border-ink-200 bg-paper">
+      <header className="border-b border-ink-200 px-3 py-2.5">
+        <h3 className="text-[13px] font-bold leading-tight text-ink-950"
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+          {data.title}
+        </h3>
+        {data.note && <p className="mt-0.5 text-[10.5px] leading-snug text-ink-400">{data.note}</p>}
+      </header>
+
+      {data.rows.length === 0 ? (
+        <div className="flex-1 px-3 py-5 text-[11px] text-ink-400">
+          {data.empty ?? 'Not populated in this export.'}
+        </div>
+      ) : (
+        <>
+          <Headers columns={data.columns} dense />
+          <div className="flex-1">
+            {shown.map(r => <Row key={r.id} row={r} columns={data.columns} dense />)}
+          </div>
+        </>
+      )}
+
+      <footer className="flex items-center justify-between border-t border-ink-100 px-3 py-1.5">
+        <span className="text-[10px] text-ink-400">
+          {data.rows.length > 0 ? `${n(data.rows.length)} value${data.rows.length === 1 ? '' : 's'}` : ''}
+        </span>
+        {data.rows.length > 0 && (
+          <button
+            onClick={() => onExpand(data)}
+            className="text-[10px] font-bold uppercase tracking-[0.09em] text-signal-500 hover:underline"
+          >
+            {more > 0 ? `${n(more)} more — open` : 'Open'}
+          </button>
+        )}
+      </footer>
+    </section>
+  )
+}
+
+/** Full-screen view of one panel: every row, searchable and sortable. */
+function DetailView({ data, onClose }: { data: PanelData; onClose: () => void }) {
+  const [q, setQ] = useState('')
+  const [sortCol, setSortCol] = useState<number | null>(null)
+  const [desc, setDesc] = useState(true)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
+  const numeric = (v: React.ReactNode): number => {
+    if (typeof v === 'number') return v
+    if (typeof v === 'string') {
+      const cleaned = v.replace(/[^0-9.\-]/g, '')
+      const parsed = Number(cleaned)
+      return Number.isFinite(parsed) ? parsed : NaN
+    }
+    return NaN
+  }
+
+  const rows = useMemo(() => {
+    let list = data.rows
+    if (q.trim()) {
+      const needle = q.trim().toLowerCase()
+      list = list.filter(r => String(r.cells[0] ?? '').toLowerCase().includes(needle))
+    }
+    if (sortCol !== null) {
+      list = [...list].sort((a, b) => {
+        const av = a.cells[sortCol], bv = b.cells[sortCol]
+        const an = numeric(av), bn = numeric(bv)
+        const cmp = (!Number.isNaN(an) && !Number.isNaN(bn))
+          ? an - bn
+          : String(av ?? '').localeCompare(String(bv ?? ''))
+        return desc ? -cmp : cmp
+      })
+    }
+    return list
+  }, [data.rows, q, sortCol, desc])
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-start justify-center bg-ink-950/55 p-3 sm:p-8"
+         onClick={onClose} role="dialog" aria-modal="true" aria-label={data.title}>
+      <div className="flex max-h-full w-full max-w-4xl flex-col bg-paper shadow-2xl"
+           onClick={e => e.stopPropagation()}>
+
+        <header className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-ink-950"
+                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+              {data.title}
+            </h3>
+            {data.note && <p className="mt-1 text-xs leading-relaxed text-ink-500">{data.note}</p>}
+          </div>
+          <button onClick={onClose}
+                  className="shrink-0 border border-ink-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-500 hover:border-signal-500 hover:text-signal-500">
+            Close
+          </button>
+        </header>
+
+        <div className="flex items-center gap-3 border-b border-ink-100 px-5 py-2.5">
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Filter these rows…"
+            className="w-full border border-ink-200 bg-paper px-3 py-1.5 text-xs text-ink-900 outline-none focus:border-signal-500"
+          />
+          <span className="shrink-0 font-mono text-[11px] text-ink-400">{n(rows.length)}</span>
+        </div>
+
+        <div className="overflow-y-auto">
+          <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-ink-200 bg-paper-dim px-5 py-2">
+            {data.columns.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  if (sortCol === i) setDesc(d => !d)
+                  else { setSortCol(i); setDesc(true) }
+                }}
+                className={`${i === 0 ? 'min-w-0 flex-1' : `shrink-0 ${c.width ?? 'w-16'}`} ${
+                  c.align === 'right' ? 'text-right' : 'text-left'
+                } text-[9.5px] font-bold uppercase tracking-[0.09em] ${
+                  sortCol === i ? 'text-signal-500' : 'text-ink-500'
+                } hover:text-signal-500`}
+              >
+                {c.head}{sortCol === i ? (desc ? ' ↓' : ' ↑') : ''}
+              </button>
+            ))}
+          </div>
+          <div className="px-5 pb-5">
+            {rows.map(r => <Row key={r.id} row={r} columns={data.columns} dense={false} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ------------------------------------------------------------
+// panel builders
+// ------------------------------------------------------------
+
+/** Standard four-column breakdown of a dimension. */
+function dimensionPanel(
+  title: string,
+  buckets: Bucket[],
+  valueHead: string,
+  note: string | undefined,
+  dimension: Dimension | undefined,
+  onFilter: ((d: Dimension, k: string) => void) | undefined,
+  empty?: React.ReactNode,
+): PanelData {
+  const rows = buckets.filter(b => b.key !== '(none)')
+  const max = Math.max(1, ...rows.map(b => b.total))
+  return {
+    title,
+    note,
+    empty,
+    columns: [
+      { head: valueHead, align: 'left' },
+      { head: 'Auths', align: 'right', width: 'w-16' },
+      { head: 'Failed', align: 'right', width: 'w-14' },
+      { head: 'Fail %', align: 'right', width: 'w-12' },
+    ],
+    rows: rows.map(b => ({
+      id: b.key,
+      bar: b.total / max,
+      barFail: b.total ? b.fail / b.total : 0,
+      onClick: dimension && onFilter ? () => onFilter(dimension, b.key) : undefined,
+      cells: [
+        b.key,
+        n(b.total),
+        b.fail ? n(b.fail) : '—',
+        <span key="r" className={rateTone(b.failRate)}>{pc(b.failRate)}</span>,
+      ],
+    })),
+  }
+}
+
+// ------------------------------------------------------------
+// charts
 // ------------------------------------------------------------
 
 function Kpi({ label, value, sub, tone = 'ink' }: {
@@ -62,146 +355,25 @@ function Kpi({ label, value, sub, tone = 'ink' }: {
   const colour = tone === 'red' ? 'text-signal-500'
     : tone === 'green' ? 'text-[#0F7B4F]' : 'text-ink-950'
   return (
-    <div className="border border-ink-200 bg-paper p-4">
-      <div className="label text-ink-400">{label}</div>
-      <div className={`mt-2 text-[1.75rem] font-bold leading-none ${colour}`}
+    <div className="border border-ink-200 bg-paper px-3 py-2.5">
+      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{label}</div>
+      <div className={`mt-1 text-[1.35rem] font-bold leading-none ${colour}`}
            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
         {value}
       </div>
-      {sub && <div className="mt-1.5 text-xs text-ink-500">{sub}</div>}
+      {sub && <div className="mt-1 text-[10px] leading-snug text-ink-400">{sub}</div>}
     </div>
   )
 }
 
-function SectionTitle({ children, note }: { children: React.ReactNode; note?: string }) {
-  return (
-    <div className="mb-4 mt-10 first:mt-0">
-      <h3 className="text-lg font-bold text-ink-950"
-          style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
-        {children}
-      </h3>
-      {note && <p className="mt-1 text-sm text-ink-500">{note}</p>}
-    </div>
-  )
-}
-
-/**
- * The workhorse. One row per value: a bar showing total volume with
- * the failed portion filled in red, so relative size and relative
- * health read at the same time. Clicking a row filters the whole
- * dashboard to that value.
- */
-function BarList({
-  title, note, buckets, dimension, onFilter, limit = 12, showRate = true,
-}: {
-  title: string
-  note?: string
-  buckets: Bucket[]
-  dimension?: Dimension
-  onFilter?: (d: Dimension, key: string) => void
-  limit?: number
-  showRate?: boolean
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const rows = buckets.filter(b => b.key !== '(none)')
-  const shown = expanded ? rows : rows.slice(0, limit)
-  const max = Math.max(1, ...rows.map(b => b.total))
-
-  if (rows.length === 0) {
-    return (
-      <div className="mb-8">
-        <SectionTitle note={note}>{title}</SectionTitle>
-        <p className="border border-dashed border-ink-200 p-4 text-sm text-ink-400">
-          Not populated in this export.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mb-8">
-      <SectionTitle note={note}>{title}</SectionTitle>
-      <div className="border border-ink-200">
-        {shown.map((b, i) => {
-          const w = (b.total / max) * 100
-          const failW = b.total > 0 ? (b.fail / b.total) * 100 : 0
-          const clickable = Boolean(dimension && onFilter)
-          return (
-            <div
-              key={b.key}
-              role={clickable ? 'button' : undefined}
-              tabIndex={clickable ? 0 : undefined}
-              onClick={() => clickable && onFilter!(dimension!, b.key)}
-              onKeyDown={e => {
-                if (clickable && (e.key === 'Enter' || e.key === ' ')) {
-                  e.preventDefault(); onFilter!(dimension!, b.key)
-                }
-              }}
-              className={`relative flex items-center gap-3 px-3 py-2 ${
-                i > 0 ? 'border-t border-ink-100' : ''
-              } ${clickable ? 'cursor-pointer hover:bg-paper-dim' : ''}`}
-            >
-              {/* volume bar, sitting behind the text */}
-              <span
-                className="pointer-events-none absolute inset-y-0 left-0 bg-ink-100"
-                style={{ width: `${w}%` }}
-                aria-hidden="true"
-              />
-              <span
-                className="pointer-events-none absolute inset-y-0 left-0 bg-signal-500/25"
-                style={{ width: `${(w * failW) / 100}%` }}
-                aria-hidden="true"
-              />
-
-              <span className="relative min-w-0 flex-1 truncate text-sm text-ink-900" title={b.key}>
-                {b.key}
-              </span>
-              <span className="relative w-20 shrink-0 text-right font-mono text-xs text-ink-700">
-                {n(b.total)}
-              </span>
-              {showRate && (
-                <>
-                  <span className="relative w-16 shrink-0 text-right font-mono text-xs text-ink-500">
-                    {n(b.fail)}
-                  </span>
-                  <span className={`relative w-14 shrink-0 text-right font-mono text-xs font-bold ${
-                    b.failRate > 0.15 ? 'text-signal-500'
-                      : b.failRate > 0.08 ? 'text-[#B45309]' : 'text-ink-400'
-                  }`}>
-                    {pc(b.failRate)}
-                  </span>
-                </>
-              )}
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-2 flex items-center justify-between text-xs text-ink-400">
-        <span>
-          {showRate ? 'Columns: total · failed · failure rate' : 'Total'}
-          {dimension && onFilter ? ' · click a row to filter' : ''}
-        </span>
-        {rows.length > limit && (
-          <button onClick={() => setExpanded(v => !v)}
-                  className="font-medium text-signal-500 hover:underline">
-            {expanded ? 'Show fewer' : `Show all ${rows.length}`}
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** Volume bars with a failure-rate line over the top. */
 function Timeline({ analysis }: { analysis: Analysis }) {
   const data = analysis.timeline
   if (data.length < 2) return null
 
-  const W = 1000, H = 240, padL = 48, padR = 44, padT = 16, padB = 28
+  const W = 1200, H = 180, padL = 46, padR = 44, padT = 12, padB = 22
   const iw = W - padL - padR, ih = H - padT - padB
   const maxTotal = Math.max(1, ...data.map(d => d.total))
   const maxRate = Math.max(0.05, ...data.map(d => (d.total ? d.fail / d.total : 0)))
-
   const bw = iw / data.length
   const x = (i: number) => padL + i * bw
   const yVol = (v: number) => padT + ih - (v / maxTotal) * ih
@@ -212,105 +384,72 @@ function Timeline({ analysis }: { analysis: Analysis }) {
     return `${i === 0 ? 'M' : 'L'}${(x(i) + bw / 2).toFixed(1)},${yRate(r).toFixed(1)}`
   }).join(' ')
 
-  const ticks = [0, Math.floor(data.length / 2), data.length - 1]
+  const ticks = [0, Math.floor(data.length / 4), Math.floor(data.length / 2),
+                 Math.floor(data.length * 3 / 4), data.length - 1]
 
   return (
-    <div className="mb-8">
-      <SectionTitle note={`One bar per ${duration(analysis.bucketMs)}. Grey is volume, the red line is failure rate.`}>
-        Authentications over time
-      </SectionTitle>
-      <div className="border border-ink-200 bg-paper p-2">
+    <section className="border border-ink-200 bg-paper">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2.5">
+        <h3 className="text-[13px] font-bold text-ink-950"
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+          Authentications over time
+        </h3>
+        <p className="text-[10.5px] text-ink-400">
+          One bar per {duration(analysis.bucketMs)} · grey bar = total · red bar = failed ·
+          red line = failure rate · peak {n(analysis.peakPerMinute)}/min
+        </p>
+      </header>
+      <div className="p-2">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
              aria-label="Authentication volume and failure rate over time">
           {[0, 0.25, 0.5, 0.75, 1].map(f => (
-            <line key={f} x1={padL} x2={W - padR}
-                  y1={padT + ih * f} y2={padT + ih * f}
+            <line key={f} x1={padL} x2={W - padR} y1={padT + ih * f} y2={padT + ih * f}
                   stroke="#ECECEF" strokeWidth="1" />
           ))}
-
           {data.map((d, i) => (
             <rect key={i} x={x(i) + bw * 0.12} width={Math.max(bw * 0.76, 0.6)}
-                  y={yVol(d.total)} height={Math.max(padT + ih - yVol(d.total), 0)}
-                  fill="#D9D9DE" />
+                  y={yVol(d.total)} height={Math.max(padT + ih - yVol(d.total), 0)} fill="#D9D9DE" />
           ))}
           {data.map((d, i) => (
             <rect key={'f' + i} x={x(i) + bw * 0.12} width={Math.max(bw * 0.76, 0.6)}
                   y={yVol(d.fail)} height={Math.max(padT + ih - yVol(d.fail), 0)}
                   fill="#D3002D" opacity="0.5" />
           ))}
-
-          <path d={line} fill="none" stroke="#D3002D" strokeWidth="2"
+          <path d={line} fill="none" stroke="#D3002D" strokeWidth="1.8"
                 strokeLinejoin="round" strokeLinecap="round" />
 
-          <text x={padL - 8} y={padT + 4} textAnchor="end" fontSize="11" fill="#8A8A93">
-            {n(maxTotal)}
-          </text>
-          <text x={padL - 8} y={padT + ih} textAnchor="end" fontSize="11" fill="#8A8A93">0</text>
-          <text x={W - padR + 8} y={padT + 4} fontSize="11" fill="#D3002D">{pc(maxRate, 0)}</text>
-          <text x={W - padR + 8} y={padT + ih} fontSize="11" fill="#D3002D">0%</text>
+          <text x={padL - 6} y={padT + 4} textAnchor="end" fontSize="10" fill="#8A8A93">{n(maxTotal)}</text>
+          <text x={padL - 6} y={padT + ih} textAnchor="end" fontSize="10" fill="#8A8A93">0</text>
+          <text x={padL - 6} y={padT - 2} textAnchor="end" fontSize="8" fill="#B5B5BC">auths</text>
+          <text x={W - padR + 6} y={padT + 4} fontSize="10" fill="#D3002D">{pc(maxRate, 0)}</text>
+          <text x={W - padR + 6} y={padT + ih} fontSize="10" fill="#D3002D">0%</text>
+          <text x={W - padR + 6} y={padT - 2} fontSize="8" fill="#E58098">fail rate</text>
 
           {ticks.map(i => (
-            <text key={i} x={x(i) + bw / 2} y={H - 8} textAnchor="middle"
-                  fontSize="11" fill="#8A8A93">
+            <text key={i} x={x(i) + bw / 2} y={H - 6} textAnchor="middle" fontSize="10" fill="#8A8A93">
               {clock(data[i].t)}
             </text>
           ))}
         </svg>
       </div>
-      <p className="mt-2 text-xs text-ink-400">
-        Times shown in the file&apos;s own timezone. Peak {n(analysis.peakPerMinute)} authentications per minute.
-      </p>
-    </div>
-  )
-}
-
-function Histogram({ analysis }: { analysis: Analysis }) {
-  const rows = analysis.rtHistogram
-  const total = rows.reduce((a, b) => a + b.count, 0)
-  const max = Math.max(1, ...rows.map(r => r.count))
-  if (total === 0) return null
-
-  return (
-    <div className="mb-8">
-      <SectionTitle note="How long ISE took to answer. A long tail here is worth chasing before users report it.">
-        Response time distribution
-      </SectionTitle>
-      <div className="border border-ink-200">
-        {rows.map((r, i) => (
-          <div key={i} className={`relative flex items-center gap-3 px-3 py-1.5 ${
-            i > 0 ? 'border-t border-ink-100' : ''}`}>
-            <span className="pointer-events-none absolute inset-y-0 left-0 bg-ink-100"
-                  style={{ width: `${(r.count / max) * 100}%` }} aria-hidden="true" />
-            <span className="relative w-28 shrink-0 font-mono text-xs text-ink-700">
-              {r.to === Infinity ? `${r.from}ms +` : `${r.from}–${r.to}ms`}
-            </span>
-            <span className="relative flex-1" />
-            <span className="relative w-20 text-right font-mono text-xs text-ink-700">{n(r.count)}</span>
-            <span className="relative w-14 text-right font-mono text-xs text-ink-400">
-              {pc(r.count / total)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
+    </section>
   )
 }
 
 function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: string) => void }) {
   return (
-    <div className="border-l-2 border-signal-500 bg-paper p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+    <div className="border border-ink-200 border-l-2 border-l-signal-500 bg-paper p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
+        <p className="text-[13px] font-bold leading-tight text-ink-950"
+           style={{ fontFamily: 'var(--font-heading)' }}>
           {f.headline}
         </p>
-        <span className="label text-ink-400">{f.label}</span>
+        <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{f.label}</span>
       </div>
-      <p className="mt-2 text-sm leading-relaxed text-ink-600">{f.detail}</p>
-      <button
-        onClick={() => onFilter(f.dimension, f.key)}
-        className="mt-3 text-xs font-bold uppercase tracking-wider text-signal-500 hover:underline"
-      >
-        Filter the dashboard to this →
+      <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-600">{f.detail}</p>
+      <button onClick={() => onFilter(f.dimension, f.key)}
+              className="mt-2 text-[10px] font-bold uppercase tracking-[0.09em] text-signal-500 hover:underline">
+        Filter to this →
       </button>
     </div>
   )
@@ -321,16 +460,6 @@ function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: 
 // ------------------------------------------------------------
 
 type Phase = 'idle' | 'reading' | 'ready' | 'error'
-type Tab = 'overview' | 'failures' | 'infra' | 'identity' | 'perf' | 'data'
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'failures', label: 'Failures' },
-  { id: 'infra',    label: 'Infrastructure' },
-  { id: 'identity', label: 'Identity & policy' },
-  { id: 'perf',     label: 'Performance' },
-  { id: 'data',     label: 'Data quality' },
-]
 
 export default function RadiusAnalyser() {
   const [file, setFile] = useState<File | null>(null)
@@ -338,8 +467,8 @@ export default function RadiusAnalyser() {
   const [progress, setProgress] = useState(0)
   const [rowsSeen, setRowsSeen] = useState(0)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<Tab>('overview')
   const [filters, setFilters] = useState<Filter[]>([])
+  const [detail, setDetail] = useState<PanelData | null>(null)
   const [, forceRender] = useState(0)
 
   const storeRef = useRef<Store | null>(null)
@@ -352,21 +481,13 @@ export default function RadiusAnalyser() {
   }, [filters, phase])
 
   const pick = (f: File | null) => {
-    setFile(f)
-    setPhase('idle')
-    setError('')
-    setFilters([])
-    storeRef.current = null
+    setFile(f); setPhase('idle'); setError(''); setFilters([]); storeRef.current = null
   }
 
   const run = useCallback(() => {
     if (!file) return
-    setPhase('reading')
-    setProgress(0)
-    setRowsSeen(0)
-    setError('')
-    setFilters([])
-    storeRef.current = null
+    setPhase('reading'); setProgress(0); setRowsSeen(0); setError('')
+    setFilters([]); storeRef.current = null
 
     let builder: StoreBuilder | null = null
     let headerChecked = false
@@ -381,13 +502,12 @@ export default function RadiusAnalyser() {
         if (!headerChecked) {
           headerChecked = true
           const headers = results.meta.fields ?? []
-          const map = detectColumns(headers)
-          if (!looksLikeRadius(map)) {
+          if (!looksLikeRadius(detectColumns(headers))) {
             parser.abort()
             setPhase('error')
             setError(
-              'This does not look like a RADIUS Authentications export. ' +
-              'Columns found: ' + headers.slice(0, 14).join(', ') +
+              'This does not look like a RADIUS Authentications export. Columns found: ' +
+              headers.slice(0, 14).join(', ') +
               (headers.length > 14 ? ` … and ${headers.length - 14} more.` : '')
             )
             return
@@ -404,25 +524,18 @@ export default function RadiusAnalyser() {
       complete: () => {
         if (!builder) return
         storeRef.current = builder.finish()
-        setProgress(100)
-        setPhase('ready')
-        setTab('overview')
-        forceRender(v => v + 1)
+        setProgress(100); setPhase('ready'); forceRender(v => v + 1)
       },
 
-      error: err => {
-        setPhase('error')
-        setError(err.message || 'The file could not be read.')
-      },
+      error: err => { setPhase('error'); setError(err.message || 'The file could not be read.') },
     })
   }, [file])
 
   const addFilter = useCallback((dimension: Dimension, key: string) => {
+    setDetail(null)
     setFilters(prev => {
       const existing = prev.find(f => f.dimension === dimension)
-      if (existing && existing.key === key) {
-        return prev.filter(f => f.dimension !== dimension)
-      }
+      if (existing && existing.key === key) return prev.filter(f => f.dimension !== dimension)
       return [...prev.filter(f => f.dimension !== dimension), { dimension, key }]
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -432,8 +545,7 @@ export default function RadiusAnalyser() {
     if (!analysis) return
     const body = kind === 'csv' ? toCsv(analysis) : JSON.stringify({
       generated: new Date().toISOString(),
-      source: file?.name,
-      filters,
+      source: file?.name, filters,
       summary: {
         total: analysis.total, pass: analysis.pass, fail: analysis.fail,
         failRate: analysis.failRate,
@@ -454,77 +566,65 @@ export default function RadiusAnalyser() {
     URL.revokeObjectURL(url)
   }
 
-  // ---------- upload panel ----------
-  const uploader = (
-    <div
-      ref={dropRef}
-      onDragOver={e => { e.preventDefault(); dropRef.current?.classList.add('drop-live') }}
-      onDragLeave={() => dropRef.current?.classList.remove('drop-live')}
-      onDrop={e => {
-        e.preventDefault()
-        dropRef.current?.classList.remove('drop-live')
-        const f = e.dataTransfer.files?.[0]
-        if (f) pick(f)
-      }}
-      className="tool-drop border-2 border-dashed border-ink-200 bg-paper p-8 text-center transition-colors"
-    >
-      <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
-        Drop the CSV here
-      </p>
-      <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-ink-500">
-        A Cisco ISE <strong>RADIUS Authentications</strong> export. The file stays on this
-        computer — it is read in your browser and never uploaded.
-      </p>
-
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <label className="btn-ghost cursor-pointer">
-          Choose file
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="sr-only"
-            onChange={e => pick(e.target.files?.[0] ?? null)}
-          />
-        </label>
-        <button
-          onClick={run}
-          disabled={!file || phase === 'reading'}
-          className="btn-signal disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {phase === 'reading' ? 'Analysing…' : 'Analyse'}
-        </button>
-      </div>
-
-      {file && (
-        <p className="mt-4 font-mono text-xs text-ink-600">
-          {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
-        </p>
-      )}
-
-      {phase === 'reading' && (
-        <div className="mx-auto mt-5 max-w-md">
-          <div className="h-1.5 w-full overflow-hidden bg-ink-100">
-            <div className="h-full bg-signal-500 transition-[width] duration-150"
-                 style={{ width: `${progress}%` }} />
-          </div>
-          <p className="mt-2 font-mono text-xs text-ink-500">
-            {n(rowsSeen)} rows read
-          </p>
-        </div>
-      )}
-
-      {phase === 'error' && (
-        <p className="mx-auto mt-5 max-w-xl border border-signal-500 bg-signal-50 p-3 text-sm text-signal-700">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-
+  // ---------- landing ----------
   if (!analysis || phase !== 'ready') {
     return (
       <div className="container-page py-12">
-        {uploader}
+        <div
+          ref={dropRef}
+          onDragOver={e => { e.preventDefault(); dropRef.current?.classList.add('drop-live') }}
+          onDragLeave={() => dropRef.current?.classList.remove('drop-live')}
+          onDrop={e => {
+            e.preventDefault()
+            dropRef.current?.classList.remove('drop-live')
+            const f = e.dataTransfer.files?.[0]
+            if (f) pick(f)
+          }}
+          className="tool-drop border-2 border-dashed border-ink-200 bg-paper p-8 text-center transition-colors"
+        >
+          <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
+            Drop the CSV here
+          </p>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-ink-500">
+            A Cisco ISE <strong>RADIUS Authentications</strong> export. The file stays on this
+            computer — it is read in your browser and never uploaded.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <label className="btn-ghost cursor-pointer">
+              Choose file
+              <input type="file" accept=".csv,text/csv" className="sr-only"
+                     onChange={e => pick(e.target.files?.[0] ?? null)} />
+            </label>
+            <button onClick={run} disabled={!file || phase === 'reading'}
+                    className="btn-signal disabled:cursor-not-allowed disabled:opacity-40">
+              {phase === 'reading' ? 'Analysing…' : 'Analyse'}
+            </button>
+          </div>
+
+          {file && (
+            <p className="mt-4 font-mono text-xs text-ink-600">
+              {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
+            </p>
+          )}
+
+          {phase === 'reading' && (
+            <div className="mx-auto mt-5 max-w-md">
+              <div className="h-1.5 w-full overflow-hidden bg-ink-100">
+                <div className="h-full bg-signal-500 transition-[width] duration-150"
+                     style={{ width: `${progress}%` }} />
+              </div>
+              <p className="mt-2 font-mono text-xs text-ink-500">{n(rowsSeen)} rows read</p>
+            </div>
+          )}
+
+          {phase === 'error' && (
+            <p className="mx-auto mt-5 max-w-xl border border-signal-500 bg-signal-50 p-3 text-sm text-signal-700">
+              {error}
+            </p>
+          )}
+        </div>
+
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {[
             ['Where to get the file', 'In ISE: Operations → Reports → Reports → Endpoints and Users → RADIUS Authentications. Set your time range, then Export.'],
@@ -541,362 +641,272 @@ export default function RadiusAnalyser() {
     )
   }
 
+  // ---------- dashboard ----------
   const a = analysis
   const healthy = a.failRate < 0.05
+  const F = (d: Dimension, k: string) => addFilter(d, k)
+
+  const maxFailure = Math.max(1, ...a.failures.map(f => f.count))
+  const maxCategory = Math.max(1, ...a.categories.map(c => c.total))
+  const maxHist = Math.max(1, ...a.rtHistogram.map(r => r.count))
+  const histTotal = a.rtHistogram.reduce((s, r) => s + r.count, 0)
+  const maxSlow = Math.max(1, ...a.slowest.map(b => b.rtAvg))
+
+  const failureReasons: PanelData = {
+    title: 'Failure reasons',
+    note: 'Every distinct reason with its ISE message code, and the device producing most of them.',
+    columns: [
+      { head: 'Reason', align: 'left' },
+      { head: 'Code', align: 'right', width: 'w-12' },
+      { head: 'Count', align: 'right', width: 'w-14' },
+      { head: 'Share', align: 'right', width: 'w-12' },
+      { head: 'Worst device', align: 'right', width: 'w-40' },
+    ],
+    rows: a.failures.map(f => ({
+      id: (f.code || '') + f.text,
+      bar: f.count / maxFailure,
+      barFail: 1,
+      cells: [
+        f.text,
+        <span key="c" className="text-signal-500">{f.code || '—'}</span>,
+        n(f.count),
+        pc(f.share),
+        <span key="d" className="truncate text-ink-500">{f.topDevice || '—'}</span>,
+      ],
+    })),
+    empty: 'No failures in this selection.',
+  }
+
+  const failureFamilies: PanelData = {
+    title: 'Failure families',
+    note: 'ISE message codes grouped by subsystem — which part of the exchange is breaking.',
+    columns: [
+      { head: 'Family', align: 'left' },
+      { head: 'Failures', align: 'right', width: 'w-16' },
+      { head: 'Share', align: 'right', width: 'w-12' },
+    ],
+    rows: a.categories.map(c => ({
+      id: c.key,
+      bar: c.total / maxCategory,
+      barFail: 1,
+      cells: [c.key, n(c.total), pc(a.fail ? c.total / a.fail : 0)],
+    })),
+    empty: 'No failures in this selection.',
+  }
+
+  const responseHistogram: PanelData = {
+    title: 'Response time distribution',
+    note: 'How long ISE took to answer. A long tail here is worth chasing before users report it.',
+    columns: [
+      { head: 'Response time', align: 'left' },
+      { head: 'Auths', align: 'right', width: 'w-16' },
+      { head: 'Share', align: 'right', width: 'w-12' },
+    ],
+    rows: a.rtHistogram.map(r => ({
+      id: `${r.from}`,
+      bar: r.count / maxHist,
+      cells: [
+        r.to === Infinity ? `${r.from}ms and above` : `${r.from} – ${r.to}ms`,
+        n(r.count),
+        pc(histTotal ? r.count / histTotal : 0),
+      ],
+    })),
+  }
+
+  const slowestDevices: PanelData = {
+    title: 'Slowest network devices',
+    note: 'Mean response time, devices with 30+ authentications. Slow here often means WAN path, not ISE.',
+    columns: [
+      { head: 'Network device', align: 'left' },
+      { head: 'Mean', align: 'right', width: 'w-16' },
+      { head: 'Auths', align: 'right', width: 'w-16' },
+      { head: 'Fail %', align: 'right', width: 'w-12' },
+    ],
+    rows: a.slowest.map(b => ({
+      id: b.key,
+      bar: b.rtAvg / maxSlow,
+      onClick: () => F('device', b.key),
+      cells: [b.key, ms(b.rtAvg), n(b.total),
+        <span key="r" className={rateTone(b.failRate)}>{pc(b.failRate)}</span>],
+    })),
+  }
+
+  const nodePerformance: PanelData = {
+    title: 'ISE node performance',
+    note: 'One slow node points at that node. All of them slow points at the identity store.',
+    columns: [
+      { head: 'ISE node', align: 'left' },
+      { head: 'Auths', align: 'right', width: 'w-16' },
+      { head: 'Mean', align: 'right', width: 'w-16' },
+      { head: 'Fail %', align: 'right', width: 'w-12' },
+    ],
+    rows: a.dims.server.filter(b => b.key !== '(none)').map(b => ({
+      id: b.key,
+      bar: b.rtCount ? b.rtAvg / Math.max(1, ...a.dims.server.map(x => x.rtAvg)) : 0,
+      onClick: () => F('server', b.key),
+      cells: [b.key, n(b.total), b.rtCount ? ms(b.rtAvg) : '—',
+        <span key="r" className={rateTone(b.failRate)}>{pc(b.failRate)}</span>],
+    })),
+  }
+
+  const emptyCols: PanelData = {
+    title: 'Columns with no data',
+    note: 'Present in the export but empty on every row — ISE populates these only in certain deployments.',
+    columns: [{ head: 'Column name', align: 'left' }],
+    rows: a.emptyColumns.map(c => ({ id: c, cells: [c] })),
+    empty: 'Every column in the file contains data.',
+  }
+
+  const byFail = (list: Bucket[]) => [...list].sort((x, y) => y.fail - x.fail).filter(b => b.fail > 0)
+
+  const panels: PanelData[] = [
+    failureReasons,
+    failureFamilies,
+    dimensionPanel('ISE nodes', a.dims.server, 'ISE node (PSN)',
+      'Volume should be even behind a load balancer. Skew means an uneven RADIUS server list on the NADs.',
+      'server', F),
+    dimensionPanel('Network devices', a.dims.device, 'Network device',
+      'Switches and wireless controllers. Where a site-specific fault shows up first.', 'device', F),
+    dimensionPanel('NAD IP addresses', a.dims.nasIp, 'NAS IP address', undefined, 'nasIp', F),
+    dimensionPanel('Device types', a.dims.deviceType, 'Device type', undefined, 'deviceType', F),
+    dimensionPanel('Locations', a.dims.location, 'Location', undefined, 'location', F),
+    dimensionPanel('SSIDs', a.dims.ssid, 'SSID', 'Taken from Called-Station-ID.', 'ssid', F,
+      <>
+        This export has no SSID data. On wireless the SSID travels in the
+        <span className="font-mono"> Called-Station-ID </span> attribute, which the standard
+        RADIUS Authentications report template omits. Export from <strong>Operations →
+        RADIUS → Live Logs</strong> instead, or add that column to a custom report — this
+        panel fills itself in automatically when the column is present.
+      </>),
+    dimensionPanel('Authentication protocols', a.dims.protocol, 'Protocol',
+      'A protocol failing at 100% almost always means it is not permitted in Allowed Protocols.',
+      'protocol', F),
+    dimensionPanel('Authentication methods', a.dims.method, 'Method', undefined, 'method', F),
+    dimensionPanel('Credential checks', a.dims.credential, 'Credential check', undefined, 'credential', F),
+    dimensionPanel('Identity stores', a.dims.identityStore, 'Identity store', undefined, 'identityStore', F),
+    dimensionPanel('Policy sets', a.dims.policySet, 'Policy set', undefined, 'policySet', F),
+    dimensionPanel('Authorization rules', a.dims.authzRule, 'Authorization rule', undefined, 'authzRule', F),
+    dimensionPanel('Authorization profiles', a.dims.authzProfile, 'Authorization profile', undefined, 'authzProfile', F),
+    dimensionPanel('Identity groups', a.dims.identityGroup, 'Identity group', undefined, 'identityGroup', F),
+    dimensionPanel('Endpoint profiles', a.dims.endpointProfile, 'Endpoint profile',
+      'A high share of Unknown means profiling probes are not seeing these endpoints.',
+      'endpointProfile', F),
+    dimensionPanel('Endpoints failing most', byFail(a.dims.mac), 'Endpoint MAC',
+      'One MAC failing repeatedly is usually a single broken supplicant or an expired certificate.',
+      'mac', F, 'No failing endpoints in this selection.'),
+    dimensionPanel('Users failing most', byFail(a.dims.user), 'User name',
+      'Repeated failures for one identity point at credentials, group membership or account state.',
+      'user', F, 'No failing users in this selection.'),
+    dimensionPanel('Service types', a.dims.serviceType, 'Service type', undefined, 'serviceType', F),
+    responseHistogram,
+    slowestDevices,
+    nodePerformance,
+    emptyCols,
+  ]
 
   return (
-    <div className="container-page py-10">
+    <div className="container-page py-8">
 
       {/* ---------- toolbar ---------- */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 pb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 pb-3">
         <div className="min-w-0">
-          <p className="truncate font-mono text-xs text-ink-500">{file?.name}</p>
-          <p className="text-sm text-ink-700">
+          <p className="truncate font-mono text-[11px] text-ink-500">{file?.name}</p>
+          <p className="text-xs text-ink-700">
             {n(a.rows)} rows · {stamp(a.windowStart)} to {clock(a.windowEnd)} · {duration(a.windowMs)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => download('csv')} className="btn-ghost !px-4 !py-2 !text-[0.65rem]">
-            Export CSV
-          </button>
-          <button onClick={() => download('json')} className="btn-ghost !px-4 !py-2 !text-[0.65rem]">
-            Export JSON
-          </button>
-          <button onClick={() => { pick(null); setPhase('idle') }}
-                  className="btn-ghost !px-4 !py-2 !text-[0.65rem]">
-            New file
-          </button>
+          <button onClick={() => download('csv')} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">Export CSV</button>
+          <button onClick={() => download('json')} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">Export JSON</button>
+          <button onClick={() => { pick(null); setPhase('idle') }} className="btn-ghost !px-3 !py-1.5 !text-[0.6rem]">New file</button>
         </div>
       </div>
 
       {a.truncated && (
-        <p className="mb-4 border border-[#B45309] bg-[#FFF7ED] p-3 text-sm text-[#7C2D12]">
-          This file exceeded the row limit and was truncated. The figures below cover the first
-          rows only.
+        <p className="mb-3 border border-[#B45309] bg-[#FFF7ED] p-2.5 text-xs text-[#7C2D12]">
+          This file exceeded the row limit and was truncated. Figures cover the first rows only.
         </p>
       )}
 
-      {/* ---------- active filters ---------- */}
+      {/* ---------- filters ---------- */}
       {filters.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <span className="label text-ink-400">Filtered to</span>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">Filtered to</span>
           {filters.map(f => (
-            <button
-              key={f.dimension}
-              onClick={() => setFilters(prev => prev.filter(x => x.dimension !== f.dimension))}
-              className="inline-flex items-center gap-2 border border-signal-500 bg-signal-50 px-3 py-1 text-xs text-signal-700 hover:bg-signal-100"
-            >
+            <button key={f.dimension}
+                    onClick={() => setFilters(prev => prev.filter(x => x.dimension !== f.dimension))}
+                    className="inline-flex items-center gap-1.5 border border-signal-500 bg-signal-50 px-2.5 py-1 text-[11px] text-signal-700 hover:bg-signal-100">
               <span className="font-medium">{DIMENSION_LABELS[f.dimension]}:</span>
               <span className="font-mono">{f.key}</span>
               <span aria-hidden="true">×</span>
             </button>
           ))}
           <button onClick={() => setFilters([])}
-                  className="text-xs font-bold uppercase tracking-wider text-ink-400 hover:text-signal-500">
+                  className="text-[10px] font-bold uppercase tracking-[0.09em] text-ink-400 hover:text-signal-500">
             Clear all
           </button>
         </div>
       )}
 
-      {/* ---------- tabs ---------- */}
-      <div className="mb-8 flex flex-wrap gap-1 border-b border-ink-200">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-[0.7rem] font-bold uppercase tracking-[0.12em] transition-colors ${
-              tab === t.id
-                ? 'border-b-2 border-signal-500 text-ink-950'
-                : 'border-b-2 border-transparent text-ink-400 hover:text-ink-700'
-            }`}
-            style={{ fontFamily: 'var(--font-heading)' }}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* ---------- KPIs ---------- */}
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        <Kpi label="Authentications" value={n(a.total)} sub={`${a.perSecond.toFixed(1)}/sec`} />
+        <Kpi label="Passed" value={n(a.pass)} tone="green" sub={pc(1 - a.failRate)} />
+        <Kpi label="Failed" value={n(a.fail)} tone="red" sub={pc(a.failRate)} />
+        <Kpi label="Failure rate" value={pc(a.failRate, 2)} tone={healthy ? 'green' : 'red'}
+             sub={healthy ? 'within normal range' : 'above 5%'} />
+        <Kpi label="Median response" value={ms(a.rtPercentiles.p50)} sub={`p95 ${ms(a.rtPercentiles.p95)}`} />
+        <Kpi label="99th percentile" value={ms(a.rtPercentiles.p99)}
+             tone={a.rtPercentiles.p99 > 1000 ? 'red' : 'ink'} sub={`max ${ms(a.rtPercentiles.max)}`} />
+        <Kpi label="Endpoints" value={n(a.distinct.mac)} />
+        <Kpi label="Users" value={n(a.distinct.user)} />
+        <Kpi label="Network devices" value={n(a.distinct.device)} />
+        <Kpi label="ISE nodes" value={n(a.distinct.server)} />
+        <Kpi label="Failure reasons" value={n(a.failures.length)} />
+        <Kpi label="Policy sets" value={n(a.distinct.policySet)} />
       </div>
 
-      {/* ================= OVERVIEW ================= */}
-      {tab === 'overview' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-            <Kpi label="Authentications" value={n(a.total)}
-                 sub={`${a.perSecond.toFixed(1)} per second`} />
-            <Kpi label="Passed" value={n(a.pass)} tone="green"
-                 sub={pc(1 - a.failRate) + ' of total'} />
-            <Kpi label="Failed" value={n(a.fail)} tone="red"
-                 sub={pc(a.failRate) + ' of total'} />
-            <Kpi label="Failure rate" value={pc(a.failRate, 2)}
-                 tone={healthy ? 'green' : 'red'}
-                 sub={healthy ? 'within normal range' : 'above 5% — worth investigating'} />
-            <Kpi label="Median response" value={ms(a.rtPercentiles.p50)}
-                 sub={`p95 ${ms(a.rtPercentiles.p95)}`} />
-            <Kpi label="Unique endpoints" value={n(a.distinct.mac)} />
-            <Kpi label="Unique users" value={n(a.distinct.user)} />
-            <Kpi label="Network devices" value={n(a.distinct.device)} />
-            <Kpi label="ISE nodes" value={n(a.distinct.server)} />
-            <Kpi label="Distinct failure reasons" value={n(a.failures.length)} />
-          </div>
+      {/* ---------- timeline ---------- */}
+      <div className="mb-4"><Timeline analysis={a} /></div>
 
-          <Timeline analysis={a} />
-
-          <SectionTitle note="Ranked by how many failures each is responsible for beyond what the overall rate would predict. Values covering most of the data are excluded — they are the baseline.">
+      {/* ---------- findings ---------- */}
+      <section className="mb-4 border border-ink-200 bg-paper-dim p-3">
+        <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-[13px] font-bold text-ink-950"
+              style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
             What stands out
-          </SectionTitle>
-          {a.findings.length === 0 ? (
-            <p className="border border-ink-200 p-5 text-sm text-ink-500">
-              Nothing is statistically apart from the baseline. Failures are spread evenly
-              rather than concentrated in one site, device or method — which usually points
-              at a general condition rather than a specific fault.
-            </p>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {a.findings.map((f, i) => <FindingCard key={i} f={f} onFilter={addFilter} />)}
-            </div>
-          )}
-
-          <div className="mt-10 grid gap-8 lg:grid-cols-2">
-            <BarList title="Failure reasons by family" buckets={a.categories} showRate={false}
-                     note="ISE message codes grouped by subsystem." />
-            <BarList title="Network devices" buckets={a.dims.device}
-                     dimension="device" onFilter={addFilter} />
-          </div>
-        </>
-      )}
-
-      {/* ================= FAILURES ================= */}
-      {tab === 'failures' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Kpi label="Total failures" value={n(a.fail)} tone="red" />
-            <Kpi label="Distinct reasons" value={n(a.failures.length)} />
-            <Kpi label="Largest single reason"
-                 value={a.failures[0] ? pc(a.failures[0].share) : '—'}
-                 sub={a.failures[0]?.code ? `code ${a.failures[0].code}` : undefined} />
-            <Kpi label="Certificate-related"
-                 value={n(a.categories
-                   .filter(c => /certificate|PEAP handshake|TLS/i.test(c.key))
-                   .reduce((s, c) => s + c.total, 0))}
-                 sub="EAP-TLS, PEAP and TLS session codes" />
-          </div>
-
-          <SectionTitle note="Every distinct failure reason, with the ISE message code and the network device that produced the most of them.">
-            Failure reasons in full
-          </SectionTitle>
-          <div className="overflow-x-auto border border-ink-200">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-paper-dim text-left">
-                  {['Code', 'Family', 'Reason', 'Count', 'Share', 'Most affected device'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-[0.65rem] font-bold uppercase tracking-wider text-ink-500">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {a.failures.map((f, i) => (
-                  <tr key={i} className="border-b border-ink-100 last:border-0 hover:bg-paper-dim">
-                    <td className="px-3 py-2.5 font-mono text-xs text-signal-500">{f.code || '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-xs text-ink-500">{f.category}</td>
-                    <td className="px-3 py-2.5 text-ink-800">{f.text}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs">{n(f.count)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs text-ink-500">{pc(f.share)}</td>
-                    <td className="px-3 py-2.5 text-xs text-ink-600">
-                      {f.topDevice}
-                      {f.topDeviceCount > 0 && (
-                        <span className="ml-1 font-mono text-ink-400">({n(f.topDeviceCount)})</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-10 grid gap-8 lg:grid-cols-2">
-            <BarList title="Endpoints failing most" buckets={[...a.dims.mac].sort((x, y) => y.fail - x.fail).filter(b => b.fail > 0)}
-                     dimension="mac" onFilter={addFilter} limit={15}
-                     note="A single MAC failing repeatedly is usually one broken supplicant or an expired certificate." />
-            <BarList title="Users failing most" buckets={[...a.dims.user].sort((x, y) => y.fail - x.fail).filter(b => b.fail > 0)}
-                     dimension="user" onFilter={addFilter} limit={15}
-                     note="Repeated failures for one identity point at credentials, group membership or an AD account state." />
-          </div>
-        </>
-      )}
-
-      {/* ================= INFRASTRUCTURE ================= */}
-      {tab === 'infra' && (
-        <>
-          <BarList title="ISE nodes (PSN)" buckets={a.dims.server}
-                   dimension="server" onFilter={addFilter}
-                   note="Volume should be roughly even across nodes behind a load balancer. A large skew usually means an uneven RADIUS server list on the network devices." />
-          <BarList title="Network devices" buckets={a.dims.device}
-                   dimension="device" onFilter={addFilter} limit={20}
-                   note="Switches, wireless controllers and anything else sending RADIUS. This is where a site-specific fault shows up." />
-          <BarList title="NAD IP addresses" buckets={a.dims.nasIp}
-                   dimension="nasIp" onFilter={addFilter} limit={20} />
-          <div className="grid gap-8 lg:grid-cols-2">
-            <BarList title="Device type" buckets={a.dims.deviceType}
-                     dimension="deviceType" onFilter={addFilter} />
-            <BarList title="Location" buckets={a.dims.location}
-                     dimension="location" onFilter={addFilter} />
-          </div>
-          {a.hasSsid ? (
-            <BarList title="SSID" buckets={a.dims.ssid} dimension="ssid" onFilter={addFilter} limit={20}
-                     note="Taken from Called-Station-ID." />
-          ) : (
-            <div className="mb-8">
-              <SectionTitle>SSID</SectionTitle>
-              <p className="border border-dashed border-ink-200 p-4 text-sm leading-relaxed text-ink-500">
-                This export has no SSID data. On wireless, the SSID travels in the
-                <span className="font-mono"> Called-Station-ID </span>
-                attribute, which the standard RADIUS Authentications report template does not
-                include. To get SSID breakdowns, export from
-                <strong> Operations → RADIUS → Live Logs </strong>
-                instead, or add Called-Station-ID to a custom report. This tool detects the
-                column automatically and will show the breakdown when it is present.
-              </p>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ================= IDENTITY ================= */}
-      {tab === 'identity' && (
-        <>
-          <div className="grid gap-8 lg:grid-cols-2">
-            <BarList title="Authentication protocol" buckets={a.dims.protocol}
-                     dimension="protocol" onFilter={addFilter}
-                     note="EAP-TLS, PEAP and the rest. A protocol failing at 100% almost always means it is not permitted in the Allowed Protocols list." />
-            <BarList title="Authentication method" buckets={a.dims.method}
-                     dimension="method" onFilter={addFilter} />
-            <BarList title="Credential check" buckets={a.dims.credential}
-                     dimension="credential" onFilter={addFilter} />
-            <BarList title="Identity store" buckets={a.dims.identityStore}
-                     dimension="identityStore" onFilter={addFilter} />
-          </div>
-          <BarList title="Policy set" buckets={a.dims.policySet}
-                   dimension="policySet" onFilter={addFilter} />
-          <BarList title="Authorization rule" buckets={a.dims.authzRule}
-                   dimension="authzRule" onFilter={addFilter} limit={15} />
-          <div className="grid gap-8 lg:grid-cols-2">
-            <BarList title="Authorization profile" buckets={a.dims.authzProfile}
-                     dimension="authzProfile" onFilter={addFilter} />
-            <BarList title="Identity group" buckets={a.dims.identityGroup}
-                     dimension="identityGroup" onFilter={addFilter} />
-          </div>
-          <BarList title="Endpoint profile" buckets={a.dims.endpointProfile}
-                   dimension="endpointProfile" onFilter={addFilter}
-                   note="Endpoints showing as Unknown are not being profiled — worth checking probe configuration if the share is high." />
-        </>
-      )}
-
-      {/* ================= PERFORMANCE ================= */}
-      {tab === 'perf' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-            <Kpi label="Mean" value={ms(a.rtPercentiles.avg)} />
-            <Kpi label="Median" value={ms(a.rtPercentiles.p50)} />
-            <Kpi label="90th" value={ms(a.rtPercentiles.p90)} />
-            <Kpi label="95th" value={ms(a.rtPercentiles.p95)} />
-            <Kpi label="99th" value={ms(a.rtPercentiles.p99)}
-                 tone={a.rtPercentiles.p99 > 1000 ? 'red' : 'ink'} />
-            <Kpi label="Slowest" value={ms(a.rtPercentiles.max)}
-                 tone={a.rtPercentiles.max > 5000 ? 'red' : 'ink'} />
-          </div>
-
-          <Histogram analysis={a} />
-
-          <BarList
-            title="Slowest network devices"
-            buckets={a.slowest.map(b => ({ ...b, total: Math.round(b.rtAvg) }))}
-            showRate={false}
-            note="Ranked by mean response time in milliseconds, across devices with at least 30 authentications. A slow NAD often means a WAN path problem rather than an ISE problem."
-          />
-
-          <SectionTitle note="Mean response time per ISE node. A single slow node points at that node; all of them slow points at an identity store.">
-            Response time by ISE node
-          </SectionTitle>
-          <div className="overflow-x-auto border border-ink-200">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-paper-dim text-left">
-                  {['ISE node', 'Authentications', 'Mean response', 'Failure rate'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-[0.65rem] font-bold uppercase tracking-wider text-ink-500">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {a.dims.server.filter(b => b.key !== '(none)').map(b => (
-                  <tr key={b.key} className="border-b border-ink-100 last:border-0">
-                    <td className="px-3 py-2.5 font-mono text-xs text-ink-800">{b.key}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs">{n(b.total)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs">
-                      {b.rtCount ? ms(b.rtAvg) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs">{pc(b.failRate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* ================= DATA QUALITY ================= */}
-      {tab === 'data' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Kpi label="Rows read" value={n(a.rows)} />
-            <Kpi label="Columns in file" value={n(Object.keys(a.dims).length)} />
-            <Kpi label="Columns with no data" value={n(a.emptyColumns.length)} />
-            <Kpi label="Time window" value={duration(a.windowMs)} />
-          </div>
-
-          <SectionTitle note="Present in the export but empty on every row. These are populated by ISE only in certain deployments — pxGrid, MDM integration, TrustSec or wired port detail.">
-            Columns carrying no data
-          </SectionTitle>
-          {a.emptyColumns.length === 0 ? (
-            <p className="border border-ink-200 p-4 text-sm text-ink-500">
-              Every column in the file contains data.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {a.emptyColumns.map(c => (
-                <span key={c} className="border border-ink-200 bg-paper-dim px-3 py-1.5 font-mono text-xs text-ink-500">
-                  {c}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <SectionTitle note="How many distinct values each dimension holds after filtering.">
-            Cardinality
-          </SectionTitle>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {(Object.keys(DIMENSION_LABELS) as Dimension[])
-              .filter(d => a.distinct[d] > 0)
-              .sort((x, y) => a.distinct[y] - a.distinct[x])
-              .map(d => (
-                <div key={d} className="flex items-baseline justify-between border-b border-ink-100 py-2">
-                  <span className="text-sm text-ink-700">{DIMENSION_LABELS[d]}</span>
-                  <span className="font-mono text-xs text-ink-500">{n(a.distinct[d])}</span>
-                </div>
-              ))}
-          </div>
-
-          <SectionTitle>Privacy</SectionTitle>
-          <p className="max-w-3xl text-sm leading-relaxed text-ink-600">
-            This file was read entirely inside your browser. It was not uploaded to this site,
-            to Vercel, or to any storage. Nothing was logged. Closing or reloading this tab
-            discards the analysis, and the only thing that leaves the machine is whatever you
-            choose to export.
+          </h3>
+          <p className="text-[10.5px] text-ink-400">
+            Ranked by failures beyond what the overall rate predicts. Values covering most of the
+            data are excluded — they are the baseline.
           </p>
-        </>
-      )}
+        </div>
+        {a.findings.length === 0 ? (
+          <p className="border border-ink-200 bg-paper p-3 text-[11.5px] text-ink-500">
+            Nothing is statistically apart from the baseline. Failures are spread evenly rather
+            than concentrated, which usually points at a general condition rather than a
+            specific fault.
+          </p>
+        ) : (
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {a.findings.map((f, i) => <FindingCard key={i} f={f} onFilter={addFilter} />)}
+          </div>
+        )}
+      </section>
+
+      {/* ---------- every panel ---------- */}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {panels.map(p => <Panel key={p.title} data={p} onExpand={setDetail} />)}
+      </div>
+
+      <p className="mt-6 max-w-3xl text-[11px] leading-relaxed text-ink-400">
+        Every panel shows its top {PREVIEW_ROWS} rows — open any of them for the full list with
+        sorting and search. Clicking a row filters the entire dashboard to that value. This file
+        was read inside your browser; nothing was uploaded, stored or logged, and reloading the
+        tab discards it.
+      </p>
+
+      {detail && <DetailView data={detail} onClose={() => setDetail(null)} />}
     </div>
   )
 }
