@@ -97,8 +97,8 @@ function VaultMark({ className = '' }: { className?: string }) {
     >
       <defs>
         <linearGradient id="vaultGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor="#FF7D91" />
-          <stop offset="55%"  stopColor="#FF3B57" />
+          <stop offset="0%"   stopColor="#D3002D" />
+          <stop offset="55%"  stopColor="#D3002D" />
           <stop offset="100%" stopColor="#D3002D" />
         </linearGradient>
       </defs>
