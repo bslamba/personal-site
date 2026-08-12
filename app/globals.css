@@ -746,9 +746,13 @@ body {
 /* ============================================================
    THE WORDMARK
    Stacked Anton, white over red — the same lockup as the footer
-   and the intro gate. No fill, no border, nothing behind it.
-   Taller than the bar, pushed down so it breaks the bottom edge,
-   and tilted anticlockwise.
+   and the intro gate. No fill, no border, no tilt. Taller than
+   the bar and pushed down so it breaks the bottom edge.
+
+   Why the tilt had to go: rotating about the left edge lifts the
+   far end of a wide word. "BHAWNEET" is about 150px across, so
+   a 6deg rotation raised its right side by roughly 16px — past
+   the top of the viewport, which is what was clipping it.
 
    Sizing note: the block is deliberately proportioned so the
    WHITE line clears the top of the bar and still ends above the
@@ -759,7 +763,7 @@ body {
   position: relative;
   z-index: 3;
   display: inline-block;
-  transform: translateY(7px) rotate(-6deg);
+  transform: translateY(8px);
   transform-origin: left center;
 }
 
@@ -785,7 +789,7 @@ body {
 
 @media (min-width: 640px) {
   .brand-logo-line { font-size: 2.05rem; }
-  .brand-logo { transform: translateY(8px) rotate(-6deg); }
+  .brand-logo { transform: translateY(11px); }
 }
 
 /* ---------- hover: zoom only, no glow ---------- */
