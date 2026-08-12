@@ -745,27 +745,25 @@ body {
 
 /* ============================================================
    THE WORDMARK
-   Stacked Anton, white over red, every letter ringed in white —
-   the same lockup as the footer and the intro gate, dropped 5mm
-   and tilted 10 degrees anticlockwise.
+   Stacked Anton, white over red — the same lockup as the footer
+   and the intro gate. No fill, no border, no tilt. Taller than
+   the bar and pushed down so it breaks the bottom edge.
 
-   GEOMETRY, because this is what kept clipping. Rotating about
-   the left edge lifts the far end of a wide word: at 10deg a
-   130px word rises about 23px at its right end. So the block has
-   to start low enough that the lifted corner still lands inside
-   the viewport. Dropping it 19px (5mm) buys exactly that room,
-   which is why the tilt works now and did not before.
+   Why there is no tilt: rotating about the left edge lifts the
+   far end of a wide word. "BHAWNEET" is about 150px across, so
+   even a 6deg rotation raised its right side by roughly 16px —
+   past the top of the viewport, which clipped it.
 
-   Net result at 640px and up: BHAWNEET runs from about y=19 on
-   the right to y=41 on the left, so it stays on the black bar,
-   and LAMBA sits below the bar's 48px edge in red — red reads on
-   the cream page, white would not.
+   Sizing note: the block is deliberately proportioned so the
+   WHITE line clears the top of the bar and still ends above the
+   bar's bottom edge, leaving only the RED line to break out.
+   White on the cream page would be invisible; red is not.
    ============================================================ */
 .brand-logo {
   position: relative;
   z-index: 3;
   display: inline-block;
-  transform: translateY(18px) rotate(-10deg);
+  transform: translateY(8px);
   transform-origin: left center;
 }
 
@@ -777,12 +775,6 @@ body {
   transform-origin: left center;
 }
 
-/* Every letter carries a white ring. Built from eight offset
-   text-shadows rather than -webkit-text-stroke, because a stroke
-   is drawn centred on the glyph outline and eats into the fill,
-   which thins Anton badly at this size. The last shadow in the
-   list is a soft dark one — it is what keeps the white line
-   legible on the few pixels where it crosses the cream page. */
 .brand-logo-line {
   display: block;
   font-family: var(--font-display);
@@ -791,35 +783,13 @@ body {
   font-size: 1.4rem;
   line-height: 0.86;
   letter-spacing: -0.015em;
-  text-shadow:
-    -1.5px -1.5px 0 #FAF8F5,
-     1.5px -1.5px 0 #FAF8F5,
-    -1.5px  1.5px 0 #FAF8F5,
-     1.5px  1.5px 0 #FAF8F5,
-     0    -1.6px 0 #FAF8F5,
-     0     1.6px 0 #FAF8F5,
-    -1.6px  0    0 #FAF8F5,
-     1.6px  0    0 #FAF8F5,
-     0 3px 10px rgba(0, 0, 0, 0.40);
 }
 .brand-logo-line-1 { color: #FAF8F5; }
 .brand-logo-line-2 { color: #D3002D; }
 
 @media (min-width: 640px) {
-  .brand-logo-line {
-    font-size: 1.85rem;
-    text-shadow:
-      -2px -2px 0 #FAF8F5,
-       2px -2px 0 #FAF8F5,
-      -2px  2px 0 #FAF8F5,
-       2px  2px 0 #FAF8F5,
-       0   -2.1px 0 #FAF8F5,
-       0    2.1px 0 #FAF8F5,
-      -2.1px 0    0 #FAF8F5,
-       2.1px 0    0 #FAF8F5,
-       0 3px 12px rgba(0, 0, 0, 0.45);
-  }
-  .brand-logo { transform: translateY(30px) rotate(-10deg); }
+  .brand-logo-line { font-size: 2.05rem; }
+  .brand-logo { transform: translateY(11px); }
 }
 
 /* ---------- hover: zoom only, no glow ---------- */
