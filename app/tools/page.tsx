@@ -20,13 +20,15 @@ const TOOLS = [
   {
     href: '/tools/ise-radius',
     status: 'Live',
-    name: 'Cisco ISE RADIUS Analyser',
+    name: 'Cisco ISE Report Analyser',
     blurb:
-      'Drop in a RADIUS Authentications export and get a full troubleshooting dashboard — ' +
-      'pass and fail rates, every failure reason with its ISE code, and where the failures ' +
-      'are concentrated by site, network device, ISE node, policy set, protocol and endpoint.',
+      'Drop in your RADIUS Authentications and Key Performance Metrics exports and get a full ' +
+      'troubleshooting dashboard — pass and fail rates, every failure reason with its ISE code, ' +
+      'where failures concentrate by site, device, node, policy set and protocol, plus per-node ' +
+      'throughput, latency, load and log suppression.',
     points: [
-      'Handles exports of a hundred thousand rows and beyond',
+      'Both report types, detected automatically, on one page',
+      'Any number of files merged into a single consolidated view',
       'Ranks what stands out instead of leaving you to spot it',
       'Click anything to filter the whole dashboard to it',
     ],

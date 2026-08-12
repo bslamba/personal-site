@@ -9,18 +9,38 @@
 
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import RadiusAnalyser from '@/components/tools/radius-analyser'
+import IseReportAnalyser from '@/components/tools/radius-analyser'
 
 export const metadata: Metadata = {
-  title: 'Cisco ISE RADIUS Analyser',
+  title: 'Cisco ISE Report Analyser',
   description:
-    'Analyse a Cisco ISE RADIUS Authentications CSV export in your browser. Failure rates ' +
-    'by ISE node, network device, site, policy set, protocol and endpoint, with every ' +
-    'failure reason broken out by ISE message code. Nothing is uploaded.',
+    'Analyse Cisco ISE RADIUS Authentications and Key Performance Metrics exports in your ' +
+    'browser. Failure rates by ISE node, network device, site, policy set, protocol and ' +
+    'endpoint, with every failure reason broken out by ISE message code, alongside node ' +
+    'throughput, latency, load and log suppression. Nothing is uploaded.',
   alternates: { canonical: '/tools/ise-radius' },
 }
 
-export default function IseRadiusToolPage() {
+const REPORTS = [
+  {
+    name: 'RADIUS Authentications',
+    where: 'Operations → Reports → Reports → Endpoints and Users',
+    gives:
+      'Pass and fail rates, every failure reason resolved to its ISE message code, and where ' +
+      'the failures concentrate — by site, network device, ISE node, policy set, authorisation ' +
+      'rule, protocol, identity store, endpoint and user.',
+  },
+  {
+    name: 'Key Performance Metrics',
+    where: 'Operations → Reports → Reports → Diagnostics',
+    gives:
+      'Per-node throughput, processing latency, system load, RADIUS request volume and log ' +
+      'suppression, sampled hourly — so you can see which nodes are carrying the deployment ' +
+      'and which are struggling.',
+  },
+]
+
+export default function IseReportToolPage() {
   return (
     <>
       <section className="border-b border-ink-900/10 bg-paper">
@@ -30,25 +50,39 @@ export default function IseRadiusToolPage() {
           </Link>
 
           <h1 className="heading mt-6 max-w-4xl text-[clamp(2rem,5.5vw,4rem)]">
-            Cisco ISE RADIUS Analyser
+            Cisco ISE Report Analyser
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-600">
-            Export the RADIUS Authentications report from ISE, drop the CSV below, and press
-            Analyse. You get failure rates broken down by ISE node, network device, site,
-            policy set, protocol and endpoint, with every failure reason resolved to its ISE
-            message code — and a ranked list of whatever is genuinely out of line.
+            Drop in your ISE exports and press Analyse. Two report types are recognised and
+            each gets its own dashboard — drop both together and you get both, which is the
+            point: a spike in failures at 11:40 reads very differently depending on whether
+            node load spiked at 11:40 too.
           </p>
 
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-500">
-            The file is read in your browser and never uploaded. You can disconnect from the
-            network before pressing Analyse and it will still work.
+          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+            {REPORTS.map(r => (
+              <div key={r.name} className="border-t-2 border-ink-950 pt-4">
+                <p className="text-base font-bold text-ink-950"
+                   style={{ fontFamily: 'var(--font-heading)' }}>
+                  {r.name}
+                </p>
+                <p className="label mt-1 text-signal-500">{r.where}</p>
+                <p className="mt-3 text-sm leading-relaxed text-ink-600">{r.gives}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-8 max-w-2xl text-sm leading-relaxed text-ink-500">
+            Files are read in your browser and never uploaded. You can disconnect from the
+            network before pressing Analyse and it will still work — which is the test that
+            proves it.
           </p>
         </div>
       </section>
 
       <section className="bg-paper-dim pb-24">
-        <RadiusAnalyser />
+        <IseReportAnalyser />
       </section>
     </>
   )

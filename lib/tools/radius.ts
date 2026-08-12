@@ -101,9 +101,23 @@ const MONTHS: Record<string, number> = {
 // ISE exports Oracle-style timestamps: "06-AUG-26 08.13.47.165000 AM"
 const ORACLE = /^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})\s+(\d{1,2})[.:](\d{2})[.:](\d{2})(?:[.:](\d+))?\s*(AM|PM)?$/i
 
+// The Key Performance Metrics report uses a different shape entirely:
+// "2026-08-06 13:03:54.0". Parsed as UTC deliberately so both reports
+// land on the same axis — the goal is to show the file's own clock
+// values, not to reinterpret them in the reader's timezone.
+const ISOISH = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/
+
 export function parseTimestamp(raw: string): number {
   if (!raw) return NaN
   const s = raw.trim()
+
+  const iso = ISOISH.exec(s)
+  if (iso) {
+    return Date.UTC(
+      +iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +iso[6],
+      iso[7] ? Math.round(Number('0.' + iso[7]) * 1000) : 0,
+    )
+  }
 
   const m = ORACLE.exec(s)
   if (m) {
