@@ -892,6 +892,19 @@ body {
   }
 }
 
+/* ---------- tools: drag-and-drop target ---------- */
+.tool-drop.drop-live {
+  border-color: var(--color-signal-500);
+  background: var(--color-signal-50);
+}
+
+/* Numbers in the dashboards need to line up in columns, so the
+   tabular figures of a monospace face rather than the proportional
+   ones the body face would use. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes brand-sheen {
   0%   { left: -40%; }
   55%  { left: 115%; }

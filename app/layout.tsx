@@ -80,6 +80,7 @@ const NAV = [
   { href: '/#experience', label: 'Experience' },
   { href: '/#expertise',  label: 'Expertise' },
   { href: '/blog',        label: 'Journal' },
+  { href: '/tools',       label: 'Tools' },
 ]
 
 // ============================================================
@@ -150,7 +151,7 @@ function Header() {
         </Link>
 
         {/* ---------- desktop nav ---------- */}
-        <nav className="hidden items-center gap-6 md:flex">
+        <nav className="hidden items-center gap-5 md:flex lg:gap-6">
           {NAV.map(item => (
             <Link key={item.href} href={item.href} className="nav-link neon-link">
               {item.label}
