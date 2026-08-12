@@ -27,29 +27,30 @@ function GateArtwork() {
   return (
     <div className="flex h-full w-screen flex-col items-center justify-center px-6">
 
-      {/* Photo. Delete this block if you'd rather show name only. */}
-      <div className="fade-up relative mb-10 h-44 w-44 shrink-0 overflow-hidden rounded-full ring-2 ring-signal-500 sm:h-60 sm:w-60">
+      {/* Portrait. Sizes step up with the viewport so it stays
+          commanding on a desktop without crowding a phone. */}
+      <div className="fade-up relative mb-9 h-56 w-56 shrink-0 overflow-hidden rounded-full ring-[3px] ring-signal-500 shadow-[0_0_60px_-12px_rgba(211,0,45,0.55)] sm:mb-11 sm:h-72 sm:w-72 lg:h-80 lg:w-80">
         <Image
           src="/avatar.jpg"
           alt=""
           fill
           priority
-          sizes="240px"
+          sizes="(max-width: 640px) 224px, (max-width: 1024px) 288px, 320px"
           className="object-cover"
         />
       </div>
 
       <h1 className="display-xl fade-up-slow text-center text-paper">
-        <span className="block text-[clamp(3rem,13vw,11rem)]">
+        <span className="block text-[clamp(2.75rem,12vw,10rem)]">
           {NAME_LINE_1}
         </span>
-        <span className="block text-[clamp(3rem,13vw,11rem)] text-signal-500">
+        <span className="block text-[clamp(2.75rem,12vw,10rem)] text-signal-500">
           {NAME_LINE_2}
         </span>
       </h1>
 
       <p className="fade-up-slow label mt-8 text-center text-ink-400">
-        Infrastructure Security · Bangalore
+        Infrastructure · Cloud · Application Security
       </p>
     </div>
   )

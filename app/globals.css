@@ -672,3 +672,220 @@ body.gate-locked { overflow: hidden; }
   .toc-link.is-active { transform: none; }
   .toc-rail-fill { transition: none; }
 }
+
+/* ===== BRAND-BAR START ===== */
+/* ============================================================
+   Dark purple header, silver glitter, neon type, WhatsApp float.
+
+   Appended to the end of app/globals.css and deliberately NOT
+   inside @layer, so these rules sit above Tailwind's layers in
+   the cascade and win without needing !important everywhere.
+   ============================================================ */
+
+/* ---------- the bar itself ---------- */
+.brand-bar {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      118deg,
+      #1E0736 0%,
+      #34114F 22%,
+      #4A1C74 45%,
+      #2E0D4A 68%,
+      #1B0630 100%
+    );
+  border-bottom: 1px solid rgba(198, 168, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 10px 34px -16px rgba(74, 28, 116, 0.85);
+}
+
+/* ---------- silver glitter ----------
+   A dozen tiny radial dots tiled across the bar, twinkling as a
+   group. Purely decorative and never clickable.                */
+.brand-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.6px 1.6px at 6%  22%, rgba(255,255,255,.95), transparent 62%),
+    radial-gradient(1.1px 1.1px at 14% 68%, rgba(226,232,255,.85), transparent 62%),
+    radial-gradient(1.4px 1.4px at 23% 38%, rgba(255,255,255,.80), transparent 62%),
+    radial-gradient(1px   1px   at 31% 82%, rgba(214,224,255,.75), transparent 62%),
+    radial-gradient(1.7px 1.7px at 39% 16%, rgba(255,255,255,.92), transparent 62%),
+    radial-gradient(1.1px 1.1px at 47% 60%, rgba(232,238,255,.80), transparent 62%),
+    radial-gradient(1.3px 1.3px at 56% 30%, rgba(255,255,255,.88), transparent 62%),
+    radial-gradient(1px   1px   at 63% 74%, rgba(214,224,255,.70), transparent 62%),
+    radial-gradient(1.5px 1.5px at 71% 44%, rgba(255,255,255,.90), transparent 62%),
+    radial-gradient(1.1px 1.1px at 79% 20%, rgba(226,232,255,.82), transparent 62%),
+    radial-gradient(1.3px 1.3px at 86% 66%, rgba(255,255,255,.85), transparent 62%),
+    radial-gradient(1px   1px   at 94% 36%, rgba(220,228,255,.75), transparent 62%);
+  background-repeat: repeat;
+  background-size: 420px 100%;
+  animation: brand-twinkle 5.5s ease-in-out infinite;
+}
+
+/* ---------- the shine sweep ---------- */
+.brand-bar > .brand-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  display: block;
+}
+.brand-bar > .brand-sheen::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  bottom: -50%;
+  left: -40%;
+  width: 40%;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.00) 0%,
+    rgba(255, 255, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0.00) 100%
+  );
+  transform: skewX(-18deg);
+  animation: brand-sheen 7.5s ease-in-out infinite;
+}
+
+/* Content must ride above both decorative layers. */
+.brand-bar > .brand-inner {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- neon type ---------- */
+.neon-link {
+  color: #8FF9E4;
+  text-shadow:
+    0 0 6px  rgba(110, 243, 214, 0.55),
+    0 0 18px rgba(110, 243, 214, 0.22);
+  transition: color .22s ease, text-shadow .22s ease;
+}
+.neon-link:hover,
+.neon-link:focus-visible {
+  color: #D6FFF7;
+  text-shadow:
+    0 0 8px  rgba(170, 255, 236, 0.95),
+    0 0 22px rgba(110, 243, 214, 0.55),
+    0 0 40px rgba(110, 243, 214, 0.28);
+}
+
+/* Underline sweep for nav items — neon rather than red. */
+.neon-link::after {
+  background: #8FF9E4;
+  box-shadow: 0 0 8px rgba(110, 243, 214, 0.85);
+}
+
+.neon-wordmark {
+  color: #B9FFEE;
+  text-shadow:
+    0 0 7px  rgba(130, 250, 222, 0.70),
+    0 0 20px rgba(110, 243, 214, 0.35),
+    0 1px 0  rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- contact pill on the purple bar ---------- */
+.neon-pill {
+  color: #061C18;
+  background: linear-gradient(135deg, #8FF9E4 0%, #5FE9CE 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.30),
+    0 0 14px rgba(110, 243, 214, 0.45);
+  transition: box-shadow .22s ease, transform .22s ease;
+}
+.neon-pill:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 24px rgba(110, 243, 214, 0.80);
+}
+
+/* ---------- vault badge ---------- */
+.vault-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem 0.35rem 0.45rem;
+  border: 1px solid rgba(180, 150, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(4px);
+  transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+.vault-badge:hover {
+  border-color: rgba(143, 249, 228, 0.85);
+  box-shadow: 0 0 18px rgba(110, 243, 214, 0.40);
+  transform: translateY(-1px);
+}
+.vault-badge svg {
+  transition: transform .65s cubic-bezier(.6, 0, .2, 1);
+}
+.vault-badge:hover svg {
+  transform: rotate(90deg);
+}
+
+/* ---------- floating WhatsApp button ---------- */
+.wa-float {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 60;
+  display: inline-flex;
+  height: 2.85rem;
+  width: 2.85rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #25D366;
+  color: #ffffff;
+  box-shadow:
+    0 6px 18px -4px rgba(0, 0, 0, 0.35),
+    0 0 0 0 rgba(37, 211, 102, 0.55);
+  animation: wa-ring 2.8s ease-out infinite;
+  transition: transform .2s ease;
+}
+.wa-float:hover { transform: scale(1.08); }
+.wa-float:active { transform: scale(0.96); }
+
+@media (min-width: 640px) {
+  .wa-float {
+    right: 1.6rem;
+    bottom: 1.6rem;
+    height: 3.1rem;
+    width: 3.1rem;
+  }
+}
+
+@keyframes brand-twinkle {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+
+@keyframes brand-sheen {
+  0%   { left: -40%; }
+  55%  { left: 115%; }
+  100% { left: 115%; }
+}
+
+@keyframes wa-ring {
+  0%   { box-shadow: 0 6px 18px -4px rgba(0,0,0,.35), 0 0 0 0    rgba(37,211,102,.55); }
+  70%  { box-shadow: 0 6px 18px -4px rgba(0,0,0,.35), 0 0 0 12px rgba(37,211,102,0);   }
+  100% { box-shadow: 0 6px 18px -4px rgba(0,0,0,.35), 0 0 0 0    rgba(37,211,102,0);   }
+}
+
+/* Anyone who has asked their system to calm down gets a still bar. */
+@media (prefers-reduced-motion: reduce) {
+  .brand-bar::before,
+  .brand-bar > .brand-sheen::after,
+  .wa-float { animation: none; }
+  .brand-bar::before { opacity: 0.7; }
+}
+/* ===== BRAND-BAR END ===== */
