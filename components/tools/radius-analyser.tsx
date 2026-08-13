@@ -45,6 +45,11 @@ import {
 } from './panel'
 import KpmSection from './kpm-section'
 import BundleSection, { isBundleReport, type BundleReport } from './bundle-section'
+import SessionsSection from './sessions-section'
+import {
+  SessionsBuilder, looksLikeSessions, sessionsToCsv,
+  type SessionsAnalysis,
+} from '@/lib/tools/sessions'
 
 /** Short label for a bucket size, for the granularity control. */
 function bucketLabel(msValue: number): string {
@@ -372,6 +377,7 @@ export default function IseReportAnalyser() {
   const storeRef = useRef<Store | null>(null)
   const kpmRef = useRef<KpmData | null>(null)
   const bundleRef = useRef<BundleReport | null>(null)
+  const sessionsRef = useRef<SessionsAnalysis | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
 
   const analysis: Analysis | null = useMemo(() => {
@@ -389,7 +395,8 @@ export default function IseReportAnalyser() {
   const reset = () => {
     setPhase('idle'); setError(''); setWarnings([]); setFilters([])
     setBucketChoice(0)
-    storeRef.current = null; kpmRef.current = null; bundleRef.current = null
+    storeRef.current = null; kpmRef.current = null
+    bundleRef.current = null; sessionsRef.current = null
   }
 
   const addFiles = (incoming: FileList | File[] | null) => {
@@ -432,10 +439,10 @@ export default function IseReportAnalyser() {
   }
 
   const parseOne = (
-    f: File, radius: StoreBuilder, kpmBuilder: KpmBuilder,
+    f: File, radius: StoreBuilder, kpmBuilder: KpmBuilder, sessions: SessionsBuilder,
     doneBytes: number, totalBytes: number,
   ) => new Promise<string | null>((resolve, reject) => {
-    let kind: 'radius' | 'kpm' | null = null
+    let kind: 'radius' | 'kpm' | 'sessions' | null = null
     let decided = false
 
     Papa.parse<Record<string, string>>(f, {
@@ -448,17 +455,28 @@ export default function IseReportAnalyser() {
         if (!decided) {
           decided = true
           const headers = results.meta.fields ?? []
-          kind = detectReportKind(headers, h => looksLikeRadius(detectColumns(h)))
-          if (kind === 'radius') radius.setSource(headers, f.name)
-          else if (kind === 'kpm') kpmBuilder.setSource(headers, f.name)
-          else { parser.abort(); return }
+          // Sessions is checked first: its Server column would otherwise
+          // satisfy the looser tests used by the other two.
+          if (looksLikeSessions(headers)) {
+            kind = 'sessions'
+            sessions.setSource(headers, f.name)
+          } else {
+            kind = detectReportKind(headers, h => looksLikeRadius(detectColumns(h)))
+            if (kind === 'radius') radius.setSource(headers, f.name)
+            else if (kind === 'kpm') kpmBuilder.setSource(headers, f.name)
+            else { parser.abort(); return }
+          }
         }
+        const seen = () => setRowsSeen(radius.count + kpmBuilder.count + sessions.count)
         if (kind === 'radius') {
           for (const rec of results.data) radius.push(rec)
-          setRowsSeen(radius.count + kpmBuilder.count)
+          seen()
         } else if (kind === 'kpm') {
           for (const rec of results.data) kpmBuilder.push(rec)
-          setRowsSeen(radius.count + kpmBuilder.count)
+          seen()
+        } else if (kind === 'sessions') {
+          for (const rec of results.data) sessions.push(rec)
+          seen()
         }
         const cursor = (results.meta as { cursor?: number }).cursor ?? 0
         if (totalBytes) setProgress(Math.min(99, ((doneBytes + cursor) / totalBytes) * 100))
@@ -517,6 +535,7 @@ export default function IseReportAnalyser() {
 
     const radius = new StoreBuilder()
     const kpmBuilder = new KpmBuilder()
+    const sessions = new SessionsBuilder()
     const totalBytes = files.reduce((s, f) => s + f.size, 0)
     const notes: string[] = []
     let doneBytes = 0
@@ -533,7 +552,7 @@ export default function IseReportAnalyser() {
             ? await runBundle(f)
             : /\.json$/i.test(f.name)
               ? await parseBundleJson(f)
-              : await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
+              : await parseOne(f, radius, kpmBuilder, sessions, doneBytes, totalBytes)
         if (note) notes.push(note)
         doneBytes += f.size
         if (totalBytes) setProgress(Math.min(99, (doneBytes / totalBytes) * 100))
@@ -546,13 +565,13 @@ export default function IseReportAnalyser() {
 
     setNowReading('')
 
-    if (radius.count === 0 && kpmBuilder.count === 0 && !bundleRef.current) {
+    if (radius.count === 0 && kpmBuilder.count === 0 && sessions.count === 0 && !bundleRef.current) {
       setPhase('error')
       setError(
         notes.length
           ? 'None of the selected files is recognised. This tool reads the RADIUS ' +
-            'Authentications and Key Performance Metrics CSV exports, and the JSON report ' +
-            'produced by the support bundle analyser.'
+            'Authentications, Key Performance Metrics and Current Active Sessions CSV ' +
+            'exports, and a decrypted support bundle archive.'
           : 'No rows were found in the selected files.'
       )
       setWarnings(notes)
@@ -561,6 +580,7 @@ export default function IseReportAnalyser() {
 
     if (radius.count > 0) storeRef.current = radius.finish()
     if (kpmBuilder.count > 0) kpmRef.current = kpmBuilder.finish()
+    if (sessions.count > 0) sessionsRef.current = sessions.finish()
 
     setWarnings(notes)
     setProgress(100)
@@ -586,6 +606,7 @@ export default function IseReportAnalyser() {
       const parts: string[] = []
       if (analysis) parts.push('# RADIUS AUTHENTICATIONS\n' + toCsv(analysis))
       if (kpm) parts.push('# KEY PERFORMANCE METRICS\n' + kpmToCsv(kpm))
+      if (sessionsRef.current) parts.push('# ACTIVE SESSIONS\n' + sessionsToCsv(sessionsRef.current))
       body = parts.join('\n\n')
     } else {
       body = JSON.stringify({
@@ -627,9 +648,10 @@ export default function IseReportAnalyser() {
 
   // ---------- landing ----------
   const bundle = bundleRef.current
+  const sessions = sessionsRef.current
   const needsKey = files.some(f => /\.(gpg|pgp)$/i.test(f.name))
 
-  if (phase !== 'ready' || (!analysis && !kpm && !bundle)) {
+  if (phase !== 'ready' || (!analysis && !kpm && !bundle && !sessions)) {
     return (
       <div className="container-page py-12">
         <div
@@ -962,7 +984,9 @@ export default function IseReportAnalyser() {
             {a && <>{n(a.rows)} authentication rows</>}
             {a && (kpm || bundle) && ' · '}
             {kpm && <>{n(kpm.rows)} metric samples across {kpm.nodes.length} nodes</>}
-            {kpm && bundle && ' · '}
+            {kpm && (bundle || sessions) && ' · '}
+            {sessions && <>{n(sessions.rows)} active sessions</>}
+            {sessions && bundle && ' · '}
             {bundle && <>support bundle from {bundle.node ?? 'unknown node'}</>}
           </p>
         </div>
@@ -1073,6 +1097,9 @@ export default function IseReportAnalyser() {
 
       {/* ================= KPM ================= */}
       {kpm && <KpmSection a={kpm} onExpand={setDetail} />}
+
+      {/* ================= ACTIVE SESSIONS ================= */}
+      {sessions && <SessionsSection a={sessions} onExpand={setDetail} />}
 
       {/* ================= SUPPORT BUNDLE ================= */}
       {bundle && <BundleSection r={bundle} onExpand={setDetail} />}
