@@ -46,6 +46,11 @@ import {
 import KpmSection from './kpm-section'
 import BundleSection, { isBundleReport, type BundleReport } from './bundle-section'
 import SessionsSection from './sessions-section'
+import DashboardSection from './dashboard-section'
+import {
+  DashboardBuilder, detectDashboardKind, dashboardToCsv,
+  type DashboardAnalysis,
+} from '@/lib/tools/dashboard'
 import {
   SessionsBuilder, looksLikeSessions, sessionsToCsv,
   type SessionsAnalysis,
@@ -378,6 +383,7 @@ export default function IseReportAnalyser() {
   const kpmRef = useRef<KpmData | null>(null)
   const bundleRef = useRef<BundleReport | null>(null)
   const sessionsRef = useRef<SessionsAnalysis | null>(null)
+  const dashRef = useRef<DashboardAnalysis | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
 
   const analysis: Analysis | null = useMemo(() => {
@@ -396,7 +402,7 @@ export default function IseReportAnalyser() {
     setPhase('idle'); setError(''); setWarnings([]); setFilters([])
     setBucketChoice(0)
     storeRef.current = null; kpmRef.current = null
-    bundleRef.current = null; sessionsRef.current = null
+    bundleRef.current = null; sessionsRef.current = null; dashRef.current = null
   }
 
   const addFiles = (incoming: FileList | File[] | null) => {
@@ -536,6 +542,7 @@ export default function IseReportAnalyser() {
     const radius = new StoreBuilder()
     const kpmBuilder = new KpmBuilder()
     const sessions = new SessionsBuilder()
+    const dash = new DashboardBuilder()
     const totalBytes = files.reduce((s, f) => s + f.size, 0)
     const notes: string[] = []
     let doneBytes = 0
@@ -546,6 +553,22 @@ export default function IseReportAnalyser() {
       // the bottleneck is the aggregation, not the disk.
       for (const f of files) {
         setNowReading(f.name)
+
+        // The ISE dashboard exports are small and are not really CSVs —
+        // key/value pairs, stacked sections, per-node blocks. Sniff the
+        // opening lines and parse them as text rather than feeding them
+        // to a reader that expects a header row.
+        if (/\.csv$/i.test(f.name) && f.size < 4_000_000) {
+          const text = await f.text()
+          const kind = detectDashboardKind(text)
+          if (kind) {
+            dash.add(kind, text, f.name)
+            doneBytes += f.size
+            if (totalBytes) setProgress(Math.min(99, (doneBytes / totalBytes) * 100))
+            continue
+          }
+        }
+
         const note = /\.(gpg|pgp)$/i.test(f.name)
           ? `${f.name} — still encrypted. Decrypt it first, then drop the .tar here.`
           : /\.tar$/i.test(f.name)
@@ -565,7 +588,8 @@ export default function IseReportAnalyser() {
 
     setNowReading('')
 
-    if (radius.count === 0 && kpmBuilder.count === 0 && sessions.count === 0 && !bundleRef.current) {
+    if (radius.count === 0 && kpmBuilder.count === 0 && sessions.count === 0
+        && dash.count === 0 && !bundleRef.current) {
       setPhase('error')
       setError(
         notes.length
@@ -581,6 +605,7 @@ export default function IseReportAnalyser() {
     if (radius.count > 0) storeRef.current = radius.finish()
     if (kpmBuilder.count > 0) kpmRef.current = kpmBuilder.finish()
     if (sessions.count > 0) sessionsRef.current = sessions.finish()
+    if (dash.count > 0) dashRef.current = dash.finish()
 
     setWarnings(notes)
     setProgress(100)
@@ -607,6 +632,7 @@ export default function IseReportAnalyser() {
       if (analysis) parts.push('# RADIUS AUTHENTICATIONS\n' + toCsv(analysis))
       if (kpm) parts.push('# KEY PERFORMANCE METRICS\n' + kpmToCsv(kpm))
       if (sessionsRef.current) parts.push('# ACTIVE SESSIONS\n' + sessionsToCsv(sessionsRef.current))
+      if (dashRef.current) parts.push('# DASHBOARD EXPORT\n' + dashboardToCsv(dashRef.current))
       body = parts.join('\n\n')
     } else {
       body = JSON.stringify({
@@ -649,9 +675,10 @@ export default function IseReportAnalyser() {
   // ---------- landing ----------
   const bundle = bundleRef.current
   const sessions = sessionsRef.current
+  const dashboard = dashRef.current
   const needsKey = files.some(f => /\.(gpg|pgp)$/i.test(f.name))
 
-  if (phase !== 'ready' || (!analysis && !kpm && !bundle && !sessions)) {
+  if (phase !== 'ready' || (!analysis && !kpm && !bundle && !sessions && !dashboard)) {
     return (
       <div className="container-page py-12">
         <div
@@ -669,9 +696,10 @@ export default function IseReportAnalyser() {
             Drop your ISE files here
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
-            A decrypted <strong>support bundle</strong> (.tar), or the{' '}
+            A decrypted <strong>support bundle</strong> (.tar), the{' '}
             <strong>RADIUS Authentications</strong>, <strong>Key Performance Metrics</strong> and{' '}
-            <strong>Current Active Sessions</strong> CSV exports. Add as many as you like — each
+            <strong>Current Active Sessions</strong> CSV exports, or all seven files from{' '}
+            <strong>Manage → Export</strong> on any ISE dashboard. Add as many as you like — each
             is detected automatically and merged into one dashboard. Everything is read in this
             browser and nothing is uploaded.
           </p>
@@ -1098,6 +1126,9 @@ export default function IseReportAnalyser() {
 
       {/* ================= KPM ================= */}
       {kpm && <KpmSection a={kpm} onExpand={setDetail} />}
+
+      {/* ================= DASHBOARD EXPORT ================= */}
+      {dashboard && <DashboardSection a={dashboard} onExpand={setDetail} />}
 
       {/* ================= ACTIVE SESSIONS ================= */}
       {sessions && <SessionsSection a={sessions} onExpand={setDetail} />}

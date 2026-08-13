@@ -48,6 +48,15 @@ const REPORTS = [
       'and which are struggling.',
   },
   {
+    name: 'Dashboard export (7 files)',
+    where: 'Any ISE dashboard → Manage → Export → tick everything',
+    gives:
+      'Metrics, Alarms, Authentications, Endpoints, Network Devices, Status and System Summary. ' +
+      'Gives you average authentication latency, a latency line per node across the sampled ' +
+      'window, CPU and memory per node, alarms ranked by how often they fire, and failure ' +
+      'reasons with their ISE codes.',
+  },
+  {
     name: 'Current Active Sessions',
     where: 'Operations → RADIUS → Live Sessions → Export',
     gives:
@@ -78,7 +87,7 @@ export default function IseReportToolPage() {
             depending on whether node load spiked too, or OCSP was timing out.
           </p>
 
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {REPORTS.map(r => (
               <div key={r.name} className="border-t-2 border-ink-950 pt-4">
                 <p className="text-base font-bold text-ink-950"

@@ -312,6 +312,222 @@ export function Kpi({ label, value, sub, tone = 'ink' }: {
   )
 }
 
+// ------------------------------------------------------------
+// charts
+//
+// All hand-drawn SVG rather than a charting library. Three
+// reasons: the palette stays exactly on-brand, there is no
+// runtime dependency to load before a chart appears, and the
+// shapes can be tuned to the data rather than the reverse.
+// ------------------------------------------------------------
+
+/**
+ * A red-through-graphite ramp. Deliberately not a rainbow —
+ * categorical colour should still read as one design, and the
+ * eye ranks these in order, which suits ranked data.
+ */
+export const SERIES_COLOURS = [
+  '#D3002D', '#F5384F', '#FF6B80', '#B80027', '#7A0019',
+  '#3A3A40', '#5C5C64', '#8A8A93', '#B5B5BC', '#D9D9DE',
+]
+
+export interface Slice { label: string; value: number }
+
+/**
+ * Donut with the total in the middle.
+ *
+ * Drawn with stroke-dasharray on circles rather than arc paths —
+ * far less arithmetic, no rounding seams between segments, and
+ * it animates cleanly if that is ever wanted.
+ */
+export function Donut({ slices, total, centreLabel, centreValue, size = 168 }: {
+  slices: Slice[]
+  total?: number
+  centreLabel?: string
+  centreValue?: string
+  size?: number
+}) {
+  const sum = total ?? slices.reduce((a, s) => a + s.value, 0)
+  if (!sum) return null
+
+  const stroke = size * 0.17
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  let offset = 0
+
+  return (
+    <div className="flex items-center gap-4">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0"
+           role="img" aria-label={centreLabel ?? 'Breakdown'}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ECECEF" strokeWidth={stroke} />
+        {slices.map((s, i) => {
+          const frac = s.value / sum
+          const dash = `${c * frac} ${c * (1 - frac)}`
+          const el = (
+            <circle
+              key={s.label}
+              cx={size / 2} cy={size / 2} r={r} fill="none"
+              stroke={SERIES_COLOURS[i % SERIES_COLOURS.length]}
+              strokeWidth={stroke}
+              strokeDasharray={dash}
+              strokeDashoffset={-offset}
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          )
+          offset += c * frac
+          return el
+        })}
+        {(centreValue || centreLabel) && (
+          <>
+            <text x={size / 2} y={size / 2 - 2} textAnchor="middle"
+                  fontSize={size * 0.16} fontWeight="700" fill="#08080A">
+              {centreValue}
+            </text>
+            <text x={size / 2} y={size / 2 + 16} textAnchor="middle"
+                  fontSize={size * 0.072} fill="#8A8A93">
+              {centreLabel}
+            </text>
+          </>
+        )}
+      </svg>
+
+      <ul className="min-w-0 flex-1 space-y-1.5">
+        {slices.map((s, i) => (
+          <li key={s.label} className="flex items-center gap-2 text-[11px]">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ background: SERIES_COLOURS[i % SERIES_COLOURS.length] }} />
+            <span className="min-w-0 flex-1 truncate text-ink-700" title={s.label}>{s.label}</span>
+            <span className="shrink-0 font-mono text-ink-500">{n(s.value)}</span>
+            <span className="w-11 shrink-0 text-right font-mono text-ink-400">
+              {pc(s.value / sum)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+export interface Series { label: string; values: (number | null)[] }
+
+/** Several series over a shared axis, one colour each, with a legend. */
+export function MultiLine({ labels, series, unit = '', height = 240 }: {
+  labels: string[]
+  series: Series[]
+  unit?: string
+  height?: number
+}) {
+  if (labels.length < 2 || series.length === 0) return null
+
+  const W = 1200, padL = 54, padR = 18, padT = 14, padB = 30
+  const H = height
+  const iw = W - padL - padR, ih = H - padT - padB
+  const all = series.flatMap(s => s.values).filter((v): v is number => v !== null)
+  const max = Math.max(1, ...all)
+  const x = (i: number) => padL + (labels.length === 1 ? 0 : (i * iw) / (labels.length - 1))
+  const y = (v: number) => padT + ih - (v / max) * ih
+
+  const step = Math.max(1, Math.ceil(labels.length / 9))
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
+           aria-label="Series over time">
+        {[0, 0.25, 0.5, 0.75, 1].map(f => (
+          <g key={f}>
+            <line x1={padL} x2={W - padR} y1={padT + ih * f} y2={padT + ih * f}
+                  stroke="#ECECEF" strokeWidth="1" />
+            <text x={padL - 8} y={padT + ih * f + 4} textAnchor="end" fontSize="10" fill="#B5B5BC">
+              {Math.round(max * (1 - f))}
+            </text>
+          </g>
+        ))}
+
+        {series.map((s, si) => {
+          const colour = SERIES_COLOURS[si % SERIES_COLOURS.length]
+          let d = ''
+          s.values.forEach((v, i) => {
+            if (v === null) return
+            d += `${d === '' ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`
+          })
+          return (
+            <g key={s.label}>
+              <path d={d} fill="none" stroke={colour} strokeWidth="2"
+                    strokeLinejoin="round" strokeLinecap="round" />
+              {s.values.map((v, i) => v === null ? null : (
+                <circle key={i} cx={x(i)} cy={y(v)} r="2.4" fill={colour} />
+              ))}
+            </g>
+          )
+        })}
+
+        {labels.map((l, i) => i % step === 0 || i === labels.length - 1 ? (
+          <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="#8A8A93">
+            {l}
+          </text>
+        ) : null)}
+      </svg>
+
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+        {series.map((s, i) => (
+          <li key={s.label} className="flex items-center gap-1.5 text-[11px] text-ink-600">
+            <span className="h-2 w-4 rounded-sm"
+                  style={{ background: SERIES_COLOURS[i % SERIES_COLOURS.length] }} />
+            {s.label}
+          </li>
+        ))}
+      </ul>
+      {unit && <p className="mt-1 text-[10px] text-ink-400">Measured in {unit}.</p>}
+    </div>
+  )
+}
+
+/**
+ * A headline number with a tinted, slightly translucent face.
+ * Used sparingly — every tile being loud means none of them is.
+ */
+export function Tile({ label, value, sub, tone = 'ink', spark }: {
+  label: string
+  value: string
+  sub?: string
+  tone?: 'ink' | 'red' | 'green' | 'amber'
+  spark?: number[]
+}) {
+  const skin = {
+    ink:   { bg: 'linear-gradient(145deg,rgba(23,23,26,.045),rgba(23,23,26,.008))', text: 'text-ink-950', edge: 'border-ink-200' },
+    red:   { bg: 'linear-gradient(145deg,rgba(211,0,45,.11),rgba(211,0,45,.02))',   text: 'text-signal-500', edge: 'border-signal-500/35' },
+    green: { bg: 'linear-gradient(145deg,rgba(15,123,79,.11),rgba(15,123,79,.02))', text: 'text-[#0F7B4F]', edge: 'border-[#0F7B4F]/30' },
+    amber: { bg: 'linear-gradient(145deg,rgba(180,83,9,.11),rgba(180,83,9,.02))',   text: 'text-[#B45309]', edge: 'border-[#B45309]/30' },
+  }[tone]
+
+  const peak = spark && spark.length ? Math.max(...spark, 1) : 1
+
+  return (
+    <div className={`relative overflow-hidden border ${skin.edge} px-3.5 py-3 backdrop-blur-sm`}
+         style={{ background: skin.bg }}>
+      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{label}</div>
+      <div className={`mt-1.5 text-[1.6rem] font-bold leading-none ${skin.text}`}
+           style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
+        {value}
+      </div>
+      {sub && <div className="mt-1.5 text-[10px] leading-snug text-ink-400">{sub}</div>}
+
+      {spark && spark.length > 1 && (
+        <svg viewBox={`0 0 100 22`} preserveAspectRatio="none"
+             className="mt-2 h-5 w-full" aria-hidden="true">
+          <path
+            d={spark.map((v, i) =>
+              `${i === 0 ? 'M' : 'L'}${(i / (spark.length - 1)) * 100},${22 - (v / peak) * 20}`
+            ).join(' ')}
+            fill="none" stroke="currentColor" strokeWidth="1.4"
+            className={skin.text} vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      )}
+    </div>
+  )
+}
+
 /** Section heading used to separate one report's dashboard from another's. */
 export function SectionBanner({ title, subtitle, right }: {
   title: string; subtitle: string; right?: React.ReactNode
