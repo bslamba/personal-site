@@ -622,6 +622,15 @@ export default function IseReportAnalyser() {
                 public-key encrypted and can only be opened by Cisco TAC.
               </p>
 
+              <p className="mt-2 border-l-2 border-ink-200 pl-2 text-[11px] leading-relaxed text-ink-400">
+                <strong className="text-ink-600">Want it several times faster?</strong> Decryption
+                is the slow step, because AES-CFB has to run in JavaScript. Decrypt it once with{' '}
+                <span className="font-mono">gpg -d bundle.tar.gpg &gt; bundle.tar</span> — about
+                fifteen seconds using your Mac&apos;s native crypto — then drop the{' '}
+                <span className="font-mono">.tar</span> here instead. This page reads a plain
+                archive directly and skips straight to parsing.
+              </p>
+
               <label className="mt-3 flex cursor-pointer items-start gap-2">
                 <input
                   type="checkbox"

@@ -48,10 +48,9 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includ
   try {
     post({ type: 'stage', stage: 'Reading the archive' })
 
-    // ---------- decrypt ----------
-    // The file is handed over as a stream, so the ciphertext is never
-    // held whole — and neither is the plaintext it expands to. The
-    // counting stage in the middle is what drives the progress bar.
+    // The counting stage is what drives the progress bar. It measures the
+    // file as it is consumed, which is the only figure that is honest for
+    // the whole run — the decompressed size is unknown until the end.
     const counted = (file.stream() as unknown as ReadableStream<Uint8Array>)
       .pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
@@ -60,40 +59,55 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includ
         },
       }))
 
-    const message = await openpgp.readMessage({ binaryMessage: counted })
+    // ---------- decrypt, unless it is already a plain tar ----------
+    // An unencrypted .tar skips OpenPGP entirely. That matters: decryption
+    // is by far the slowest step here, because it runs AES-CFB in
+    // JavaScript — WebCrypto has no CFB implementation to hand off to.
+    // Decrypting with gpg first and dropping the .tar in is several times
+    // faster overall, for exactly this reason.
+    let plaintext: ReadableStream<Uint8Array>
+    const alreadyPlain = /\.tar$/i.test(file.name) && !/\.(gpg|pgp)$/i.test(file.name)
 
-    post({ type: 'stage', stage: 'Decrypting' })
+    if (alreadyPlain) {
+      post({ type: 'stage', stage: 'Reading logs' })
+      plaintext = counted
+    } else {
+      const message = await openpgp.readMessage({ binaryMessage: counted })
 
-    let decrypted
-    try {
-      decrypted = await openpgp.decrypt({
-        message,
-        passwords: [passphrase],
-        format: 'binary',
-        config: {
-          // The integrity check happens at the end of the stream. Allowing
-          // the data through as it arrives is what makes this streaming
-          // rather than a 2GB buffer; a corrupt archive still throws.
-          allowUnauthenticatedStream: true,
-        },
-      })
-    } catch (err) {
-      clearInterval(ticker)
-      const msg = String(err instanceof Error ? err.message : err)
-      if (/passphrase|password|decrypt|session key/i.test(msg)) {
-        post({ type: 'error', message: 'That key did not open the bundle. Check the shared key you set when creating it. If the filename contains "-pk-" it is public-key encrypted and only Cisco TAC can open it.' })
-      } else {
-        post({ type: 'error', message: `Could not decrypt: ${msg}` })
+      post({ type: 'stage', stage: 'Decrypting' })
+
+      let decrypted
+      try {
+        decrypted = await openpgp.decrypt({
+          message,
+          passwords: [passphrase],
+          format: 'binary',
+          config: {
+            // The integrity check happens at the end of the stream.
+            // Allowing data through as it arrives is what makes this
+            // streaming rather than a 2GB buffer; a corrupt archive
+            // still throws at the end.
+            allowUnauthenticatedStream: true,
+          },
+        })
+      } catch (err) {
+        clearInterval(ticker)
+        const msg = String(err instanceof Error ? err.message : err)
+        if (/passphrase|password|decrypt|session key/i.test(msg)) {
+          post({ type: 'error', message: 'That key did not open the bundle. Check the shared key you set when creating it. If the filename contains "-pk-" it is public-key encrypted and only Cisco TAC can open it.' })
+        } else {
+          post({ type: 'error', message: `Could not decrypt: ${msg}` })
+        }
+        return
       }
-      return
-    }
 
-    const plaintext = decrypted.data as unknown as ReadableStream<Uint8Array>
+      plaintext = decrypted.data as unknown as ReadableStream<Uint8Array>
+    }
 
     // ---------- walk the archive ----------
     post({ type: 'stage', stage: 'Reading files from the archive' })
 
-    post({ type: 'stage', stage: 'Reading logs' })
+    if (!alreadyPlain) post({ type: 'stage', stage: 'Reading logs' })
 
     const started = Date.now()
     const agg = new BundleAggregator()
