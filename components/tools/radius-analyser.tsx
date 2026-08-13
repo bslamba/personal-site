@@ -39,10 +39,11 @@ import {
 } from '@/lib/tools/kpm'
 import type { WorkerOut } from '@/lib/tools/bundle-types'
 import {
-  Panel, DetailView, Kpi, SectionBanner, WidgetStyles,
+  Panel, DetailView, Kpi, SectionBanner, WidgetStyles, SkyBackdrop, SkyToggle, useSkyPhase,
   n, pc, ms, clock, stamp, duration, bytes, rateTone,
   type PanelData,
 } from './panel'
+import Guide, { useGuideStep } from './guide'
 import KpmSection from './kpm-section'
 import BundleSection, { isBundleReport, type BundleReport } from './bundle-section'
 import SessionsSection from './sessions-section'
@@ -135,7 +136,7 @@ function Timeline({ analysis, bucketChoice, onBucketChange }: {
       <header className="flex flex-wrap items-center justify-between gap-2 px-3 pb-1.5 pt-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h3 className="text-[13px] font-bold text-ink-950"
-              style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+              style={{ letterSpacing: '-0.005em' }}>
             Authentications over time
           </h3>
           <p className="text-[10.5px] text-ink-400">
@@ -244,7 +245,7 @@ backup-logs NAME repository REPO encryption-key plain YOURKEY</pre>
 
   return (
     <div className="mx-auto mt-5 max-w-xl border border-ink-200 bg-paper p-4 text-left">
-      <p className="text-sm font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
+      <p className="text-sm font-bold text-ink-950" style={{ letterSpacing: '-0.005em' }}>
         Decrypt this one first
       </p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-600">
@@ -340,7 +341,7 @@ function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: 
     <div className="lg-card lg-rise p-3" style={{ '--accent': '#CC3311' } as React.CSSProperties}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
-           style={{ fontFamily: 'var(--font-heading)' }}>
+           style={{ letterSpacing: '-0.005em' }}>
           {f.headline}
         </p>
         <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{f.label}</span>
@@ -361,6 +362,17 @@ function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: 
 type Phase = 'idle' | 'reading' | 'ready' | 'error'
 
 export default function IseReportAnalyser() {
+  // Drives the sky, and through it every contrast decision on the
+  // page. Night until mounted — the server cannot know the
+  // reader's local hour, and guessing it produces a hydration
+  // mismatch rather than a wrong colour.
+  const sky = useSkyPhase()
+
+  // The guide's stage and the two things he points at.
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const chooseRef = useRef<HTMLLabelElement | null>(null)
+  const analyseRef = useRef<HTMLButtonElement | null>(null)
+
   const [files, setFiles] = useState<File[]>([])
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState(0)
@@ -678,12 +690,31 @@ export default function IseReportAnalyser() {
   const dashboard = dashRef.current
   const needsKey = files.some(f => /\.(gpg|pgp)$/i.test(f.name))
 
+  // Derived from what the page is actually doing, so the guide can
+  // never claim a state the tool is not in.
+  const guideStep = useGuideStep({
+    hasFiles: files.length > 0,
+    busy: phase === 'reading',
+    ready: phase === 'ready',
+  })
+
   if (phase !== 'ready' || (!analysis && !kpm && !bundle && !sessions && !dashboard)) {
     return (
-      <div className="lg-canvas container-page py-12">
-        {/* The idle state needs the stylesheet too — it is what
-            defines .lg-dark on the section wrapping this. */}
+      <div className="lg-sky" data-sky={sky}>
         <WidgetStyles />
+        <SkyBackdrop />
+        <div className="lg-canvas container-page pb-28 pt-32">
+
+        <div className="mb-5 flex justify-end">
+          <SkyToggle />
+        </div>
+
+        {/* `relative` makes this the stage the guide is positioned
+            against, so his coordinates are independent of where the
+            page has been scrolled to. */}
+        <div className="relative" ref={stageRef}>
+        <Guide step={guideStep} stageRef={stageRef}
+               chooseRef={chooseRef} analyseRef={analyseRef} />
         <div
           ref={dropRef}
           onDragOver={e => { e.preventDefault(); dropRef.current?.classList.add('drop-live') }}
@@ -695,7 +726,7 @@ export default function IseReportAnalyser() {
           }}
           className="tool-drop rounded-[28px] border-2 border-dashed border-white/30 bg-white/[.04] p-8 text-center transition-colors"
         >
-          <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
+          <p className="text-lg font-bold text-ink-950" style={{ letterSpacing: '-0.005em' }}>
             Drop your ISE files here
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
@@ -708,13 +739,13 @@ export default function IseReportAnalyser() {
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <label className="btn-ghost cursor-pointer">
+            <label ref={chooseRef} className="btn-ghost cursor-pointer">
               {files.length ? 'Add more files' : 'Choose files'}
               <input type="file" accept=".csv,text/csv,.tsv,.txt,.json,.gpg,.pgp,.tar" multiple
                      className="sr-only"
                      onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
             </label>
-            <button onClick={run}
+            <button ref={analyseRef} onClick={run}
                     disabled={files.length === 0 || phase === 'reading'}
                     className="btn-signal disabled:cursor-not-allowed disabled:opacity-40">
               {phase === 'reading'
@@ -813,6 +844,8 @@ export default function IseReportAnalyser() {
               <p className="mt-2 text-sm leading-relaxed text-ink-600">{b}</p>
             </div>
           ))}
+        </div>
+        </div>
         </div>
       </div>
     )
@@ -1008,19 +1041,23 @@ export default function IseReportAnalyser() {
       <WidgetStyles />
 
       {/*
-        The canvas isolates a stacking context so its colour blooms
-        can sit at z-index -1 without falling behind the page's own
-        background. That is also why the modal below is a sibling
-        rather than a child: a fixed element inside an isolated
-        ancestor is trapped in that context and would render beneath
-        the site header.
+        Backdrop and content are siblings with explicit z-index, so
+        no ancestor of the modal ever creates a stacking context —
+        a fixed element trapped inside one renders beneath the site
+        header, which is exactly the bug this layout avoids.
       */}
-      <div className="lg-canvas container-page py-8">
+      <div className="lg-sky" data-sky={sky}>
+      <SkyBackdrop />
+      <div className="lg-canvas container-page pb-28 pt-32">
+
+      <div className="mb-4 flex justify-end">
+        <SkyToggle />
+      </div>
 
       {/* ---------- toolbar ---------- */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 pb-3">
         <div className="min-w-0">
-          <p className="truncate font-mono text-[11px] text-ink-500">
+          <p className="truncate lg-num text-[11px] text-ink-500">
             {files.length === 1 ? files[0].name : `${files.length} files: ${files.map(f => f.name).join(', ')}`}
           </p>
           <p className="text-xs text-ink-700">
@@ -1111,7 +1148,7 @@ export default function IseReportAnalyser() {
           <section className="lg-card lg-rise mb-4 p-3">
             <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[13px] font-bold text-ink-950"
-                  style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+                  style={{ letterSpacing: '-0.005em' }}>
                 What stands out
               </h3>
               <p className="text-[10.5px] text-ink-400">
@@ -1157,6 +1194,7 @@ export default function IseReportAnalyser() {
         logged, and reloading the tab discards them.
       </p>
 
+      </div>
       </div>
 
       {detail && <DetailView data={detail} onClose={() => setDetail(null)} />}

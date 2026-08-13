@@ -111,18 +111,17 @@ export default function IseReportToolPage() {
       </section>
 
       {/*
-        Everything from here down is the instrument, and it runs on
-        a dark ground. The break is deliberate and it is placed
-        exactly here: above this line the page is a document you
-        read, below it the page is a tool you operate. A change of
-        ground is the clearest signal available that the mode has
-        changed, and it costs no words to say it.
+        Everything from here down is the instrument, and it runs
+        under a live sky — night, sunset or day, taken from the
+        reader's own clock. Above this line the page is a document
+        you read; below it, a tool you operate. A change of ground
+        says that with no words.
 
-        `.lg-dark` is defined in the stylesheet the analyser mounts,
-        so the class is inert until that component renders — which
-        it does in both its idle and its loaded state.
+        The section carries no background of its own: the analyser
+        paints its own backdrop and fades it out at both ends, so
+        there is no seam here to line up.
       */}
-      <section className="lg-dark pb-28 pt-24">
+      <section>
         <IseReportAnalyser />
       </section>
     </>

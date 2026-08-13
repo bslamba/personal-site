@@ -24,8 +24,8 @@
 
 import {
   Panel, Donut, MultiLine, Sparkline, LiquidGauge,
-  SectionBanner, NODE_COLOURS, useInkRotation,
-  ALERT_HIGH, ALERT_MED, DIM,
+  SectionBanner, useInkRotation, useInkPalette,
+  ALERT_HIGH, ALERT_MED, DIM, softTint,
   n, pc, ms, type PanelData,
 } from './panel'
 import type { DashboardAnalysis, NodeSeries, Pair } from '@/lib/tools/dashboard'
@@ -41,7 +41,7 @@ const cssVar = (accent: string) => ({ '--accent': accent }) as React.CSSProperti
 // widget shells
 // ------------------------------------------------------------
 
-function Widget({ title, note, accent = NODE_COLOURS[0], className = '', right, children }: {
+function Widget({ title, note, accent = '#5AC8FA', className = '', right, children }: {
   title?: string
   note?: string
   accent?: string
@@ -56,7 +56,7 @@ function Widget({ title, note, accent = NODE_COLOURS[0], className = '', right, 
         <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-3.5">
           <div className="min-w-0">
             <h3 className="lg-title text-[13px] font-bold leading-tight"
-                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+                style={{ letterSpacing: '-0.005em' }}>
               {title}
             </h3>
             {note && <p className="mt-0.5 text-[10.5px] leading-snug text-ink-500">{note}</p>}
@@ -83,7 +83,7 @@ function StatCard({ label, value, unit, sub, accent, spark, sparkMax }: {
     <div className="lg-card lg-rise flex flex-col justify-between p-3.5"
          style={cssVar(accent)}>
       <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-ink-400">{label}</p>
-      <p className="mt-2 font-mono text-[24px] font-bold leading-none tabular-nums"
+      <p className="mt-2 lg-data text-[24px] font-bold leading-none tabular-nums"
          style={{ color: accent }}>
         {value}
         {unit && <span className="ml-0.5 text-[12px] font-normal text-ink-400">{unit}</span>}
@@ -110,7 +110,7 @@ function GaugeCard({ label, value, sub, accent, alert }: {
   return (
     <div className="lg-card lg-rise flex flex-col items-center justify-center gap-1.5 p-3.5"
          style={cssVar(alert ? ALERT_HIGH : accent)}>
-      <LiquidGauge value={value} colour={alert ? ALERT_HIGH : accent} size={84} alert={alert} />
+      <LiquidGauge value={value} colour={alert ? ALERT_HIGH : accent} size={136} alert={alert} />
       <p className="lg-title text-center text-[9px] font-bold uppercase tracking-[0.11em]">
         {label}
       </p>
@@ -131,7 +131,7 @@ function Finding({ f }: { f: DashboardAnalysis['findings'][number] }) {
     <div className="lg-card lg-rise p-3" style={cssVar(s.accent)}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="lg-title text-[13px] font-bold leading-tight"
-           style={{ fontFamily: 'var(--font-heading)' }}>
+           style={{ letterSpacing: '-0.005em' }}>
           {f.headline}
         </p>
         <span className="text-[9px] font-bold uppercase tracking-[0.1em]"
@@ -181,10 +181,10 @@ function RankWidget({ title, note, rows, accent, tint, unit, onOpen, take = 7 }:
             <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[10px]"
                   style={{
                     width: `${(r.count / max) * 100}%`,
-                    background: `linear-gradient(90deg, ${accent}33, ${accent}08)`,
+                    background: `linear-gradient(90deg, ${softTint(accent, 26)}, ${softTint(accent, 5)})`,
                   }}
                   aria-hidden="true" />
-            <span className="relative w-4 shrink-0 text-center font-mono text-[9.5px] font-bold text-ink-300">
+            <span className="relative w-4 shrink-0 text-center lg-data text-[9.5px] font-bold text-ink-300">
               {i + 1}
             </span>
             <span className="relative h-2 w-2 shrink-0 rounded-full"
@@ -193,11 +193,11 @@ function RankWidget({ title, note, rows, accent, tint, unit, onOpen, take = 7 }:
                   title={r.label}>
               {r.label}
             </span>
-            <span className="relative shrink-0 font-mono text-[11.5px] font-bold tabular-nums"
+            <span className="relative shrink-0 lg-data text-[11.5px] font-bold tabular-nums"
                   style={{ color: tint(i) }}>
               {n(r.count)}{unit}
             </span>
-            <span className="relative w-11 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-400">
+            <span className="relative w-11 shrink-0 text-right lg-data text-[10px] tabular-nums text-ink-400">
               {total ? pc(r.count / total) : '—'}
             </span>
           </li>
@@ -249,7 +249,7 @@ function NodeGrid({ nodes, hours, tint }: {
     <div>
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 className="text-[15px] font-bold text-ink-900"
-            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.015em' }}>
+            style={{ letterSpacing: '-0.008em' }}>
           Every node, side by side
         </h3>
         <p className="text-[10.5px] text-ink-500">
@@ -271,9 +271,9 @@ function NodeGrid({ nodes, hours, tint }: {
                      style={cssVar(slow ? ALERT_HIGH : colour)}>
               <header className="flex items-center gap-2 px-3.5 pb-2 pt-3.5">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ background: colour, boxShadow: `0 0 0 3px ${colour}33` }}
+                      style={{ background: colour, boxShadow: `0 0 0 3px ${softTint(colour, 22)}` }}
                       aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate font-mono text-[12px] font-bold"
+                <span className="min-w-0 flex-1 truncate lg-data text-[12px] font-bold"
                       style={{ color: colour }}>
                   {nd.name}
                 </span>
@@ -286,10 +286,10 @@ function NodeGrid({ nodes, hours, tint }: {
               </header>
 
               <div className="flex items-center gap-3 px-3.5 pb-3.5">
-                <div className="flex shrink-0 gap-2">
-                  <LiquidGauge value={nd.avgCpu} colour={hotCpu ? ALERT_HIGH : colour} size={64}
+                <div className="flex shrink-0 gap-2.5">
+                  <LiquidGauge value={nd.avgCpu} colour={hotCpu ? ALERT_HIGH : colour} size={92}
                                caption="CPU" alert={hotCpu} />
-                  <LiquidGauge value={nd.avgMemory} colour={hotMem ? ALERT_HIGH : colour} size={64}
+                  <LiquidGauge value={nd.avgMemory} colour={hotMem ? ALERT_HIGH : colour} size={92}
                                caption="Memory" alert={hotMem} />
                 </div>
 
@@ -298,14 +298,14 @@ function NodeGrid({ nodes, hours, tint }: {
                     <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-ink-400">
                       Latency
                     </span>
-                    <span className="font-mono text-[9.5px] tabular-nums text-ink-400">
+                    <span className="lg-data text-[9.5px] tabular-nums text-ink-400">
                       peak <span className={slow ? 'font-bold' : 'text-ink-600'}
                                  style={slow ? { color: ALERT_HIGH } : undefined}>
                         {metric(nd.peakLatency)}
                       </span>
                     </span>
                   </div>
-                  <p className="mt-0.5 font-mono text-[20px] font-bold leading-none tabular-nums"
+                  <p className="mt-0.5 lg-data text-[20px] font-bold leading-none tabular-nums"
                      style={{ color: slow ? ALERT_HIGH : colour }}>
                     {metric(nd.avgLatency)}
                     <span className="text-[10px] font-normal text-ink-400"> ms</span>
@@ -317,7 +317,7 @@ function NodeGrid({ nodes, hours, tint }: {
               </div>
 
               <div className="flex items-center justify-between gap-2 border-t border-white/[.07]
-                              px-3.5 py-1.5 font-mono text-[9.5px] tabular-nums text-ink-400">
+                              px-3.5 py-1.5 lg-data text-[9.5px] tabular-nums text-ink-400">
                 <span>peak cpu <span className={hotCpu ? 'font-bold' : 'text-ink-700'}
                                      style={hotCpu ? { color: ALERT_HIGH } : undefined}>
                   {metric(nd.peakCpu)}%
@@ -373,6 +373,7 @@ export default function DashboardSection({ a, onExpand }: {
   // The palette is dealt from a different starting card on each
   // load, so nothing on the page is permanently "the blue one".
   const tint = useInkRotation()
+  const palette = useInkPalette()
 
   const withSamples = a.nodes.filter(nd => nd.samples.length > 1)
 
@@ -525,7 +526,7 @@ export default function DashboardSection({ a, onExpand }: {
           <div className="mb-3">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[15px] font-bold text-ink-900"
-                  style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.015em' }}>
+                  style={{ letterSpacing: '-0.008em' }}>
                 What stands out
               </h3>
               <p className="text-[10.5px] text-ink-500">
@@ -575,7 +576,7 @@ export default function DashboardSection({ a, onExpand }: {
                       <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[10px]"
                             style={{
                               width: `${(al.occurrences / alarmMax) * 100}%`,
-                              background: `linear-gradient(90deg, ${c}33, ${c}08)`,
+                              background: `linear-gradient(90deg, ${softTint(c, 26)}, ${softTint(c, 5)})`,
                             }}
                             aria-hidden="true" />
                       <span className="relative h-5 w-[3px] shrink-0 rounded-full"
@@ -584,11 +585,11 @@ export default function DashboardSection({ a, onExpand }: {
                             title={al.name}>
                         {al.name}
                       </span>
-                      <span className="relative shrink-0 font-mono text-[11.5px] font-bold tabular-nums"
+                      <span className="relative shrink-0 lg-data text-[11.5px] font-bold tabular-nums"
                             style={{ color: c }}>
                         {n(al.occurrences)}
                       </span>
-                      <span className="relative hidden w-32 shrink-0 text-right font-mono
+                      <span className="relative hidden w-32 shrink-0 text-right lg-data
                                        text-[10px] tabular-nums text-ink-400 sm:block">
                         {al.lastOccurred}
                       </span>
@@ -657,7 +658,7 @@ export default function DashboardSection({ a, onExpand }: {
           {a.endpointStatus.length > 0 && (
             <Widget title="Endpoint connectivity" note="Connected against disconnected, right now."
                     accent={tint(1)}>
-              <Donut colours={NODE_COLOURS} size={150}
+              <Donut colours={palette} size={168}
                      slices={a.endpointStatus.map(s => ({ label: s.label, value: s.count }))}
                      centreValue={n(a.totals.connected)} centreLabel="connected" />
             </Widget>
@@ -666,7 +667,7 @@ export default function DashboardSection({ a, onExpand }: {
           {a.failureReasons.length > 0 && (
             <Widget title="Failures by reason" note="Top reasons, remainder grouped."
                     accent={ALERT_HIGH}>
-              <Donut colours={NODE_COLOURS} size={150}
+              <Donut colours={palette} size={168}
                      slices={toSlices(a.failureReasons.map(f => ({
                        label: f.code || f.text.slice(0, 28), count: f.count,
                      })), 6)}
@@ -677,7 +678,7 @@ export default function DashboardSection({ a, onExpand }: {
           {a.endpointProfiles.length > 0 && (
             <Widget title="Endpoint profiles" note="What profiling has identified."
                     accent={tint(3)}>
-              <Donut colours={NODE_COLOURS} size={150} slices={toSlices(a.endpointProfiles, 6)}
+              <Donut colours={palette} size={168} slices={toSlices(a.endpointProfiles, 6)}
                      centreValue={n(a.endpointProfiles.reduce((s, p) => s + p.count, 0))}
                      centreLabel="endpoints" />
             </Widget>
@@ -686,7 +687,7 @@ export default function DashboardSection({ a, onExpand }: {
           {a.identityStores.length > 0 && (
             <Widget title="Identity stores" note="Where authentications were verified."
                     accent={tint(5)}>
-              <Donut colours={NODE_COLOURS} size={150} slices={toSlices(a.identityStores, 6)}
+              <Donut colours={palette} size={168} slices={toSlices(a.identityStores, 6)}
                      centreValue={n(a.totals.authentications)} centreLabel="auths" />
             </Widget>
           )}
@@ -694,7 +695,7 @@ export default function DashboardSection({ a, onExpand }: {
           {a.networkDevices.length > 0 && (
             <Widget title="Network devices" note="Share of authentications per device."
                     accent={tint(7)}>
-              <Donut colours={NODE_COLOURS} size={150} slices={toSlices(a.networkDevices, 7)}
+              <Donut colours={palette} size={168} slices={toSlices(a.networkDevices, 7)}
                      centreValue={n(a.networkDevices.length)} centreLabel="devices" />
             </Widget>
           )}
@@ -702,7 +703,7 @@ export default function DashboardSection({ a, onExpand }: {
           {a.alarmsBySeverity.length > 0 && (
             <Widget title="Alarms by severity" note="Occurrences, not distinct alarm types."
                     accent={tint(9)}>
-              <Donut colours={[ALERT_HIGH, ALERT_MED, DIM, '#6C7484']} size={150}
+              <Donut colours={[ALERT_HIGH, ALERT_MED, DIM, 'var(--hair-strong)']} size={168}
                      slices={a.alarmsBySeverity.map(s => ({ label: s.label, value: s.occurrences }))}
                      centreValue={n(a.alarms.reduce((s, x) => s + x.occurrences, 0))}
                      centreLabel="occurrences" />

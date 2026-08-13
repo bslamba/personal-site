@@ -33,7 +33,7 @@ function Finding({ f }: { f: SessionsAnalysis['findings'][number] }) {
     <div className={`border border-ink-200 border-l-2 ${s.border} bg-paper p-3`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
-           style={{ fontFamily: 'var(--font-heading)' }}>
+           style={{ letterSpacing: '-0.005em' }}>
           {f.headline}
         </p>
         <span className={`text-[9.5px] font-bold uppercase tracking-[0.09em] ${s.tone}`}>{s.label}</span>
@@ -222,7 +222,7 @@ export default function SessionsSection({ a, onExpand }: {
         <section className="lg-card lg-rise mb-4 p-3">
           <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-[13px] font-bold text-ink-950"
-                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+                style={{ letterSpacing: '-0.005em' }}>
               What stands out
             </h3>
             <p className="text-[10.5px] text-ink-400">
