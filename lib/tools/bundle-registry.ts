@@ -31,6 +31,14 @@ export interface LogSpec {
   label: string
   role: ParserRole
   areas: string[]
+  /**
+   * High volume, low diagnostic value. ise-messaging alone is 600MB of
+   * RabbitMQ chatter across ten rotations, and the only thing it tells
+   * you — that publishes are failing — is already visible in
+   * prrt-server.log. Skipped unless asked for, because reading it
+   * roughly doubles the time to a result.
+   */
+  bulk?: boolean
 }
 
 // ------------------------------------------------------------
@@ -122,7 +130,9 @@ export const SPECS: LogSpec[] = [
   { stem: 'lsd.log', label: 'lsd.log', role: 'ise', areas: [A.LSD] },
   { stem: 'vcs.log', label: 'vcs.log', role: 'ise', areas: [A.VISIBILITY] },
   { stem: 'ise-elasticsearch.log', label: 'ise-elasticsearch.log', role: 'ise', areas: [A.VISIBILITY] },
-  { stem: 'ise-messaging.log', label: 'ise-messaging.log', role: 'plain', areas: [A.MESSAGING] },
+  { stem: 'ise-messaging.log', label: 'ise-messaging.log', role: 'plain', areas: [A.MESSAGING], bulk: true },
+  { stem: 'gc_app.log', label: 'gc_app.log', role: 'plain', areas: [A.APPSERVER], bulk: true },
+  { stem: 'access.log', label: 'apigateway access.log', role: 'plain', areas: [A.REST], bulk: true },
   { stem: 'rest-id-store.log', label: 'rest-id-store.log', role: 'ise', areas: [A.RESTSTORE] },
   { stem: 'deployment.log', label: 'deployment.log', role: 'ise', areas: [A.REPLICATION, A.SYSTEM] },
   { stem: 'mydevices.log', label: 'mydevices.log', role: 'ise', areas: [A.MYDEVICES] },
@@ -131,13 +141,13 @@ export const SPECS: LogSpec[] = [
 ]
 
 /** Directory-based groups — matched on the path rather than the filename. */
-const DIR_SPECS: { match: RegExp; label: string; role: ParserRole; areas: string[] }[] = [
+const DIR_SPECS: { match: RegExp; label: string; role: ParserRole; areas: string[]; bulk?: boolean }[] = [
   { match: /\/passiveid[^/]*\//, label: 'passiveid/', role: 'ise', areas: [A.PASSIVEID] },
   { match: /\/wifisetup\//, label: 'wifisetup/', role: 'ise', areas: [A.WIFISETUP] },
   { match: /\/sxp_appserver\//, label: 'sxp_appserver/', role: 'ise', areas: [A.TRUSTSEC] },
   { match: /\/appserver\//, label: 'appserver/', role: 'plain', areas: [A.APPSERVER] },
   { match: /\/pxgrid(direct)?\//, label: 'pxgrid/', role: 'ise', areas: [A.PXGRID, A.PASSIVEID] },
-  { match: /\/ise-messaging\//, label: 'ise-messaging/', role: 'plain', areas: [A.MESSAGING] },
+  { match: /\/ise-messaging\//, label: 'ise-messaging/', role: 'plain', areas: [A.MESSAGING], bulk: true },
 ]
 
 /** Never worth reading: binaries, installer history, OS journals. */
@@ -165,6 +175,7 @@ export interface Resolved {
   label: string
   role: ParserRole
   areas: string[]
+  bulk: boolean
 }
 
 /** What should be done with this path, or null to skip it. */
@@ -176,15 +187,17 @@ export function specFor(fullPath: string): Resolved | null {
   const base = path.split('/').pop() ?? path
 
   if (/^messagecatalog.*\.properties$/.test(base)) {
-    return { label: 'messagecatalog.properties', role: 'catalogue', areas: [] }
+    return { label: 'messagecatalog.properties', role: 'catalogue', areas: [], bulk: false }
   }
 
   const direct = BY_STEM.get(stemOf(base))
-  if (direct) return { label: direct.label, role: direct.role, areas: direct.areas }
+  if (direct) {
+    return { label: direct.label, role: direct.role, areas: direct.areas, bulk: Boolean(direct.bulk) }
+  }
 
   for (const d of DIR_SPECS) {
     if (d.match.test(path) && /\.(log|out|txt)$|\.(log|out)\./.test(base)) {
-      return { label: d.label, role: d.role, areas: d.areas }
+      return { label: d.label, role: d.role, areas: d.areas, bulk: Boolean(d.bulk) }
     }
   }
   return null

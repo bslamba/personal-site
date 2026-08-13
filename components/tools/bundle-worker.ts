@@ -24,18 +24,43 @@ import type { WorkerOut } from '@/lib/tools/bundle-types'
 
 const post = (m: WorkerOut) => self.postMessage(m)
 
-self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => {
-  const { file, passphrase } = e.data
+self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includeBulk: boolean }>) => {
+  const { file, passphrase, includeBulk } = e.data
+
+  // Progress is measured on the ENCRYPTED input rather than on anything
+  // downstream. It is the only number that is honest end to end: the
+  // archive's decompressed size is unknown until it has been read, so a
+  // bar based on output would lie for the first few minutes.
+  let inBytes = 0
+  let outBytes = 0
+  let currentEntry: string | null = null
+  let filesParsed = 0
+  let linesParsed = 0
+
+  const ticker = setInterval(() => {
+    post({
+      type: 'progress',
+      inBytes, inTotal: file.size, outBytes,
+      entry: currentEntry, files: filesParsed, lines: linesParsed,
+    })
+  }, 400)
 
   try {
     post({ type: 'stage', stage: 'Reading the archive' })
 
     // ---------- decrypt ----------
-    // The file is handed over as a stream, so the 344MB of ciphertext
-    // is never held whole — and neither is the plaintext it expands to.
-    const message = await openpgp.readMessage({
-      binaryMessage: file.stream() as unknown as ReadableStream<Uint8Array>,
-    })
+    // The file is handed over as a stream, so the ciphertext is never
+    // held whole — and neither is the plaintext it expands to. The
+    // counting stage in the middle is what drives the progress bar.
+    const counted = (file.stream() as unknown as ReadableStream<Uint8Array>)
+      .pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          inBytes += chunk.byteLength
+          controller.enqueue(chunk)
+        },
+      }))
+
+    const message = await openpgp.readMessage({ binaryMessage: counted })
 
     post({ type: 'stage', stage: 'Decrypting' })
 
@@ -53,6 +78,7 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => 
         },
       })
     } catch (err) {
+      clearInterval(ticker)
       const msg = String(err instanceof Error ? err.message : err)
       if (/passphrase|password|decrypt|session key/i.test(msg)) {
         post({ type: 'error', message: 'That key did not open the bundle. Check the shared key you set when creating it. If the filename contains "-pk-" it is public-key encrypted and only Cisco TAC can open it.' })
@@ -67,22 +93,23 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => 
     // ---------- walk the archive ----------
     post({ type: 'stage', stage: 'Reading files from the archive' })
 
+    post({ type: 'stage', stage: 'Reading logs' })
+
     const started = Date.now()
     const agg = new BundleAggregator()
     const tar = new TarReader(plaintext)
 
-    let lastPost = 0
     let entries = 0
 
-    // One splitter reused across files — allocating a closure per log
-    // matters when there are hundreds of rotations.
-    const feed = (l: string) => agg.line(l)
-    const dec = () => new TextDecoder('utf-8', { fatal: false })
+    // One callback reused across every file — allocating a closure per
+    // log matters when a bundle holds hundreds of rotations.
+    const feed = (l: string) => { linesParsed++; agg.line(l) }
 
     for (;;) {
       const header = await tar.next()
       if (!header) break
       entries++
+      outBytes = tar.consumed
 
       if (header.type === '5' || header.size === 0) {
         await tar.skipBody(header.size)
@@ -91,50 +118,54 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => 
 
       const spec = specFor(header.name)
 
-      if (!spec) {
+      if (!spec || (spec.bulk && !includeBulk)) {
         // Everything we do not need is discarded as its bytes pass.
         await tar.skipBody(header.size)
-      } else {
-        agg.startFile(spec, header.name, header.size)
-
-        if (spec.role === 'showtech') {
-          let text = ''
-          const d = dec()
-          await tar.readBody(header.size, chunk => { text += d.decode(chunk, { stream: true }) })
-          agg.appendShowtech(text)
-        } else {
-          const splitter = new LineSplitter(feed)
-          await tar.readBody(header.size, chunk => splitter.push(chunk))
-          splitter.flush()
-        }
+        continue
       }
 
-      const now = Date.now()
-      if (now - lastPost > 200) {
-        lastPost = now
-        post({ type: 'progress', bytes: tar.consumed, entry: header.name })
+      currentEntry = header.name
+      filesParsed++
+      agg.startFile(spec, header.name, header.size)
+
+      if (spec.role === 'showtech') {
+        let text = ''
+        const d = new TextDecoder('utf-8', { fatal: false })
+        await tar.readBody(header.size, chunk => { text += d.decode(chunk, { stream: true }) })
+        agg.appendShowtech(text)
+      } else {
+        const splitter = new LineSplitter(feed)
+        await tar.readBody(header.size, chunk => splitter.push(chunk))
+        splitter.flush()
       }
     }
 
     await tar.cancel()
     agg.archiveEntries = entries
+    outBytes = tar.consumed
 
     if (entries === 0) {
+      clearInterval(ticker)
       post({ type: 'error', message: 'The archive decrypted but contained no files. It may not be a tar archive.' })
       return
     }
     if (agg.filesRead.length === 0) {
+      clearInterval(ticker)
       post({ type: 'error', message: `Decrypted ${entries} files, but none of the expected ISE logs were present. Is this a Cisco ISE support bundle?` })
       return
     }
 
     post({ type: 'stage', stage: 'Building the report' })
     const report = agg.finish(file.name, (Date.now() - started) / 1000)
+    clearInterval(ticker)
     post({ type: 'done', report })
   } catch (err) {
+    clearInterval(ticker)
     post({
       type: 'error',
       message: err instanceof Error ? err.message : 'The bundle could not be read.',
     })
+  } finally {
+    clearInterval(ticker)
   }
 }

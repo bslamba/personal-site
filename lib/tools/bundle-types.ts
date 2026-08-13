@@ -130,10 +130,25 @@ export function isBundleReport(v: unknown): v is BundleReport {
 // ------------------------------------------------------------
 // messages between the worker and the page
 // ------------------------------------------------------------
-export type WorkerIn = { file: File; passphrase: string }
+export type WorkerIn = {
+  file: File
+  passphrase: string
+  /** read the high-volume message-bus and GC logs too */
+  includeBulk: boolean
+}
 
 export type WorkerOut =
   | { type: 'stage'; stage: string }
-  | { type: 'progress'; bytes: number; entry: string | null }
+  | {
+      type: 'progress'
+      /** bytes of the encrypted file consumed — the honest progress measure */
+      inBytes: number
+      inTotal: number
+      /** bytes of decrypted archive walked so far */
+      outBytes: number
+      entry: string | null
+      files: number
+      lines: number
+    }
   | { type: 'done'; report: BundleReport }
   | { type: 'error'; message: string }

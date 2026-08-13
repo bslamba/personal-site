@@ -190,6 +190,64 @@ function Timeline({ analysis, bucketChoice, onBucketChange }: {
   )
 }
 
+/**
+ * Progress for a support bundle.
+ *
+ * The bar tracks bytes read from the ENCRYPTED file, which is the only
+ * figure that is honest for the whole run — the decompressed size is
+ * unknown until it has all been read, so a bar based on the archive
+ * would sit near zero for minutes and then leap.
+ */
+function BundleProgress({ p, stage }: {
+  p: { inBytes: number; inTotal: number; outBytes: number
+       entry: string | null; files: number; lines: number; started: number }
+  stage: string
+}) {
+  const pctDone = p.inTotal ? Math.min(100, (p.inBytes / p.inTotal) * 100) : 0
+  const elapsed = (Date.now() - p.started) / 1000
+  const rate = elapsed > 2 ? p.inBytes / elapsed : 0
+  const remaining = rate > 0 ? (p.inTotal - p.inBytes) / rate : 0
+  const mb = (v: number) => (v / 1048576).toFixed(0)
+
+  return (
+    <div className="mx-auto mt-5 max-w-lg">
+      <div className="h-2 w-full overflow-hidden bg-ink-100">
+        <div className="h-full bg-signal-500 transition-[width] duration-300"
+             style={{ width: `${pctDone}%` }} />
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="font-mono text-xs text-ink-700">
+          {pctDone.toFixed(1)}% · {mb(p.inBytes)} of {mb(p.inTotal)} MB
+        </span>
+        <span className="font-mono text-[11px] text-ink-400">
+          {rate > 0 && `${(rate / 1048576).toFixed(1)} MB/s`}
+          {remaining > 1 && elapsed > 5 && ` · about ${
+            remaining > 90 ? `${Math.round(remaining / 60)} min` : `${Math.round(remaining)}s`
+          } left`}
+        </span>
+      </div>
+
+      <p className="mt-1 truncate font-mono text-[11px] text-ink-500">
+        {stage}
+        {p.entry && ` · ${p.entry.split('/').slice(-1)[0]}`}
+      </p>
+
+      {(p.files > 0 || p.outBytes > 0) && (
+        <p className="mt-0.5 font-mono text-[11px] text-ink-400">
+          {p.files} log{p.files === 1 ? '' : 's'} · {n(p.lines)} lines ·{' '}
+          {mb(p.outBytes)} MB of archive walked
+        </p>
+      )}
+
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+        Decryption is the slow part and happens before any log is read, so the counters below
+        the bar stay at zero for the first stretch. That is expected, not a stall.
+      </p>
+    </div>
+  )
+}
+
 function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: string) => void }) {
   return (
     <div className="border border-ink-200 border-l-2 border-l-signal-500 bg-paper p-3">
@@ -228,6 +286,11 @@ export default function IseReportAnalyser() {
   const [detail, setDetail] = useState<PanelData | null>(null)
   const [passphrase, setPassphrase] = useState('')
   const [stage, setStage] = useState('')
+  const [includeBulk, setIncludeBulk] = useState(false)
+  const [bundleProgress, setBundleProgress] = useState<{
+    inBytes: number; inTotal: number; outBytes: number
+    entry: string | null; files: number; lines: number; started: number
+  } | null>(null)
   const [, forceRender] = useState(0)
 
   const storeRef = useRef<Store | null>(null)
@@ -341,30 +404,34 @@ export default function IseReportAnalyser() {
    */
   const runBundle = useCallback((f: File) => new Promise<string | null>(resolve => {
     const worker = new Worker(new URL('./bundle-worker.ts', import.meta.url), { type: 'module' })
+    const started = Date.now()
+    setBundleProgress({ inBytes: 0, inTotal: f.size, outBytes: 0, entry: null, files: 0, lines: 0, started })
 
     worker.onmessage = (ev: MessageEvent<WorkerOut>) => {
       const m = ev.data
       if (m.type === 'stage') {
         setStage(m.stage)
       } else if (m.type === 'progress') {
-        setStage(m.entry ? `Reading ${m.entry.split('/').pop()}` : 'Reading')
-        setRowsSeen(Math.round(m.bytes / 1048576))
+        setBundleProgress({ ...m, started })
       } else if (m.type === 'done') {
         bundleRef.current = m.report
+        setBundleProgress(null)
         worker.terminate()
         resolve(null)
       } else {
+        setBundleProgress(null)
         worker.terminate()
         resolve(`${f.name} — ${m.message}`)
       }
     }
     worker.onerror = err => {
+      setBundleProgress(null)
       worker.terminate()
       resolve(`${f.name} — ${err.message || 'the worker failed'}`)
     }
 
-    worker.postMessage({ file: f, passphrase })
-  }), [passphrase])
+    worker.postMessage({ file: f, passphrase, includeBulk })
+  }), [passphrase, includeBulk])
 
   const run = useCallback(async () => {
     if (files.length === 0) return
@@ -554,6 +621,24 @@ export default function IseReportAnalyser() {
                 never stored. A filename containing <span className="font-mono">-pk-</span> is
                 public-key encrypted and can only be opened by Cisco TAC.
               </p>
+
+              <label className="mt-3 flex cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={includeBulk}
+                  onChange={e => setIncludeBulk(e.target.checked)}
+                  className="mt-0.5 accent-[#D3002D]"
+                />
+                <span className="text-[11px] leading-relaxed text-ink-500">
+                  Also read the message-bus and GC logs.{' '}
+                  <span className="text-ink-400">
+                    Off by default: <span className="font-mono">ise-messaging</span> alone is
+                    around 600MB across ten rotations, and roughly doubles the time to a result.
+                    The one thing it reports — publishes failing — already shows up in
+                    prrt-server.log.
+                  </span>
+                </span>
+              </label>
             </div>
           )}
 
@@ -580,23 +665,19 @@ export default function IseReportAnalyser() {
             </div>
           )}
 
-          {phase === 'reading' && (
+          {phase === 'reading' && bundleProgress && (
+            <BundleProgress p={bundleProgress} stage={stage} />
+          )}
+
+          {phase === 'reading' && !bundleProgress && (
             <div className="mx-auto mt-5 max-w-md">
               <div className="h-1.5 w-full overflow-hidden bg-ink-100">
                 <div className="h-full bg-signal-500 transition-[width] duration-150"
                      style={{ width: `${progress}%` }} />
               </div>
               <p className="mt-2 font-mono text-xs text-ink-500">
-                {stage
-                  ? `${stage}${rowsSeen ? ` · ${n(rowsSeen)} MB` : ''}`
-                  : `${n(rowsSeen)} rows read${nowReading ? ` · ${nowReading}` : ''}`}
+                {stage || `${n(rowsSeen)} rows read${nowReading ? ` · ${nowReading}` : ''}`}
               </p>
-              {needsKey && (
-                <p className="mt-1 text-[11px] text-ink-400">
-                  Decrypting a support bundle takes a few minutes — it expands to several
-                  gigabytes, all of it read here rather than uploaded.
-                </p>
-              )}
             </div>
           )}
 
