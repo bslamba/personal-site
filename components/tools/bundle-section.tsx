@@ -17,82 +17,10 @@ import {
   type PanelData,
 } from './panel'
 
-// ------------------------------------------------------------
-// the shape written by the analyser
-// ------------------------------------------------------------
-interface KeyCount { key: string; count: number }
+import type { BundleReport, KeyCount } from '@/lib/tools/bundle-types'
 
-export interface BundleReport {
-  kind: 'ise-bundle-report'
-  version: number
-  generated: string
-  node: string | null
-  source: string
-  system: {
-    hostname: string | null
-    adeOs: string | null
-    adeBuild: string | null
-    architecture: string | null
-    iseVersion: string | null
-    buildDate: string | null
-    installDate: string | null
-    patches: { version: string; installDate: string | null }[]
-    services: { name: string; state: string; detail: string | null }[]
-    sections: string[]
-    diskAlerts: string[]
-  } | null
-  runtime: {
-    file: string
-    lines: number
-    parsed: number
-    window: { start: string | null; end: string | null }
-    byComponentLevel: { component: string; level: string; count: number }[]
-    patterns: {
-      id: string; title: string; meaning: string; severity: string
-      count: number; share: number; firstSeen: string | null; lastSeen: string | null
-    }[]
-    noiseSuppressed: number
-    signalLines: number
-    unmatched: KeyCount[]
-    abandonedBy: KeyCount[]
-    slowStepBy: KeyCount[]
-    perDay: KeyCount[]
-  } | null
-  auth: {
-    files: string[]
-    records: number; passed: number; failed: number; failRate: number
-    window: { start: string | null; end: string | null }
-    messageCodes: KeyCount[]
-    failureCodes: KeyCount[]
-    dims: Record<string, KeyCount[]>
-    failDims: Record<string, KeyCount[]>
-    latency: {
-      total: { count: number; mean: number; p50: number; p90: number; p95: number; p99: number; max: number }
-      totalHistogram: { from: number; to: number | null; count: number }[]
-      client: { mean: number; p50: number; p95: number; max: number }
-      request: { mean: number; p50: number; p95: number; max: number }
-    }
-    stepLatency: { step: number; totalMs: number; samples: number; avgMs: number }[]
-    certExpiry: { buckets: KeyCount[]; soonest: { days: number; subject: string } | null }
-    timeline: { t: string; total: number; fail: number }[]
-    utilisationSamples: number
-  } | null
-  app: {
-    file: string; lines: number
-    window: { start: string | null; end: string | null }
-    byLevel: KeyCount[]
-    topProblems: KeyCount[]
-    perDay: KeyCount[]
-  } | null
-  alarms: { file: string; lines: number; top: KeyCount[] } | null
-  catalogue: Record<string, string>
-  findings: { severity: string; headline: string; detail: string }[]
-}
-
-export function isBundleReport(v: unknown): v is BundleReport {
-  return Boolean(v) && typeof v === 'object' &&
-    (v as { kind?: string }).kind === 'ise-bundle-report'
-}
+export { isBundleReport } from '@/lib/tools/bundle-types'
+export type { BundleReport } from '@/lib/tools/bundle-types'
 
 // ------------------------------------------------------------
 // pieces
@@ -431,6 +359,10 @@ export default function BundleSection({ r, onExpand }: {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {r.filesRead && r.filesRead.length > 0 && (
+          <Kpi label="Files read" value={n(r.filesRead.length)}
+               sub={`${(r.filesRead.reduce((a, f) => a + f.bytes, 0) / 1048576).toFixed(0)} MB parsed`} />
+        )}
         {system?.iseVersion && <Kpi label="ISE version" value={system.iseVersion}
           sub={system.patches.length ? `patch ${system.patches[system.patches.length - 1].version}` : undefined} />}
         {system?.adeOs && <Kpi label="ADE-OS" value={system.adeOs} sub={system.architecture ?? undefined} />}

@@ -37,6 +37,7 @@ import {
   KpmBuilder, analyseKpm, detectReportKind, kpmToCsv,
   type KpmData, type KpmAnalysis,
 } from '@/lib/tools/kpm'
+import type { WorkerOut } from '@/lib/tools/bundle-types'
 import {
   Panel, DetailView, Kpi, SectionBanner,
   n, pc, ms, clock, stamp, duration, bytes, rateTone,
@@ -225,6 +226,8 @@ export default function IseReportAnalyser() {
   const [filters, setFilters] = useState<Filter[]>([])
   const [bucketChoice, setBucketChoice] = useState(0)
   const [detail, setDetail] = useState<PanelData | null>(null)
+  const [passphrase, setPassphrase] = useState('')
+  const [stage, setStage] = useState('')
   const [, forceRender] = useState(0)
 
   const storeRef = useRef<Store | null>(null)
@@ -253,7 +256,7 @@ export default function IseReportAnalyser() {
   const addFiles = (incoming: FileList | File[] | null) => {
     if (!incoming) return
     const list = Array.from(incoming)
-      .filter(f => /\.(csv|txt|tsv|json)$/i.test(f.name) || f.type.includes('csv'))
+      .filter(f => /\.(csv|txt|tsv|json|gpg|pgp|tar)$/i.test(f.name) || f.type.includes('csv'))
     if (list.length === 0) return
     setFiles(prev => {
       const seen = new Set(prev.map(f => f.name + f.size))
@@ -330,9 +333,42 @@ export default function IseReportAnalyser() {
     })
   })
 
+  /**
+   * Decrypt and read an encrypted support bundle in a Worker.
+   * The archive expands to gigabytes, so it is streamed: decrypt,
+   * walk the tar, parse only the logs that matter, discard the rest
+   * as it passes. Nothing is uploaded and nothing is written down.
+   */
+  const runBundle = useCallback((f: File) => new Promise<string | null>(resolve => {
+    const worker = new Worker(new URL('./bundle-worker.ts', import.meta.url), { type: 'module' })
+
+    worker.onmessage = (ev: MessageEvent<WorkerOut>) => {
+      const m = ev.data
+      if (m.type === 'stage') {
+        setStage(m.stage)
+      } else if (m.type === 'progress') {
+        setStage(m.entry ? `Reading ${m.entry.split('/').pop()}` : 'Reading')
+        setRowsSeen(Math.round(m.bytes / 1048576))
+      } else if (m.type === 'done') {
+        bundleRef.current = m.report
+        worker.terminate()
+        resolve(null)
+      } else {
+        worker.terminate()
+        resolve(`${f.name} — ${m.message}`)
+      }
+    }
+    worker.onerror = err => {
+      worker.terminate()
+      resolve(`${f.name} — ${err.message || 'the worker failed'}`)
+    }
+
+    worker.postMessage({ file: f, passphrase })
+  }), [passphrase])
+
   const run = useCallback(async () => {
     if (files.length === 0) return
-    setPhase('reading'); setProgress(0); setRowsSeen(0)
+    setPhase('reading'); setProgress(0); setRowsSeen(0); setStage('')
     setError(''); setWarnings([]); setFilters([])
     storeRef.current = null; kpmRef.current = null; bundleRef.current = null
 
@@ -348,9 +384,11 @@ export default function IseReportAnalyser() {
       // the bottleneck is the aggregation, not the disk.
       for (const f of files) {
         setNowReading(f.name)
-        const note = /\.json$/i.test(f.name)
-          ? await parseBundleJson(f)
-          : await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
+        const note = /\.(gpg|pgp|tar)$/i.test(f.name)
+          ? await runBundle(f)
+          : /\.json$/i.test(f.name)
+            ? await parseBundleJson(f)
+            : await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
         if (note) notes.push(note)
         doneBytes += f.size
         if (totalBytes) setProgress(Math.min(99, (doneBytes / totalBytes) * 100))
@@ -381,10 +419,11 @@ export default function IseReportAnalyser() {
 
     setWarnings(notes)
     setProgress(100)
+    setStage('')
     setPhase('ready')
     forceRender(v => v + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files])
+  }, [files, runBundle])
 
   const addFilter = useCallback((dimension: Dimension, key: string) => {
     setDetail(null)
@@ -443,6 +482,8 @@ export default function IseReportAnalyser() {
 
   // ---------- landing ----------
   const bundle = bundleRef.current
+  const needsKey = files.some(f => /\.(gpg|pgp)$/i.test(f.name))
+
   if (phase !== 'ready' || (!analysis && !kpm && !bundle)) {
     return (
       <div className="container-page py-12">
@@ -458,35 +499,63 @@ export default function IseReportAnalyser() {
           className="tool-drop border-2 border-dashed border-ink-200 bg-paper p-8 text-center transition-colors"
         >
           <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
-            Drop your CSV exports here
+            Drop your ISE files here
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
+            An encrypted <strong>support bundle</strong> (.tar.gpg), or the{' '}
             <strong>RADIUS Authentications</strong> and <strong>Key Performance Metrics</strong>{' '}
-            CSV exports, or the <strong>JSON report</strong> from the support bundle analyser.
-            Add as many as you like — each is detected automatically and merged into one
-            dashboard. Files stay on this computer; they are read in your browser and never
-            uploaded.
+            CSV exports. Add as many as you like — each is detected automatically and merged
+            into one dashboard. Everything is read in this browser: the bundle is decrypted
+            here, nothing is uploaded, and the key is never stored.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <label className="btn-ghost cursor-pointer">
               {files.length ? 'Add more files' : 'Choose files'}
-              <input type="file" accept=".csv,text/csv,.tsv,.txt" multiple className="sr-only"
+              <input type="file" accept=".csv,text/csv,.tsv,.txt,.json,.gpg,.pgp,.tar" multiple
+                     className="sr-only"
                      onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
             </label>
-            <button onClick={run} disabled={files.length === 0 || phase === 'reading'}
+            <button onClick={run}
+                    disabled={files.length === 0 || phase === 'reading' || (needsKey && !passphrase)}
                     className="btn-signal disabled:cursor-not-allowed disabled:opacity-40">
               {phase === 'reading'
                 ? 'Analysing…'
                 : files.length > 1 ? `Analyse ${files.length} files` : 'Analyse'}
             </button>
             {files.length > 0 && phase !== 'reading' && (
-              <button onClick={() => { setFiles([]); reset() }}
+              <button onClick={() => { setFiles([]); setPassphrase(''); reset() }}
                       className="text-xs font-bold uppercase tracking-wider text-ink-400 hover:text-signal-500">
                 Clear
               </button>
             )}
           </div>
+
+          {/* ---------- shared key, only when an encrypted bundle is present ---------- */}
+          {needsKey && (
+            <div className="mx-auto mt-5 max-w-md text-left">
+              <label className="block">
+                <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-500">
+                  Shared key for the bundle
+                </span>
+                <input
+                  type="password"
+                  value={passphrase}
+                  onChange={e => setPassphrase(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && passphrase) run() }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="the key you set when creating the bundle"
+                  className="mt-1.5 w-full border border-ink-200 bg-paper px-3 py-2 font-mono text-sm text-ink-900 outline-none focus:border-signal-500"
+                />
+              </label>
+              <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+                Used to decrypt in this tab and then discarded — it is never sent anywhere and
+                never stored. A filename containing <span className="font-mono">-pk-</span> is
+                public-key encrypted and can only be opened by Cisco TAC.
+              </p>
+            </div>
+          )}
 
           {files.length > 0 && (
             <div className="mx-auto mt-5 max-w-2xl">
@@ -518,8 +587,16 @@ export default function IseReportAnalyser() {
                      style={{ width: `${progress}%` }} />
               </div>
               <p className="mt-2 font-mono text-xs text-ink-500">
-                {n(rowsSeen)} rows read{nowReading && ` · ${nowReading}`}
+                {stage
+                  ? `${stage}${rowsSeen ? ` · ${n(rowsSeen)} MB` : ''}`
+                  : `${n(rowsSeen)} rows read${nowReading ? ` · ${nowReading}` : ''}`}
               </p>
+              {needsKey && (
+                <p className="mt-1 text-[11px] text-ink-400">
+                  Decrypting a support bundle takes a few minutes — it expands to several
+                  gigabytes, all of it read here rather than uploaded.
+                </p>
+              )}
             </div>
           )}
 

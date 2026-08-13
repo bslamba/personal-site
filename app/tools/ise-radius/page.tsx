@@ -23,6 +23,15 @@ export const metadata: Metadata = {
 
 const REPORTS = [
   {
+    name: 'Support bundle (.tar.gpg)',
+    where: 'Operations → Troubleshooting → Download Logs → Shared Key',
+    gives:
+      'Drop the encrypted bundle straight in and give it the shared key. It is decrypted in ' +
+      'your browser, the archive is walked without ever being written down, and out comes ISE ' +
+      'version and services, runtime health with the noise separated from the signal, ' +
+      'authentications with SSID and per-step timing, and application events.',
+  },
+  {
     name: 'RADIUS Authentications',
     where: 'Operations → Reports → Reports → Endpoints and Users',
     gives:
@@ -54,13 +63,13 @@ export default function IseReportToolPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-600">
-            Drop in your ISE exports and press Analyse. Two report types are recognised and
-            each gets its own dashboard — drop both together and you get both, which is the
-            point: a spike in failures at 11:40 reads very differently depending on whether
-            node load spiked at 11:40 too.
+            Drop in an encrypted support bundle or your CSV exports and press Analyse. Each is
+            recognised on its own and gets its own dashboard — drop several together and you get
+            all of them, which is the point: a spike in failures at 11:40 reads very differently
+            depending on whether node load spiked too, or OCSP was timing out.
           </p>
 
-          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+          <div className="mt-8 grid gap-5 sm:grid-cols-3">
             {REPORTS.map(r => (
               <div key={r.name} className="border-t-2 border-ink-950 pt-4">
                 <p className="text-base font-bold text-ink-950"
