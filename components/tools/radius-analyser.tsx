@@ -43,6 +43,7 @@ import {
   type PanelData,
 } from './panel'
 import KpmSection from './kpm-section'
+import BundleSection, { isBundleReport, type BundleReport } from './bundle-section'
 
 /** Short label for a bucket size, for the granularity control. */
 function bucketLabel(msValue: number): string {
@@ -228,6 +229,7 @@ export default function IseReportAnalyser() {
 
   const storeRef = useRef<Store | null>(null)
   const kpmRef = useRef<KpmData | null>(null)
+  const bundleRef = useRef<BundleReport | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
 
   const analysis: Analysis | null = useMemo(() => {
@@ -244,13 +246,14 @@ export default function IseReportAnalyser() {
 
   const reset = () => {
     setPhase('idle'); setError(''); setWarnings([]); setFilters([])
-    setBucketChoice(0); storeRef.current = null; kpmRef.current = null
+    setBucketChoice(0)
+    storeRef.current = null; kpmRef.current = null; bundleRef.current = null
   }
 
   const addFiles = (incoming: FileList | File[] | null) => {
     if (!incoming) return
     const list = Array.from(incoming)
-      .filter(f => /\.(csv|txt|tsv)$/i.test(f.name) || f.type.includes('csv'))
+      .filter(f => /\.(csv|txt|tsv|json)$/i.test(f.name) || f.type.includes('csv'))
     if (list.length === 0) return
     setFiles(prev => {
       const seen = new Set(prev.map(f => f.name + f.size))
@@ -268,6 +271,24 @@ export default function IseReportAnalyser() {
    * Parse one file into whichever builder its headers call for.
    * Resolves with a warning string when the file was skipped.
    */
+  /**
+   * A .json file is treated as a support-bundle report from
+   * ise-bundle-analyse.mjs — the heavy parsing already happened on
+   * the machine holding the bundle, so this only has to read it.
+   */
+  const parseBundleJson = async (f: File): Promise<string | null> => {
+    try {
+      const parsed: unknown = JSON.parse(await f.text())
+      if (!isBundleReport(parsed)) {
+        return `${f.name} — JSON, but not a support bundle report`
+      }
+      bundleRef.current = parsed
+      return null
+    } catch {
+      return `${f.name} — could not be read as JSON`
+    }
+  }
+
   const parseOne = (
     f: File, radius: StoreBuilder, kpmBuilder: KpmBuilder,
     doneBytes: number, totalBytes: number,
@@ -313,7 +334,7 @@ export default function IseReportAnalyser() {
     if (files.length === 0) return
     setPhase('reading'); setProgress(0); setRowsSeen(0)
     setError(''); setWarnings([]); setFilters([])
-    storeRef.current = null; kpmRef.current = null
+    storeRef.current = null; kpmRef.current = null; bundleRef.current = null
 
     const radius = new StoreBuilder()
     const kpmBuilder = new KpmBuilder()
@@ -327,9 +348,12 @@ export default function IseReportAnalyser() {
       // the bottleneck is the aggregation, not the disk.
       for (const f of files) {
         setNowReading(f.name)
-        const note = await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
+        const note = /\.json$/i.test(f.name)
+          ? await parseBundleJson(f)
+          : await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
         if (note) notes.push(note)
         doneBytes += f.size
+        if (totalBytes) setProgress(Math.min(99, (doneBytes / totalBytes) * 100))
       }
     } catch (err) {
       setPhase('error')
@@ -339,12 +363,13 @@ export default function IseReportAnalyser() {
 
     setNowReading('')
 
-    if (radius.count === 0 && kpmBuilder.count === 0) {
+    if (radius.count === 0 && kpmBuilder.count === 0 && !bundleRef.current) {
       setPhase('error')
       setError(
         notes.length
-          ? 'None of the selected files is a recognised ISE report. This tool reads the ' +
-            'RADIUS Authentications and Key Performance Metrics exports.'
+          ? 'None of the selected files is recognised. This tool reads the RADIUS ' +
+            'Authentications and Key Performance Metrics CSV exports, and the JSON report ' +
+            'produced by the support bundle analyser.'
           : 'No rows were found in the selected files.'
       )
       setWarnings(notes)
@@ -417,7 +442,8 @@ export default function IseReportAnalyser() {
   }
 
   // ---------- landing ----------
-  if (phase !== 'ready' || (!analysis && !kpm)) {
+  const bundle = bundleRef.current
+  if (phase !== 'ready' || (!analysis && !kpm && !bundle)) {
     return (
       <div className="container-page py-12">
         <div
@@ -436,9 +462,10 @@ export default function IseReportAnalyser() {
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
             <strong>RADIUS Authentications</strong> and <strong>Key Performance Metrics</strong>{' '}
-            exports from Cisco ISE. Add as many as you like, of either type — each is detected
-            automatically and merged into one dashboard. Files stay on this computer; they are
-            read in your browser and never uploaded.
+            CSV exports, or the <strong>JSON report</strong> from the support bundle analyser.
+            Add as many as you like — each is detected automatically and merged into one
+            dashboard. Files stay on this computer; they are read in your browser and never
+            uploaded.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -507,9 +534,9 @@ export default function IseReportAnalyser() {
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {[
             ['Where to get the files',
-             'RADIUS Authentications: Operations → Reports → Endpoints and Users. Key Performance Metrics: Operations → Reports → Diagnostics. Set a time range, then Export.'],
-            ['Why both together',
-             'Failures and node health answer halves of the same question. A spike at 11:40 reads differently depending on whether load also spiked at 11:40.'],
+             'RADIUS Authentications: Operations → Reports → Endpoints and Users. Key Performance Metrics: Operations → Reports → Diagnostics. Support bundles: Operations → Troubleshooting → Download Logs, using Shared Key encryption.'],
+            ['Why together',
+             'Failures, node health and bundle logs answer parts of the same question. A spike at 11:40 reads differently depending on whether load spiked too, or OCSP was timing out.'],
             ['What it does not do',
              'Nothing leaves your browser, so nothing is stored, logged or sent. Close the tab and the analysis is gone.'],
           ].map(([h, b]) => (
@@ -719,8 +746,10 @@ export default function IseReportAnalyser() {
           </p>
           <p className="text-xs text-ink-700">
             {a && <>{n(a.rows)} authentication rows</>}
-            {a && kpm && ' · '}
+            {a && (kpm || bundle) && ' · '}
             {kpm && <>{n(kpm.rows)} metric samples across {kpm.nodes.length} nodes</>}
+            {kpm && bundle && ' · '}
+            {bundle && <>support bundle from {bundle.node ?? 'unknown node'}</>}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -830,6 +859,9 @@ export default function IseReportAnalyser() {
 
       {/* ================= KPM ================= */}
       {kpm && <KpmSection a={kpm} onExpand={setDetail} />}
+
+      {/* ================= SUPPORT BUNDLE ================= */}
+      {bundle && <BundleSection r={bundle} onExpand={setDetail} />}
 
       <p className="mt-6 max-w-3xl text-[11px] leading-relaxed text-ink-400">
         Every panel shows its top rows — open any of them for the full list with sorting and
