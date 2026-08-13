@@ -410,75 +410,156 @@ export function Donut({ slices, total, centreLabel, centreValue, size = 168 }: {
 
 export interface Series { label: string; values: (number | null)[] }
 
-/** Several series over a shared axis, one colour each, with a legend. */
-export function MultiLine({ labels, series, unit = '', height = 240 }: {
+/**
+ * Several series over a shared axis.
+ *
+ * `emphasise` is the important argument. Past about five lines a
+ * multi-series chart becomes unreadable no matter how the colours
+ * are chosen — every line crosses every other and the eye has
+ * nothing to hold. So the named series are drawn in colour with
+ * markers, and everything else recedes to thin grey context.
+ * The exceptions stay legible; the rest still show the envelope
+ * they sit inside.
+ */
+export function MultiLine({ labels, series, unit = '', height = 240, emphasise }: {
   labels: string[]
   series: Series[]
   unit?: string
   height?: number
+  emphasise?: string[]
 }) {
   if (labels.length < 2 || series.length === 0) return null
 
-  const W = 1200, padL = 54, padR = 18, padT = 14, padB = 30
+  const W = 1200, padL = 46, padR = 16, padT = 12, padB = 26
   const H = height
   const iw = W - padL - padR, ih = H - padT - padB
   const all = series.flatMap(s => s.values).filter((v): v is number => v !== null)
   const max = Math.max(1, ...all)
   const x = (i: number) => padL + (labels.length === 1 ? 0 : (i * iw) / (labels.length - 1))
   const y = (v: number) => padT + ih - (v / max) * ih
+  const step = Math.max(1, Math.ceil(labels.length / 8))
 
-  const step = Math.max(1, Math.ceil(labels.length / 9))
+  const isHot = (label: string) => !emphasise || emphasise.includes(label)
+  const hot = series.filter(s => isHot(s.label))
+  const cold = series.filter(s => !isHot(s.label))
+  const path = (s: Series) => {
+    let d = ''
+    s.values.forEach((v, i) => {
+      if (v === null) return
+      d += `${d === '' ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`
+    })
+    return d
+  }
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
-           aria-label="Series over time">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Series over time">
         {[0, 0.25, 0.5, 0.75, 1].map(f => (
           <g key={f}>
             <line x1={padL} x2={W - padR} y1={padT + ih * f} y2={padT + ih * f}
                   stroke="#ECECEF" strokeWidth="1" />
-            <text x={padL - 8} y={padT + ih * f + 4} textAnchor="end" fontSize="10" fill="#B5B5BC">
+            <text x={padL - 7} y={padT + ih * f + 3.5} textAnchor="end" fontSize="9" fill="#B5B5BC">
               {Math.round(max * (1 - f))}
             </text>
           </g>
         ))}
 
-        {series.map((s, si) => {
+        {/* context first, so the highlighted lines sit on top */}
+        {cold.map(s => (
+          <path key={s.label} d={path(s)} fill="none" stroke="#D9D9DE" strokeWidth="1"
+                strokeLinejoin="round" />
+        ))}
+
+        {hot.map((s, si) => {
           const colour = SERIES_COLOURS[si % SERIES_COLOURS.length]
-          let d = ''
-          s.values.forEach((v, i) => {
-            if (v === null) return
-            d += `${d === '' ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`
-          })
           return (
             <g key={s.label}>
-              <path d={d} fill="none" stroke={colour} strokeWidth="2"
+              <path d={path(s)} fill="none" stroke={colour} strokeWidth="1.9"
                     strokeLinejoin="round" strokeLinecap="round" />
               {s.values.map((v, i) => v === null ? null : (
-                <circle key={i} cx={x(i)} cy={y(v)} r="2.4" fill={colour} />
+                <circle key={i} cx={x(i)} cy={y(v)} r="2" fill={colour} />
               ))}
             </g>
           )
         })}
 
         {labels.map((l, i) => i % step === 0 || i === labels.length - 1 ? (
-          <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="#8A8A93">
-            {l}
-          </text>
+          <text key={i} x={x(i)} y={H - 7} textAnchor="middle" fontSize="9" fill="#8A8A93">{l}</text>
         ) : null)}
       </svg>
 
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
-        {series.map((s, i) => (
-          <li key={s.label} className="flex items-center gap-1.5 text-[11px] text-ink-600">
-            <span className="h-2 w-4 rounded-sm"
+      <ul className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1">
+        {hot.map((s, i) => (
+          <li key={s.label} className="flex items-center gap-1.5 text-[10.5px] text-ink-700">
+            <span className="h-1.5 w-4 rounded-sm"
                   style={{ background: SERIES_COLOURS[i % SERIES_COLOURS.length] }} />
             {s.label}
           </li>
         ))}
+        {cold.length > 0 && (
+          <li className="flex items-center gap-1.5 text-[10.5px] text-ink-400">
+            <span className="h-1.5 w-4 rounded-sm bg-ink-200" />
+            {cold.length} other node{cold.length === 1 ? '' : 's'}
+          </li>
+        )}
       </ul>
-      {unit && <p className="mt-1 text-[10px] text-ink-400">Measured in {unit}.</p>}
+      {unit && <p className="mt-1 text-[9.5px] text-ink-400">Measured in {unit}.</p>}
     </div>
+  )
+}
+
+/**
+ * A small chart meant to be repeated — one per node, all sharing a
+ * scale passed in from outside so that height means the same thing
+ * in every copy. Comparability is the entire point; a sparkline
+ * scaled to its own maximum is decorative rather than informative.
+ */
+export function Sparkline({ values, max, colour = '#D3002D', height = 34, showPeak = true }: {
+  values: (number | null)[]
+  max: number
+  colour?: string
+  height?: number
+  showPeak?: boolean
+}) {
+  const points = values.filter((v): v is number => v !== null)
+  if (points.length < 2) return null
+
+  const W = 200, H = height, pad = 3
+  const ih = H - pad * 2
+  const top = Math.max(1, max)
+  const x = (i: number) => (i / (values.length - 1)) * W
+  const y = (v: number) => pad + ih - (v / top) * ih
+
+  let line = ''
+  values.forEach((v, i) => {
+    if (v === null) return
+    line += `${line === '' ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`
+  })
+  const area = `${line} L${W},${H} L0,${H} Z`
+
+  const peakValue = Math.max(...points)
+  const peakIndex = values.findIndex(v => v === peakValue)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+         className="w-full" style={{ height }} aria-hidden="true">
+      <path d={area} fill={colour} opacity="0.10" />
+      <path d={line} fill="none" stroke={colour} strokeWidth="1.4"
+            vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      {/*
+        The peak is a vertical tick, not a dot. This viewBox is
+        stretched horizontally to fill the card, so a circle would
+        render as a flattened ellipse. A line with a non-scaling
+        stroke keeps its width whatever the scaling does, and it
+        also shows *when* the peak happened — which a dot sitting on
+        the curve conveys poorly at 26 pixels tall.
+      */}
+      {showPeak && peakIndex >= 0 && peakValue > 0 && (
+        <line x1={x(peakIndex)} x2={x(peakIndex)} y1={y(peakValue)} y2={H}
+              stroke={colour} strokeWidth="1" opacity="0.4"
+              vectorEffect="non-scaling-stroke" />
+      )}
+    </svg>
   )
 }
 

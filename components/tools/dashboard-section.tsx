@@ -13,10 +13,10 @@
 // ============================================================
 
 import {
-  Panel, Tile, Donut, MultiLine, SectionBanner, SERIES_COLOURS,
+  Panel, Tile, Donut, MultiLine, Sparkline, SectionBanner, SERIES_COLOURS,
   n, pc, ms, type PanelData,
 } from './panel'
-import type { DashboardAnalysis, Pair } from '@/lib/tools/dashboard'
+import type { DashboardAnalysis, NodeSeries, Pair } from '@/lib/tools/dashboard'
 
 const SEV: Record<string, { border: string; label: string; tone: string }> = {
   high:   { border: 'border-l-signal-500', label: 'High',   tone: 'text-signal-500' },
@@ -87,6 +87,136 @@ const pairPanel = (title: string, note: string, head: string, rows: Pair[], coun
   }
 }
 
+/**
+ * One metric inside a node card: the two numbers that matter, then
+ * the shape they came from.
+ *
+ * The numbers lead because they are what gets quoted in a ticket;
+ * the sparkline is there to say whether the average is a flat line
+ * or the residue of one bad hour. `max` arrives from the caller and
+ * is shared by every node, so a tall line always means a high value
+ * rather than a well-chosen axis.
+ */
+// n() rounds to whole numbers, which is right for counts and wrong
+// here — CPU across this estate sits between 1 and 15%, where
+// rounding away the decimal throws out most of the signal.
+const metric = (v: number) => v >= 10 ? Math.round(v).toLocaleString() : v.toFixed(1)
+
+function MetricRow({ label, avg, peak, unit, values, max, colour, alert }: {
+  label: string
+  avg: number
+  peak: number
+  unit: string
+  values: (number | null)[]
+  max: number
+  colour: string
+  alert?: boolean
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-ink-400">{label}</span>
+        <span className="font-mono text-[10px] tabular-nums text-ink-400">
+          peak <span className={alert ? 'font-bold text-signal-500' : 'text-ink-600'}>
+            {metric(peak)}{unit}
+          </span>
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-end gap-2">
+        <span className={`font-mono text-[17px] font-bold leading-none tabular-nums ${
+          alert ? 'text-signal-500' : 'text-ink-950'
+        }`}>
+          {metric(avg)}<span className="text-[10px] font-normal text-ink-400">{unit}</span>
+        </span>
+        <span className="mb-0.5 flex-1">
+          <Sparkline values={values} max={max} colour={colour} height={26} />
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Small multiples — one card per node, every card on the same
+ * scales.
+ *
+ * This replaces a single chart carrying eleven lines. Beyond about
+ * five series every line crosses every other and the reader can
+ * follow none of them; the fix is not better colours but more
+ * charts. Repeating a small panel keeps each node readable and
+ * still lets the eye sweep the grid for the one that differs,
+ * which is the actual question being asked.
+ */
+function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
+  if (nodes.length === 0) return null
+
+  const at = (nd: NodeSeries, key: 'latency' | 'cpu' | 'memory') =>
+    hours.map(h => nd.samples.find(s => s.t === h)?.[key] ?? null)
+
+  // Shared ceilings. Comparability across cards is the whole point,
+  // so these are computed once over every node rather than per card.
+  const latMax = Math.max(1, ...nodes.map(nd => nd.peakLatency))
+  const cpuMax = Math.max(1, ...nodes.map(nd => nd.peakCpu))
+  const memMax = Math.max(1, ...nodes.map(nd => nd.peakMemory))
+
+  const fleetLatency = nodes.reduce((s, nd) => s + nd.avgLatency, 0) / nodes.length
+
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-[13px] font-bold text-ink-950"
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+          Every node, side by side
+        </h3>
+        <p className="text-[10.5px] text-ink-400">
+          Slowest first. All cards share one scale per metric, so a taller line really is a
+          higher number — latency to {n(latMax)} ms, CPU to {n(cpuMax)}%, memory to {n(memMax)}%.
+        </p>
+      </div>
+
+      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {nodes.map((nd, i) => {
+          const slow = nd.avgLatency > fleetLatency * 1.5 && nd.avgLatency > 20
+          return (
+            <section key={nd.name}
+                     className={`overflow-hidden border bg-paper ${
+                       slow ? 'border-signal-500/40' : 'border-ink-200'
+                     }`}>
+              <header className="flex items-center gap-2 border-b border-ink-100 px-3 py-2"
+                      style={{ background: 'linear-gradient(180deg,rgba(23,23,26,.03),transparent)' }}>
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                      style={{ background: SERIES_COLOURS[i % SERIES_COLOURS.length] }}
+                      aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] font-bold text-ink-950">
+                  {nd.name}
+                </span>
+                {nd.role && (
+                  <span className="shrink-0 border border-ink-200 px-1.5 py-0.5 text-[8.5px]
+                                   font-bold uppercase tracking-[0.08em] text-ink-500">
+                    {nd.role}
+                  </span>
+                )}
+              </header>
+
+              <div className="space-y-2.5 p-3">
+                <MetricRow label="Latency" unit=" ms" avg={nd.avgLatency} peak={nd.peakLatency}
+                           values={at(nd, 'latency')} max={latMax}
+                           colour={SERIES_COLOURS[i % SERIES_COLOURS.length]} alert={slow} />
+                <MetricRow label="CPU" unit="%" avg={nd.avgCpu} peak={nd.peakCpu}
+                           values={at(nd, 'cpu')} max={cpuMax} colour="#5C5C64"
+                           alert={nd.peakCpu >= 80} />
+                <MetricRow label="Memory" unit="%" avg={nd.avgMemory} peak={nd.peakMemory}
+                           values={at(nd, 'memory')} max={memMax} colour="#8A8A93"
+                           alert={nd.peakMemory >= 85} />
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardSection({ a, onExpand }: {
   a: DashboardAnalysis
   onExpand: (d: PanelData) => void
@@ -99,15 +229,16 @@ export default function DashboardSection({ a, onExpand }: {
     label: nd.name,
     values: a.latencyHours.map(h => nd.samples.find(s => s.t === h)?.latency ?? null),
   }))
-  const cpuSeries = withSamples.map(nd => ({
-    label: nd.name,
-    values: a.latencyHours.map(h => nd.samples.find(s => s.t === h)?.cpu ?? null),
-  }))
-  const memSeries = withSamples.map(nd => ({
-    label: nd.name,
-    values: a.latencyHours.map(h => nd.samples.find(s => s.t === h)?.memory ?? null),
-  }))
   const hourLabels = a.latencyHours.map(h => h.slice(11, 16))
+
+  // Only the nodes that actually depart from the pack are drawn in
+  // colour on the combined chart. Everything else becomes grey
+  // context — present, so the reader can see the envelope, but not
+  // competing for attention with the lines that matter.
+  const spikiest = [...withSamples]
+    .sort((x, y) => y.peakLatency - x.peakLatency)
+    .slice(0, 3)
+    .map(nd => nd.name)
 
   const panels: PanelData[] = []
   if (a.failureReasons.length) {
@@ -213,10 +344,11 @@ export default function DashboardSection({ a, onExpand }: {
       {latencySeries.length > 0 && (
         <div className="mb-4">
           <Card
-            title="Authentication latency by node"
-            note={`One line per node across ${a.latencyHours.length} hourly samples. Lines that move together point at a shared dependency; one line apart points at that node.`}
+            title="Authentication latency — where it spikes"
+            note={`${a.latencyHours.length} hourly samples. The three nodes with the highest peaks are named; the remaining ${Math.max(0, latencySeries.length - 3)} sit behind them in grey so you can see what normal looks like. A spike shared by several nodes points at a common dependency; a spike on one points at that node.`}
           >
-            <MultiLine labels={hourLabels} series={latencySeries} unit="milliseconds" height={260} />
+            <MultiLine labels={hourLabels} series={latencySeries} unit="milliseconds"
+                       height={230} emphasise={spikiest} />
           </Card>
         </div>
       )}
@@ -349,21 +481,8 @@ export default function DashboardSection({ a, onExpand }: {
         </div>
       )}
 
-      {/* ---------- cpu and memory ---------- */}
-      {(cpuSeries.length > 0 || memSeries.length > 0) && (
-        <div className="mb-4 grid gap-3 lg:grid-cols-2">
-          {cpuSeries.length > 0 && (
-            <Card title="CPU by node" note="Percentage, hourly.">
-              <MultiLine labels={hourLabels} series={cpuSeries} unit="percent" height={200} />
-            </Card>
-          )}
-          {memSeries.length > 0 && (
-            <Card title="Memory by node" note="Percentage, hourly.">
-              <MultiLine labels={hourLabels} series={memSeries} unit="percent" height={200} />
-            </Card>
-          )}
-        </div>
-      )}
+      {/* ---------- small multiples, one card per node ---------- */}
+      <NodeGrid nodes={withSamples} hours={a.latencyHours} />
 
       {/* ---------- per-node summary ---------- */}
       {withSamples.length > 0 && (
