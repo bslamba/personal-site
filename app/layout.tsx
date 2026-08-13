@@ -12,7 +12,7 @@
 // ============================================================
 
 import type { Metadata } from 'next'
-import { Anton, Inter_Tight, Literata } from 'next/font/google'
+import { Anton, Inter_Tight, Literata, Kaushan_Script } from 'next/font/google'
 import Link from 'next/link'
 import IntroGate from '@/components/intro-gate'
 import WhatsAppFloat from '@/components/whatsapp-float'
@@ -30,6 +30,16 @@ const interTight = Inter_Tight({
   weight: ['500', '600', '700'],
   display: 'swap',
   variable: '--font-inter-tight',
+})
+
+// The wordmark only. A brush script rather than a fine one — thin
+// copperplate faces disappear at 25px on a dark bar, where Kaushan's
+// heavy strokes still read.
+const kaushan = Kaushan_Script({
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+  variable: '--font-script',
 })
 
 const literata = Literata({
@@ -140,13 +150,15 @@ function Header() {
       <div className="brand-inner container-page flex h-12 items-center justify-between gap-4">
 
         {/* ---------- wordmark ----------
-            Stacked Anton lockup on a black plate. Sized taller than
-            the bar and pushed down, so it hangs below the edge; the
-            tilt and the hover zoom live in .brand-logo in CSS.      */}
+            One flowing script line rather than the old stacked block —
+            cursive needs the horizontal run to be worth reading. The
+            tilt, the drop and the hover zoom live in .brand-logo.     */}
         <Link href="/" className="brand-logo" aria-label="Bhawneet Lamba — home">
           <span className="brand-logo-plate">
-            <span className="brand-logo-line brand-logo-line-1">Bhawneet</span>
-            <span className="brand-logo-line brand-logo-line-2">Lamba</span>
+            <span className="brand-logo-line">
+              <span className="brand-logo-first">Bhawneet</span>{' '}
+              <span className="brand-logo-last">Lamba</span>
+            </span>
           </span>
         </Link>
 
@@ -271,7 +283,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${anton.variable} ${interTight.variable} ${literata.variable}`}
+      className={`${anton.variable} ${interTight.variable} ${literata.variable} ${kaushan.variable}`}
     >
       <body className="flex min-h-screen flex-col">
 
