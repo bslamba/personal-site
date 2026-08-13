@@ -14,10 +14,10 @@ import IseReportAnalyser from '@/components/tools/radius-analyser'
 export const metadata: Metadata = {
   title: 'Cisco ISE Report Analyser',
   description:
-    'Analyse Cisco ISE RADIUS Authentications and Key Performance Metrics exports in your ' +
-    'browser. Failure rates by ISE node, network device, site, policy set, protocol and ' +
-    'endpoint, with every failure reason broken out by ISE message code, alongside node ' +
-    'throughput, latency, load and log suppression. Nothing is uploaded.',
+    'Analyse Cisco ISE support bundles, RADIUS Authentications, Key Performance Metrics and ' +
+    'Current Active Sessions exports in your browser. Failure rates by ISE node, network ' +
+    'device, site, policy set, protocol and endpoint, every failure reason broken out by ISE ' +
+    'message code, node throughput and latency, and live sessions per node. Nothing is uploaded.',
   alternates: { canonical: '/tools/ise-radius' },
 }
 
@@ -47,6 +47,15 @@ const REPORTS = [
       'suppression, sampled hourly — so you can see which nodes are carrying the deployment ' +
       'and which are struggling.',
   },
+  {
+    name: 'Current Active Sessions',
+    where: 'Operations → RADIUS → Live Sessions → Export',
+    gives:
+      'A snapshot of every live session: how many each node is holding, what they authenticated ' +
+      'with, which authorization profile they got, licence consumed per session, how long they ' +
+      'have been up, and endpoints holding sessions on two nodes at once — which usually means ' +
+      'one is stale.',
+  },
 ]
 
 export default function IseReportToolPage() {
@@ -69,7 +78,7 @@ export default function IseReportToolPage() {
             depending on whether node load spiked too, or OCSP was timing out.
           </p>
 
-          <div className="mt-8 grid gap-5 sm:grid-cols-3">
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {REPORTS.map(r => (
               <div key={r.name} className="border-t-2 border-ink-950 pt-4">
                 <p className="text-base font-bold text-ink-950"

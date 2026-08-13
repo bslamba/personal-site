@@ -670,9 +670,10 @@ export default function IseReportAnalyser() {
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
             A decrypted <strong>support bundle</strong> (.tar), or the{' '}
-            <strong>RADIUS Authentications</strong> and <strong>Key Performance Metrics</strong>{' '}
-            CSV exports. Add as many as you like — each is detected automatically and merged
-            into one dashboard. Everything is read in this browser and nothing is uploaded.
+            <strong>RADIUS Authentications</strong>, <strong>Key Performance Metrics</strong> and{' '}
+            <strong>Current Active Sessions</strong> CSV exports. Add as many as you like — each
+            is detected automatically and merged into one dashboard. Everything is read in this
+            browser and nothing is uploaded.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">

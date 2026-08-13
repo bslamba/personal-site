@@ -22,13 +22,14 @@ const TOOLS = [
     status: 'Live',
     name: 'Cisco ISE Report Analyser',
     blurb:
-      'Drop in a support bundle archive, or your RADIUS Authentications and Key Performance ' +
-      'Metrics exports, and get a full troubleshooting dashboard — failure reasons with their ' +
-      'ISE codes, where failures concentrate by site, device, node and protocol, per-node ' +
-      'throughput and latency, and runtime health with the noise separated from the signal.',
+      'Drop in a support bundle archive, or your RADIUS Authentications, Key Performance ' +
+      'Metrics and Current Active Sessions exports, and get a full troubleshooting dashboard — ' +
+      'failure reasons with their ISE codes, where failures concentrate by site, device, node ' +
+      'and protocol, per-node throughput, latency and live session counts, and runtime health ' +
+      'with the noise separated from the signal.',
     points: [
       'Reads every log in a bundle, every rotation, grouped by problem area',
-      'All three input types detected automatically, on one page',
+      'All four input types detected automatically, on one page',
       'Ranks what stands out instead of leaving you to spot it',
       'Click anything to filter the whole dashboard to it',
       'Runs entirely in your browser — nothing is uploaded',
