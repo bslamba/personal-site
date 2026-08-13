@@ -11,6 +11,37 @@
 
 export interface KeyCount { key: string; count: number }
 
+/** A dimension value with its pass/fail split — the shape every breakdown uses. */
+export interface DimEntry { key: string; total: number; fail: number }
+
+/** One failure code, with where it concentrates. */
+export interface FailureDetail {
+  code: string
+  text: string
+  count: number
+  share: number
+  topNad: string | null
+  topNadCount: number
+  topEndpoint: string | null
+  topEndpointCount: number
+  topSsid: string | null
+}
+
+/** Hourly series from several logs on one axis, for spotting coincidence. */
+export interface Correlation {
+  hours: string[]
+  series: { id: string; label: string; note: string; values: number[] }[]
+}
+
+/** Every warning and error across every log, in one ranked list. */
+export interface ProblemEntry {
+  log: string
+  areas: string[]
+  level: string
+  message: string
+  count: number
+}
+
 export interface BundleReport {
   kind: 'ise-bundle-report'
   version: number
@@ -29,6 +60,33 @@ export interface BundleReport {
     services: { name: string; state: string; detail: string | null }[]
     sections: string[]
     diskAlerts: string[]
+    /** hotpatches, newest first */
+    hotpatches: { when: string; name: string }[]
+    /** hardware profile, e.g. m5_4xlarge or SNS-3655 */
+    profile: string | null
+    deploymentId: string | null
+    /** every node in the deployment, from "Displaying ISE deployment" */
+    nodes: {
+      name: string; persona: string; role: string
+      active: string; replication: string
+    }[]
+    /** per-service CPU, from "Displaying ISE Application CPU Usage" */
+    appCpu: { name: string; cpu: number | null; cpuTime: string; threads: string }[]
+    /** filesystem usage, wherever df-style output appears */
+    disks: {
+      filesystem: string; size: string; used: string
+      avail: string; usePct: number; mount: string
+    }[]
+    memory: { key: string; value: string }[]
+    loadAvg: string | null
+    cpuSummary: string | null
+    topProcesses: { pid: string; cpu: string; mem: string; command: string }[]
+    inventory: { key: string; value: string }[]
+    licence: string[]
+    reboots: { event: string; when: string }[]
+    uptime: string | null
+    /** verbatim output of the show-tech sections worth reading as-is */
+    rawSections: { name: string; lines: string[] }[]
   } | null
   runtime: {
     file: string
@@ -53,8 +111,10 @@ export interface BundleReport {
     window: { start: string | null; end: string | null }
     messageCodes: KeyCount[]
     failureCodes: KeyCount[]
-    dims: Record<string, KeyCount[]>
-    failDims: Record<string, KeyCount[]>
+    /** every breakdown carries its own pass/fail split */
+    dims: Record<string, DimEntry[]>
+    failureDetail: FailureDetail[]
+    hourly: { hour: string; total: number; fail: number }[]
     latency: {
       total: { count: number; mean: number; p50: number; p90: number; p95: number; p99: number; max: number }
       totalHistogram: { from: number; to: number | null; count: number }[]
@@ -82,6 +142,10 @@ export interface BundleReport {
   logs?: LogSummary[]
   /** rolled up by troubleshooting area */
   areas?: AreaSummary[]
+  /** several logs on one hourly axis */
+  correlation?: Correlation | null
+  /** every warning and error across every log, ranked */
+  problems?: ProblemEntry[]
   stats?: {
     archiveEntries: number
     filesParsed: number

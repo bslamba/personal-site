@@ -13,9 +13,10 @@
 // ============================================================
 
 import {
-  Panel, Kpi, SectionBanner, n, pc, ms,
+  Panel, Kpi, SectionBanner, n, pc, ms, clock, rateTone,
   type PanelData,
 } from './panel'
+import type { DimEntry, Correlation } from '@/lib/tools/bundle-types'
 
 import type { BundleReport, KeyCount } from '@/lib/tools/bundle-types'
 
@@ -83,6 +84,43 @@ function DayStrip({ data, title, note }: { data: KeyCount[]; title: string; note
 // panel builders
 // ------------------------------------------------------------
 
+/**
+ * A breakdown with its pass/fail split — the same shape the RADIUS CSV
+ * dashboard uses, so the two read identically.
+ */
+const dimPanel = (
+  title: string, note: string, head: string, rows: DimEntry[],
+  sortBy: 'total' | 'fail' = 'total',
+): PanelData => {
+  const list = sortBy === 'fail'
+    ? [...rows].filter(r => r.fail > 0).sort((a, b) => b.fail - a.fail)
+    : rows
+  const max = Math.max(1, ...list.map(r => r.total))
+  return {
+    title, note,
+    columns: [
+      { head, align: 'left' },
+      { head: 'Auths', align: 'right', width: 'w-16' },
+      { head: 'Failed', align: 'right', width: 'w-14' },
+      { head: 'Fail %', align: 'right', width: 'w-12' },
+    ],
+    rows: list.map(r => {
+      const rate = r.total ? r.fail / r.total : 0
+      return {
+        id: r.key,
+        bar: r.total / max,
+        barFail: rate,
+        cells: [
+          r.key, n(r.total), r.fail ? n(r.fail) : '—',
+          <span key="r" className={rateTone(rate)}>{pc(rate)}</span>,
+        ],
+        sort: [r.key, r.total, r.fail, rate],
+      }
+    }),
+    empty: 'Not present in this bundle.',
+  }
+}
+
 const kcPanel = (
   title: string, note: string, head: string, rows: KeyCount[],
   countHead = 'Count', decorate?: (k: string) => React.ReactNode,
@@ -105,6 +143,135 @@ const kcPanel = (
   }
 }
 
+/** Authentication volume and failure rate, hour by hour. */
+function AuthTimeline({ hourly }: { hourly: { hour: string; total: number; fail: number }[] }) {
+  if (!hourly || hourly.length < 2) return null
+
+  const W = 1200, H = 170, padL = 52, padR = 46, padT = 12, padB = 22
+  const iw = W - padL - padR, ih = H - padT - padB
+  const maxTotal = Math.max(1, ...hourly.map(d => d.total))
+  const maxRate = Math.max(0.02, ...hourly.map(d => (d.total ? d.fail / d.total : 0)))
+  const bw = iw / hourly.length
+  const x = (i: number) => padL + i * bw
+  const yVol = (v: number) => padT + ih - (v / maxTotal) * ih
+  const yRate = (v: number) => padT + ih - (v / maxRate) * ih
+
+  const line = hourly.map((d, i) => {
+    const r = d.total ? d.fail / d.total : 0
+    return `${i === 0 ? 'M' : 'L'}${(x(i) + bw / 2).toFixed(1)},${yRate(r).toFixed(1)}`
+  }).join(' ')
+
+  const step = Math.max(1, Math.ceil(hourly.length / 10))
+  const ticks = hourly.map((_, i) => i).filter(i => i % step === 0 || i === hourly.length - 1)
+
+  return (
+    <section className="mb-4 border border-ink-200 bg-paper">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
+        <h3 className="text-[13px] font-bold text-ink-950"
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+          Authentications over time
+        </h3>
+        <p className="text-[10.5px] text-ink-400">
+          {hourly.length} hours · grey = total · red bar = failed · line = failure rate
+        </p>
+      </header>
+      <div className="p-2">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
+             aria-label="Authentication volume and failure rate by hour">
+          {[0, 0.25, 0.5, 0.75, 1].map(f => (
+            <line key={f} x1={padL} x2={W - padR} y1={padT + ih * f} y2={padT + ih * f}
+                  stroke="#ECECEF" strokeWidth="1" />
+          ))}
+          {hourly.map((d, i) => (
+            <rect key={i} x={x(i) + bw * 0.15} width={Math.max(bw * 0.7, 0.8)}
+                  y={yVol(d.total)} height={Math.max(padT + ih - yVol(d.total), 0)} fill="#D9D9DE" />
+          ))}
+          {hourly.map((d, i) => (
+            <rect key={'f' + i} x={x(i) + bw * 0.15} width={Math.max(bw * 0.7, 0.8)}
+                  y={yVol(d.fail)} height={Math.max(padT + ih - yVol(d.fail), 0)}
+                  fill="#D3002D" opacity="0.55" />
+          ))}
+          <path d={line} fill="none" stroke="#D3002D" strokeWidth="1.8" strokeLinejoin="round" />
+          <text x={padL - 6} y={padT + 4} textAnchor="end" fontSize="10" fill="#8A8A93">{n(maxTotal)}</text>
+          <text x={padL - 6} y={padT + ih} textAnchor="end" fontSize="10" fill="#8A8A93">0</text>
+          <text x={W - padR + 6} y={padT + 4} fontSize="10" fill="#D3002D">{pc(maxRate, 0)}</text>
+          {ticks.map(i => (
+            <text key={i} x={x(i) + bw / 2} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#8A8A93">
+              {hourly[i].hour.slice(11)}:00
+            </text>
+          ))}
+        </svg>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Several logs on one hourly axis.
+ *
+ * Each series is normalised against its own peak, because the point is
+ * the shape rather than the magnitude — OCSP failures and authentication
+ * failures differ by orders of magnitude, and plotting them on a shared
+ * scale would flatten one into the axis.
+ */
+function CorrelationChart({ c }: { c: Correlation }) {
+  if (!c || c.hours.length < 2 || c.series.length === 0) return null
+
+  const W = 1200, H = 60 * c.series.length + 34
+  const padL = 190, padR = 20, padT = 8
+  const iw = W - padL - padR
+  const bw = iw / c.hours.length
+  const step = Math.max(1, Math.ceil(c.hours.length / 10))
+
+  return (
+    <section className="mb-4 border border-ink-200 bg-paper">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
+        <h3 className="text-[13px] font-bold text-ink-950"
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+          What happened at the same time
+        </h3>
+        <p className="text-[10.5px] text-ink-400">
+          Each row scaled to its own peak — read the shapes, not the heights.
+          Aligned spikes are worth investigating; independent ones usually are not.
+        </p>
+      </header>
+      <div className="overflow-x-auto p-2">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[720px]" role="img"
+             aria-label="Several log series aligned on one hourly axis">
+          {c.series.map((s, row) => {
+            const top = padT + row * 60
+            const peak = Math.max(1, ...s.values)
+            return (
+              <g key={s.id}>
+                <text x={8} y={top + 20} fontSize="11" fill="#17171A" fontWeight="600">{s.label}</text>
+                <text x={8} y={top + 33} fontSize="9" fill="#8A8A93">{s.note}</text>
+                <text x={8} y={top + 46} fontSize="9" fill="#B5B5BC">peak {n(peak)}/h</text>
+                <line x1={padL} x2={W - padR} y1={top + 48} y2={top + 48} stroke="#ECECEF" strokeWidth="1" />
+                {s.values.map((v, i) => {
+                  const h = (v / peak) * 40
+                  return h > 0 ? (
+                    <rect key={i} x={padL + i * bw + bw * 0.15}
+                          width={Math.max(bw * 0.7, 0.8)}
+                          y={top + 48 - h} height={h}
+                          fill={s.id === 'authFail' || s.id === 'ocsp' ? '#D3002D' : '#8A8A93'}
+                          opacity={s.id === 'auth' ? 0.45 : 0.8} />
+                  ) : null
+                })}
+              </g>
+            )
+          })}
+          {c.hours.map((h, i) => i % step === 0 || i === c.hours.length - 1 ? (
+            <text key={i} x={padL + i * bw + bw / 2} y={H - 6} textAnchor="middle"
+                  fontSize="9" fill="#8A8A93">
+              {h.slice(8, 10)}/{h.slice(5, 7)} {h.slice(11)}h
+            </text>
+          ) : null)}
+        </svg>
+      </div>
+    </section>
+  )
+}
+
 // ------------------------------------------------------------
 // main
 // ------------------------------------------------------------
@@ -125,6 +292,191 @@ export default function BundleSection({ r, onExpand }: {
   // ---------- system ----------
   const systemPanels: PanelData[] = []
   if (system) {
+    if (system.nodes?.length) {
+      systemPanels.push({
+        title: 'Deployment',
+        note: 'Every node registered in this deployment, with its persona, role and replication state.',
+        columns: [
+          { head: 'Node', align: 'left' },
+          { head: 'Persona', align: 'right', width: 'w-20' },
+          { head: 'Role', align: 'right', width: 'w-20' },
+          { head: 'Active', align: 'right', width: 'w-16' },
+          { head: 'Replication', align: 'right', width: 'w-32' },
+        ],
+        rows: system.nodes.map(nd => {
+          const bad = /fail|error|out of sync|disconnect/i.test(nd.replication)
+          return {
+            id: nd.name,
+            cells: [
+              <span key="n" className={nd.name === system.hostname ? 'font-bold text-ink-950' : ''}>
+                {nd.name}{nd.name === system.hostname && <span className="ml-2 text-signal-500">this node</span>}
+              </span>,
+              nd.persona, nd.role,
+              <span key="a" className={nd.active === 'ACTIVE' ? 'text-[#0F7B4F] font-bold' : 'text-ink-400'}>
+                {nd.active}
+              </span>,
+              <span key="r" className={bad ? 'text-signal-500 font-bold' : 'text-ink-600'}>
+                {nd.replication}
+              </span>,
+            ],
+            sort: [nd.name, nd.persona, nd.role, nd.active, nd.replication],
+          }
+        }),
+      })
+    }
+
+    if (system.disks?.length) {
+      systemPanels.push({
+        title: 'Disk utilisation',
+        note: 'Anything at or above 80% is highlighted — ISE stops behaving predictably when a partition fills.',
+        columns: [
+          { head: 'Mount', align: 'left' },
+          { head: 'Size', align: 'right', width: 'w-16' },
+          { head: 'Used', align: 'right', width: 'w-16' },
+          { head: 'Free', align: 'right', width: 'w-16' },
+          { head: 'Use %', align: 'right', width: 'w-14' },
+        ],
+        rows: [...system.disks].sort((a, b) => b.usePct - a.usePct).map(d => ({
+          id: d.mount + d.filesystem,
+          bar: d.usePct / 100,
+          barFail: d.usePct >= 80 ? 1 : 0,
+          cells: [
+            <span key="m">
+              <span className="text-ink-900">{d.mount}</span>
+              <span className="ml-2 text-ink-400">{d.filesystem}</span>
+            </span>,
+            d.size, d.used, d.avail,
+            <span key="p" className={
+              d.usePct >= 90 ? 'text-signal-500 font-bold'
+                : d.usePct >= 80 ? 'text-[#B45309] font-bold' : 'text-ink-500'
+            }>{d.usePct}%</span>,
+          ],
+          sort: [d.mount, d.size, d.used, d.avail, d.usePct],
+        })),
+      })
+    }
+
+    if (system.appCpu?.length) {
+      const active = system.appCpu.filter(c => c.cpu !== null)
+      const maxCpu = Math.max(0.01, ...active.map(c => c.cpu ?? 0))
+      systemPanels.push({
+        title: 'CPU by ISE service',
+        note: 'Percentage of CPU and cumulative CPU time per service. N/A means the service is not enabled on this node.',
+        columns: [
+          { head: 'Service', align: 'left' },
+          { head: '% CPU', align: 'right', width: 'w-16' },
+          { head: 'CPU time', align: 'right', width: 'w-24' },
+          { head: 'Threads', align: 'right', width: 'w-20' },
+        ],
+        rows: system.appCpu.map(c => ({
+          id: c.name,
+          bar: c.cpu !== null ? c.cpu / maxCpu : 0,
+          cells: [
+            c.name,
+            c.cpu === null
+              ? <span key="c" className="text-ink-300">N/A</span>
+              : <span key="c" className={c.cpu > 50 ? 'text-signal-500 font-bold' : ''}>{c.cpu.toFixed(2)}</span>,
+            c.cpuTime || '—',
+            c.threads || '—',
+          ],
+          sort: [c.name, c.cpu ?? -1, c.cpuTime, c.threads],
+        })),
+      })
+    }
+
+    if (system.memory?.length) {
+      systemPanels.push({
+        title: 'Memory',
+        note: 'As reported by the operating system at the moment the bundle was taken.',
+        columns: [
+          { head: 'Metric', align: 'left' },
+          { head: 'Value', align: 'right', width: 'w-44' },
+        ],
+        rows: system.memory.map(m => ({ id: m.key, cells: [m.key, m.value], sort: [m.key, m.value] })),
+      })
+    }
+
+    if (system.topProcesses?.length) {
+      systemPanels.push({
+        title: 'Top processes',
+        note: 'Busiest processes at the moment of capture.',
+        columns: [
+          { head: 'Command', align: 'left' },
+          { head: 'PID', align: 'right', width: 'w-16' },
+          { head: '% CPU', align: 'right', width: 'w-14' },
+          { head: '% Mem', align: 'right', width: 'w-14' },
+        ],
+        rows: system.topProcesses.map(t => ({
+          id: t.pid,
+          bar: Number(t.cpu) / Math.max(1, ...system.topProcesses.map(x => Number(x.cpu))),
+          cells: [t.command, t.pid, t.cpu, t.mem],
+          sort: [t.command, Number(t.pid), Number(t.cpu), Number(t.mem)],
+        })),
+      })
+    }
+
+    if (system.inventory?.length) {
+      systemPanels.push({
+        title: 'Inventory',
+        note: 'Platform and hardware detail.',
+        columns: [
+          { head: 'Field', align: 'left' },
+          { head: 'Value', align: 'right', width: 'w-64' },
+        ],
+        rows: system.inventory.map((i, idx) => ({
+          id: i.key + idx, cells: [i.key, i.value], sort: [i.key, i.value],
+        })),
+      })
+    }
+
+    systemPanels.push({
+      title: 'Licensing',
+      note: 'Licence entitlement is held on the Primary PAN. A support bundle taken from a policy node will not contain it.',
+      columns: [{ head: 'Detail', align: 'left' }],
+      rows: (system.licence ?? []).map((l, i) => ({ id: String(i), cells: [l], sort: [l] })),
+      empty: (
+        <>
+          No licensing detail in this bundle. On a deployment this is expected unless the
+          bundle came from the <strong>Primary PAN</strong> — entitlement lives there, not on a
+          PSN. Take a bundle from{' '}
+          {system.nodes?.find(nd => nd.role === 'PRIMARY')?.name ?? 'the primary node'} to see it.
+        </>
+      ),
+    })
+
+    if (system.hotpatches?.length) {
+      systemPanels.push({
+        title: 'Hotpatches',
+        note: 'Newest first.',
+        columns: [
+          { head: 'Hotpatch', align: 'left' },
+          { head: 'Installed', align: 'right', width: 'w-56' },
+        ],
+        rows: system.hotpatches.map(h => ({
+          id: h.name, cells: [h.name, h.when], sort: [h.name, h.when],
+        })),
+      })
+    }
+
+    if (system.reboots?.length) {
+      systemPanels.push({
+        title: 'Reboots and shutdowns',
+        note: 'From the system start and stop history. A tight repeating pattern usually means a scheduled task rather than instability.',
+        columns: [
+          { head: 'Event', align: 'left' },
+          { head: 'When', align: 'right', width: 'w-40' },
+        ],
+        rows: system.reboots.map((rb, i) => ({
+          id: String(i),
+          cells: [
+            <span key="e" className={rb.event === 'reboot' ? 'text-ink-900' : 'text-ink-500'}>{rb.event}</span>,
+            rb.when,
+          ],
+          sort: [rb.event, rb.when],
+        })),
+      })
+    }
+
     if (system.services.length) {
       systemPanels.push({
         title: 'Services',
@@ -241,43 +593,72 @@ export default function BundleSection({ r, onExpand }: {
   const authPanels: PanelData[] = []
   if (auth) {
     const D = auth.dims
-    const dimPanel = (key: string, title: string, head: string, note = '') =>
-      D[key]?.length ? authPanels.push(kcPanel(title, note, head, D[key], 'Auths')) : null
+    const dim = (key: string, title: string, head: string, note = '', sortBy: 'total' | 'fail' = 'total') => {
+      if (D[key]?.length) authPanels.push(dimPanel(title, note, head, D[key], sortBy))
+    }
+
+    // failure detail first — it is the reason anyone opens this
+    if (auth.failureDetail?.length) {
+      const maxF = Math.max(1, ...auth.failureDetail.map(f => f.count))
+      authPanels.push({
+        title: 'Why authentications failed',
+        note: 'Each ISE code with its own description, and where it concentrated. A code landing mostly on one device is a different problem from one spread evenly.',
+        columns: [
+          { head: 'Reason', align: 'left' },
+          { head: 'Code', align: 'right', width: 'w-12' },
+          { head: 'Count', align: 'right', width: 'w-14' },
+          { head: 'Share', align: 'right', width: 'w-12' },
+          { head: 'Concentrated on', align: 'right', width: 'w-44' },
+        ],
+        rows: auth.failureDetail.map(f => ({
+          id: f.code,
+          bar: f.count / maxF,
+          barFail: 1,
+          cells: [
+            f.text || `(no catalogue entry for ${f.code})`,
+            <span key="c" className="text-signal-500">{f.code}</span>,
+            n(f.count), pc(f.share),
+            <span key="d" className="truncate text-ink-500">
+              {f.topNad
+                ? `${f.topNad} (${Math.round(f.topNadCount / f.count * 100)}%)`
+                : '—'}
+            </span>,
+          ],
+          sort: [f.text, Number(f.code) || 0, f.count, f.share, f.topNad ?? ''],
+        })),
+        empty: 'No failed authentications in this bundle.',
+      })
+    }
 
     authPanels.push(kcPanel(
-      'Message codes', 'Every code seen, resolved through the catalogue shipped inside this bundle.',
+      'All message codes', 'Every code seen, resolved through the catalogue shipped inside this bundle.',
       'Code', auth.messageCodes, 'Records', code))
 
-    if (auth.failureCodes.length) {
-      authPanels.push(kcPanel(
-        'Failure codes', 'Only the codes that represent a failed or abandoned authentication.',
-        'Code', auth.failureCodes, 'Records', code))
-    }
-
-    dimPanel('ssid', 'SSID', 'SSID', 'From cisco-wlan-ssid — the field the CSV export does not carry.')
-    dimPanel('nad', 'Network devices', 'Network device')
-    dimPanel('nasIp', 'NAD IP addresses', 'NAS IP address')
-    dimPanel('policySet', 'Policy sets', 'Policy set')
-    dimPanel('authzRule', 'Authorization rules', 'Authorization rule')
-    dimPanel('authzProfile', 'Authorization profiles', 'Authorization profile')
-    dimPanel('protocol', 'Authentication protocols', 'Protocol')
-    dimPanel('identityStore', 'Identity stores', 'Identity store')
-    dimPanel('issuer', 'Certificate issuers', 'Issuer CN', 'Which CA signed the certificates being presented.')
-    dimPanel('tlsVersion', 'TLS versions', 'TLS version')
-    dimPanel('tlsCipher', 'TLS ciphers', 'Cipher suite')
-    dimPanel('flowType', 'RADIUS flow types', 'Flow type')
-    dimPanel('deviceType', 'Device types', 'Device type')
-    dimPanel('location', 'Locations', 'Location')
-    dimPanel('endpointProfile', 'Endpoint profiles', 'Profile')
-    dimPanel('endpoint', 'Busiest endpoints', 'Endpoint MAC')
-    dimPanel('user', 'Busiest identities', 'User name')
-
-    if (auth.failDims?.endpoint?.length) {
-      authPanels.push(kcPanel('Endpoints failing most', 'Only failed authentications.', 'Endpoint MAC', auth.failDims.endpoint, 'Failures'))
-    }
-    if (auth.failDims?.nad?.length) {
-      authPanels.push(kcPanel('Devices failing most', 'Only failed authentications.', 'Network device', auth.failDims.nad, 'Failures'))
-    }
+    dim('endpoint', 'Endpoints failing most', 'Endpoint MAC',
+      'Sorted by failures. One MAC dominating is usually a single broken supplicant.', 'fail')
+    dim('nad', 'Network devices', 'Network device',
+      'Where a site-specific fault surfaces first.')
+    dim('ssid', 'SSID', 'SSID',
+      'From cisco-wlan-ssid — the field the CSV export does not carry at all.')
+    dim('protocol', 'Authentication protocols', 'Protocol',
+      'A protocol failing at 100% almost always means it is not in Allowed Protocols.')
+    dim('policySet', 'Policy sets', 'Policy set')
+    dim('authzRule', 'Authorization rules', 'Authorization rule')
+    dim('authzProfile', 'Authorization profiles', 'Authorization profile')
+    dim('identityStore', 'Identity stores', 'Identity store')
+    dim('issuer', 'Certificate issuers', 'Issuer CN',
+      'Which CA signed the certificates being presented.')
+    dim('certTemplate', 'Certificate templates', 'Template')
+    dim('tlsVersion', 'TLS versions', 'TLS version')
+    dim('tlsCipher', 'TLS ciphers', 'Cipher suite')
+    dim('nasIp', 'NAD IP addresses', 'NAS IP address')
+    dim('flowType', 'RADIUS flow types', 'Flow type')
+    dim('deviceType', 'Device types', 'Device type')
+    dim('location', 'Locations', 'Location')
+    dim('endpointProfile', 'Endpoint profiles', 'Profile',
+      'A high share of Unknown means profiling probes are not seeing these endpoints.')
+    dim('user', 'Identities', 'User name', '', 'fail')
+    dim('node', 'ISE nodes', 'Node')
 
     if (auth.stepLatency.length) {
       const maxMs = Math.max(1, ...auth.stepLatency.map(s => s.totalMs))
@@ -489,6 +870,71 @@ export default function BundleSection({ r, onExpand }: {
         {app && <Kpi label="Application lines" value={n(app.lines)} />}
       </div>
 
+      {/* ---------- the headline facts, before anything else ---------- */}
+      {system && (
+        <div className="mb-4 border border-ink-200 bg-paper">
+          <div className="grid divide-ink-100 sm:grid-cols-2 sm:divide-x lg:grid-cols-4">
+            {[
+              ['Version', system.iseVersion ?? '—',
+               system.buildDate ? `built ${system.buildDate}` : null],
+              ['Latest patch',
+               system.patches.length ? `Patch ${system.patches[system.patches.length - 1].version}` : 'none',
+               system.patches.length ? system.patches[system.patches.length - 1].installDate : null],
+              ['Hotfix',
+               system.hotpatches?.length ? system.hotpatches[0].name : 'none installed',
+               system.hotpatches?.length ? system.hotpatches[0].when : null],
+              ['Platform', system.profile ?? system.architecture ?? '—',
+               system.adeOs ? `ADE-OS ${system.adeOs}` : null],
+            ].map(([label, value, sub]) => (
+              <div key={label as string} className="px-4 py-3">
+                <p className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{label}</p>
+                <p className="mt-1 break-words text-[15px] font-bold leading-tight text-ink-950"
+                   style={{ fontFamily: 'var(--font-heading)' }}>
+                  {value}
+                </p>
+                {sub && <p className="mt-0.5 text-[10.5px] text-ink-400">{sub}</p>}
+              </div>
+            ))}
+          </div>
+
+          {(system.loadAvg || system.cpuSummary || system.uptime) && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-ink-100 px-4 py-2.5">
+              {system.loadAvg && (
+                <span className="font-mono text-[11px] text-ink-600">
+                  <span className="text-ink-400">load avg</span> {system.loadAvg}
+                </span>
+              )}
+              {system.uptime && (
+                <span className="font-mono text-[11px] text-ink-600">
+                  <span className="text-ink-400">up</span> {system.uptime}
+                </span>
+              )}
+              {system.cpuSummary && (
+                <span className="font-mono text-[11px] text-ink-600">
+                  <span className="text-ink-400">cpu</span> {system.cpuSummary}
+                </span>
+              )}
+              {system.deploymentId && (
+                <span className="font-mono text-[11px] text-ink-400">
+                  deployment {system.deploymentId}
+                </span>
+              )}
+            </div>
+          )}
+
+          {system.diskAlerts.length > 0 && (
+            <div className="border-t border-signal-500 bg-signal-50 px-4 py-2.5">
+              <p className="text-[11px] font-bold text-signal-700">
+                Filesystem pressure — {system.diskAlerts.length} mount{system.diskAlerts.length === 1 ? '' : 's'} at 80% or above
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-signal-700">
+                {system.diskAlerts.join('  ·  ')}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ---------- findings ---------- */}
       {r.findings?.length > 0 && (
         <section className="mb-4 border border-ink-200 bg-paper-dim p-3">
@@ -505,6 +951,47 @@ export default function BundleSection({ r, onExpand }: {
             {r.findings.map((f, i) => <Finding key={i} f={f} />)}
           </div>
         </section>
+      )}
+
+      {/* ---------- correlation ---------- */}
+      {r.correlation && <CorrelationChart c={r.correlation} />}
+
+      {/* ---------- every problem, one list ---------- */}
+      {r.problems && r.problems.length > 0 && (
+        <>
+          <SectionBanner title="Every warning and error"
+            subtitle={`${n(r.problems.length)} distinct messages across every log, ranked by how often they occur`} />
+          <div className="mb-4">
+            <Panel
+              onExpand={onExpand}
+              data={{
+                title: 'All problems, all logs',
+                note: 'Repeated messages grouped, with MAC addresses, IPs and long numbers collapsed so variants count together. Open for the full list.',
+                columns: [
+                  { head: 'Message', align: 'left' },
+                  { head: 'Log', align: 'right', width: 'w-40' },
+                  { head: 'Level', align: 'right', width: 'w-14' },
+                  { head: 'Count', align: 'right', width: 'w-20' },
+                ],
+                rows: r.problems.map((p, i) => ({
+                  id: `${p.log}-${i}`,
+                  bar: p.count / Math.max(1, ...r.problems!.map(x => x.count)),
+                  barFail: p.level === 'ERROR' || p.level === 'FATAL' ? 1 : 0.4,
+                  cells: [
+                    p.message,
+                    <span key="l" className="truncate text-ink-500">{p.log}</span>,
+                    <span key="v" className={
+                      p.level === 'ERROR' || p.level === 'FATAL' ? 'text-signal-500 font-bold'
+                        : p.level === 'WARN' ? 'text-[#B45309]' : 'text-ink-400'
+                    }>{p.level}</span>,
+                    n(p.count),
+                  ],
+                  sort: [p.message, p.log, p.level, p.count],
+                })),
+              }}
+            />
+          </div>
+        </>
       )}
 
       {/* ---------- problem areas ---------- */}
@@ -537,9 +1024,42 @@ export default function BundleSection({ r, onExpand }: {
       {systemPanels.length > 0 && (
         <>
           <SectionBanner title="System"
-            subtitle={`${system?.hostname ?? ''} · installed ${system?.installDate ?? 'unknown'} · ${system?.services.length ?? 0} services reported`} />
+            subtitle={
+              `${system?.hostname ?? ''}` +
+              (system?.nodes?.length ? ` · ${system.nodes.length} nodes in deployment` : '') +
+              ` · installed ${system?.installDate ?? 'unknown'}` +
+              ` · ${system?.services.length ?? 0} services reported`
+            } />
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {systemPanels.map(p => <Panel key={p.title} data={p} onExpand={onExpand} />)}
+          </div>
+        </>
+      )}
+
+      {/* ---------- verbatim show-tech sections ---------- */}
+      {system?.rawSections && system.rawSections.length > 0 && (
+        <>
+          <SectionBanner title="Show-tech output"
+            subtitle={`${system.rawSections.length} sections shown exactly as ISE printed them — summarising these would lose more than it saves`} />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {system.rawSections.map(s => (
+              <details key={s.name} className="group border border-ink-200 bg-paper">
+                <summary className="cursor-pointer list-none px-3 py-2.5 marker:content-none">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[13px] font-bold text-ink-950"
+                          style={{ fontFamily: 'var(--font-heading)' }}>
+                      {s.name}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-ink-400">
+                      {s.lines.length} lines
+                      <span className="ml-2 text-signal-500 transition-transform group-open:rotate-90 inline-block">▸</span>
+                    </span>
+                  </div>
+                </summary>
+                <pre className="overflow-x-auto border-t border-ink-100 bg-paper-dim px-3 py-2.5 font-mono text-[10.5px] leading-relaxed text-ink-700">
+{s.lines.join('\n')}</pre>
+              </details>
+            ))}
           </div>
         </>
       )}
@@ -562,6 +1082,27 @@ export default function BundleSection({ r, onExpand }: {
         <>
           <SectionBanner title="Authentications"
             subtitle={`${auth.files.length} local store file(s) · ${n(auth.records)} records · ${auth.window.start ?? '?'} to ${auth.window.end ?? '?'}`} />
+
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+            <Kpi label="Authentications" value={n(auth.records)} />
+            <Kpi label="Passed" value={n(auth.passed)} tone="green" sub={pc(1 - auth.failRate)} />
+            <Kpi label="Failed" value={n(auth.failed)} tone={auth.failed ? 'red' : 'green'}
+                 sub={pc(auth.failRate, 2)} />
+            <Kpi label="Median latency" value={ms(auth.latency.total.p50)}
+                 sub={`p95 ${ms(auth.latency.total.p95)}`} />
+            <Kpi label="Worst latency" value={ms(auth.latency.total.max)}
+                 tone={auth.latency.total.max > 5000 ? 'red' : 'ink'} />
+            <Kpi label="Endpoints" value={n(auth.dims.endpoint?.length ?? 0)}
+                 sub="in the top list" />
+            <Kpi label="Network devices" value={n(auth.dims.nad?.length ?? 0)} />
+            <Kpi label="SSIDs" value={n(auth.dims.ssid?.length ?? 0)} />
+            <Kpi label="Failure reasons" value={n(auth.failureDetail?.length ?? 0)} />
+            <Kpi label="ISE stat samples" value={n(auth.utilisationSamples)}
+                 sub="70000-series records" />
+          </div>
+
+          <AuthTimeline hourly={auth.hourly} />
+
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {authPanels.map(p => <Panel key={p.title} data={p} onExpand={onExpand} />)}
           </div>

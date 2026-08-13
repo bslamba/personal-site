@@ -24,6 +24,7 @@
 
 import type {
   BundleReport, KeyCount, LogSummary, AreaSummary,
+  DimEntry, FailureDetail, Correlation, ProblemEntry,
 } from './bundle-types'
 import { logsForArea, ALL_AREAS, type Resolved, type ParserRole } from './bundle-registry'
 
@@ -46,6 +47,30 @@ class Counter {
   }
   all(): KeyCount[] {
     return [...this.m.entries()].map(([key, count]) => ({ key, count }))
+  }
+}
+
+/**
+ * A dimension counter that carries the pass/fail split.
+ *
+ * The earlier version counted totals only, which made every breakdown
+ * a popularity contest — you could see that an SSID was busy but not
+ * whether it was healthy. Failure rate is the whole point.
+ */
+class DimCounter {
+  private m = new Map<string, { t: number; f: number }>()
+  constructor(private cap = 60000) {}
+  add(k: string, failed: boolean) {
+    const cur = this.m.get(k)
+    if (cur) { cur.t++; if (failed) cur.f++ }
+    else if (this.m.size < this.cap) this.m.set(k, { t: 1, f: failed ? 1 : 0 })
+  }
+  get size() { return this.m.size }
+  top(limit = 30, by: 'total' | 'fail' = 'total'): DimEntry[] {
+    return [...this.m.entries()]
+      .map(([key, v]) => ({ key, total: v.t, fail: v.f }))
+      .sort((a, b) => (by === 'fail' ? b.fail - a.fail : b.total - a.total))
+      .slice(0, limit)
   }
 }
 
@@ -115,6 +140,8 @@ class LogAcc {
   component = new Counter(4000)
   problems = new Counter(8000)
   perDay = new Counter(400)
+  /** errors and warnings per hour — the axis the correlation view uses */
+  perHourBad = new Counter(2000)
 
   constructor(public label: string, public role: ParserRole, public areas: string[]) {}
 
@@ -220,13 +247,19 @@ export class BundleAggregator {
   private prrtFirst = new Map<string, string>()
   private prrtLast = new Map<string, string>()
   private prrtParsed = 0
+  private ocspHour = new Counter(2000)
+  private messagingHour = new Counter(2000)
 
   // --- localstore ---
   private lsFiles: string[] = []
   private codes = new Counter(500)
   private failureCodes = new Counter(500)
-  private dims: Record<string, Counter> = {}
-  private failDims: Record<string, Counter> = {}
+  private dims: Record<string, DimCounter> = {}
+  private codeByNad = new Map<string, Counter>()
+  private codeByEndpoint = new Map<string, Counter>()
+  private codeBySsid = new Map<string, Counter>()
+  private authHour = new Counter(2000)
+  private authHourFail = new Counter(2000)
   private stepTime = new Map<number, { ms: number; n: number }>()
   private certDays = new Counter(20)
   private perMinute = new Counter(200000)
@@ -255,10 +288,16 @@ export class BundleAggregator {
   constructor() {
     for (const k of ['ssid', 'nad', 'nasIp', 'policySet', 'authzRule', 'authzProfile',
       'protocol', 'identityStore', 'issuer', 'tlsVersion', 'tlsCipher', 'deviceType',
-      'location', 'endpointProfile', 'endpoint', 'user', 'flowType']) {
-      this.dims[k] = new Counter(60000)
+      'location', 'endpointProfile', 'endpoint', 'user', 'flowType', 'node', 'certTemplate']) {
+      this.dims[k] = new DimCounter()
     }
-    for (const k of ['ssid', 'nad', 'endpoint', 'user']) this.failDims[k] = new Counter(60000)
+  }
+
+  private crossAdd(map: Map<string, Counter>, code: string, value: string | undefined) {
+    if (!value) return
+    let c = map.get(code)
+    if (!c) { c = new Counter(4000); map.set(code, c) }
+    c.add(value)
   }
 
   // ---------- file lifecycle ----------
@@ -335,6 +374,7 @@ export class BundleAggregator {
     const isWarn = level === 'WARN'
     if (isError) g.errors++
     else if (isWarn) g.warnings++
+    if (isError || isWarn) g.perHourBad.add(line.slice(0, 13))
 
     // component: the logger name after the "[[...]] " block
     const b = line.indexOf(']] ', j)
@@ -428,8 +468,8 @@ export class BundleAggregator {
       g.parsed++
       g.level.add(level)
       g.component.add(component)
-      if (level === 'ERROR' || level === 'FATAL') g.errors++
-      else if (level === 'WARN') g.warnings++
+      if (level === 'ERROR' || level === 'FATAL') { g.errors++; g.perHourBad.add(date.slice(0, 13)) }
+      else if (level === 'WARN') { g.warnings++; g.perHourBad.add(date.slice(0, 13)) }
       const day = date.slice(0, 10)
       if (day.length === 10 && day.charCodeAt(4) === 45) {
         g.perDay.add(day)
@@ -447,6 +487,9 @@ export class BundleAggregator {
       this.prrtRule.add(r.id)
       if (!this.prrtFirst.has(r.id)) this.prrtFirst.set(r.id, date)
       this.prrtLast.set(r.id, date)
+      // hourly buckets for the two conditions worth correlating against
+      if (r.id === 'ocsp-no-response') this.ocspHour.add(date.slice(0, 13))
+      else if (r.id === 'messaging-no-route') this.messagingHour.add(date.slice(0, 13))
       if (r.id === 'eap-abandoned') {
         const m = /\b([0-9a-f]{2}-){5}[0-9a-f]{2}\b/i.exec(message)
         if (m) this.prrtAbandoned.add(m[0].toUpperCase().replace(/-/g, ':'))
@@ -502,6 +545,10 @@ export class BundleAggregator {
     this.perMinute.add(minute)
     if (isFail) this.perMinuteFail.add(minute)
 
+    const hour = ts.slice(0, 13)
+    this.authHour.add(hour)
+    if (isFail) this.authHourFail.add(hour)
+
     const kv: Record<string, string> = {}
     const av: string[] = []
     for (const part of splitEscaped(rest)) {
@@ -534,9 +581,14 @@ export class BundleAggregator {
       if (i !== -1 && !/^[0-9A-Fa-f]{2}$/.test(c.slice(i + 1))) ssid = c.slice(i + 1)
     }
 
-    const put = (d: string, v: string | undefined) => { if (v) this.dims[d].add(v) }
+    // Every dimension records the pass/fail split, so any breakdown can
+    // answer "how healthy" rather than only "how busy".
+    const put = (d: string, v: string | undefined) => { if (v) this.dims[d].add(v, isFail) }
+    const nad = kv['NetworkDeviceName']
+    const endpoint = kv['Calling-Station-ID'] || kv['EndPointMACAddress']
+
     put('ssid', ssid || '(wired or unknown)')
-    put('nad', kv['NetworkDeviceName'])
+    put('nad', nad)
     put('nasIp', kv['NAS-IP-Address'])
     put('policySet', kv['ISEPolicySetName'])
     put('authzRule', kv['AuthorizationPolicyMatchedRule'])
@@ -550,14 +602,18 @@ export class BundleAggregator {
     put('location', kv['Location'])
     put('endpointProfile', kv['EndPointMatchedProfile'])
     put('flowType', kv['RadiusFlowType'])
-    put('endpoint', kv['Calling-Station-ID'] || kv['EndPointMACAddress'])
+    put('endpoint', endpoint)
     put('user', kv['User-Name'] || kv['UserName'])
+    put('node', kv['AcsSessionID']?.split('/')[0])
+    put('certTemplate', kv['Template Name'])
 
+    // Cross-tabs: for each failure code, where did it happen? This is
+    // what turns "412 certificate failures" into "412, nearly all on
+    // one controller".
     if (isFail) {
-      if (ssid) this.failDims.ssid.add(ssid)
-      if (kv['NetworkDeviceName']) this.failDims.nad.add(kv['NetworkDeviceName'])
-      if (kv['Calling-Station-ID']) this.failDims.endpoint.add(kv['Calling-Station-ID'])
-      if (kv['User-Name']) this.failDims.user.add(kv['User-Name'])
+      this.crossAdd(this.codeByNad, code, nad)
+      this.crossAdd(this.codeByEndpoint, code, endpoint)
+      this.crossAdd(this.codeBySsid, code, ssid)
     }
 
     this.totalLatency.add(Number(kv['TotalAuthenLatency']))
@@ -614,6 +670,8 @@ export class BundleAggregator {
       findings: this.buildFindings(system, runtime, auth, logs, areas),
       filesRead: this.filesRead,
       logs, areas,
+      correlation: this.buildCorrelation(),
+      problems: this.buildProblems(logs),
       stats: {
         archiveEntries: this.archiveEntries,
         filesParsed: this.filesRead.length,
@@ -622,6 +680,67 @@ export class BundleAggregator {
         seconds: +seconds.toFixed(1),
       },
     }
+  }
+
+  /**
+   * Several logs on one hourly axis.
+   *
+   * The point is coincidence. Authentication failures rising at the same
+   * hour as OCSP timeouts is a different story from failures rising while
+   * OCSP is flat — and neither is visible when each log is read alone.
+   */
+  private buildCorrelation(): Correlation | null {
+    const hourSet = new Set<string>()
+    for (const h of this.authHour.all()) hourSet.add(h.key)
+    for (const h of this.ocspHour.all()) hourSet.add(h.key)
+    for (const h of this.messagingHour.all()) hourSet.add(h.key)
+    for (const l of this.logs.values()) for (const h of l.perHourBad.all()) hourSet.add(h.key)
+
+    const hours = [...hourSet].filter(h => /^\d{4}-\d{2}-\d{2} \d{2}$/.test(h)).sort()
+    if (hours.length < 2) return null
+
+    const series: Correlation['series'] = []
+    const push = (id: string, label: string, note: string, get: (h: string) => number) => {
+      const values = hours.map(get)
+      if (values.some(v => v > 0)) series.push({ id, label, note, values })
+    }
+
+    push('auth', 'Authentications', 'from iseLocalStore', h => this.authHour.get(h))
+    push('authFail', 'Failed authentications', 'from iseLocalStore', h => this.authHourFail.get(h))
+    push('ocsp', 'OCSP failures', 'from prrt-server.log', h => this.ocspHour.get(h))
+    push('messaging', 'Messaging failures', 'from prrt-server.log', h => this.messagingHour.get(h))
+
+    // the three noisiest logs by error volume, so the axis stays readable
+    const noisy = [...this.logs.values()]
+      .filter(l => l.errors + l.warnings > 0 && l.label !== 'prrt-server.log')
+      .sort((a, b) => (b.errors + b.warnings) - (a.errors + a.warnings))
+      .slice(0, 3)
+    for (const l of noisy) {
+      push(`log:${l.label}`, `${l.label} problems`, 'errors and warnings', h => l.perHourBad.get(h))
+    }
+
+    return { hours, series }
+  }
+
+  /** Every warning and error from every log, in one ranked list. */
+  private buildProblems(logs: LogSummary[]): ProblemEntry[] {
+    const out: ProblemEntry[] = []
+    for (const l of logs) {
+      for (const p of l.problems) {
+        // ise-format problems are stored as "LEVEL shape"
+        const space = p.key.indexOf(' ')
+        const maybeLevel = space > 0 ? p.key.slice(0, space) : ''
+        const isLevel = /^(ERROR|WARN|FATAL|INFO|DEBUG)$/.test(maybeLevel)
+        out.push({
+          log: l.label,
+          areas: l.areas,
+          level: isLevel ? maybeLevel : 'ERROR',
+          message: isLevel ? p.key.slice(space + 1) : p.key,
+          count: p.count,
+        })
+      }
+    }
+    return out.sort((a, b) => b.count - a.count).slice(0, 120)
   }
 
   private buildAreas(logs: LogSummary[]): AreaSummary[] {
@@ -660,7 +779,30 @@ export class BundleAggregator {
       hostname: null, adeOs: null, adeBuild: null, architecture: null,
       iseVersion: null, buildDate: null, installDate: null,
       patches: [], services: [], sections: [], diskAlerts: [],
+      hotpatches: [], profile: null, deploymentId: null, nodes: [],
+      appCpu: [], disks: [], memory: [], loadAvg: null, cpuSummary: null,
+      topProcesses: [], inventory: [], licence: [], reboots: [], uptime: null,
+      rawSections: [],
     }
+
+    // Sections worth showing exactly as ISE printed them. Summarising
+    // these would lose more than it saves — an engineer reading a
+    // database health report wants the report, not a paraphrase.
+    const RAW_WANTED = [
+      /show inventory/i, /UDI \(Unique Device Identifier\)/i, /show version['\s]/i,
+      /ntp status/i, /System Uptime/i, /database health report/i,
+      /database diagnostics/i, /database corrupt Indexes/i,
+      /ElasticSearch Health/i, /ElasticSearch Nodes/i,
+      /RABBITMQ node health/i, /RABBITMQ status/i,
+      /Suppression Settings/i, /IO Performance diagnostics/i,
+      /vmstat output/i, /iostat output/i, /proc\/cpuinfo/i,
+      /Historical VM IO/i, /show ports/i, /resolv\.conf/i,
+      /licen[sc]e/i,
+    ]
+    const RAW_LINE_CAP = 45
+    let rawCurrent: { name: string; lines: string[] } | null = null
+    /** header row of `free` output, needed to label the Mem: row */
+    let freeHeader: string[] | null = null
     const grab = (re: RegExp) => { const m = re.exec(text); return m ? m[1].trim() : null }
 
     out.hostname     = grab(/^Hostname:\s*(.+)$/m)
@@ -682,21 +824,185 @@ export class BundleAggregator {
     }
     out.patches.sort((a, b) => Number(a.version) - Number(b.version))
 
+    // ------------------------------------------------------------
+    // show-tech is a sequence of banner-delimited sections. Rather
+    // than a regex per fact, walk it once tracking which section we
+    // are inside — that way a section appearing in an unexpected
+    // place still parses, and unknown sections are simply recorded.
+    // ------------------------------------------------------------
+    let section = ''
     let inServices = false
+
     for (const raw of text.split('\n')) {
       const line = raw.replace(/\s+$/, '')
+
+      const banner = /^Displaying (.+?)\s*\.*\s*$/.exec(line)
+      if (banner) {
+        section = banner[1].trim()
+        out.sections.push(section)
+        inServices = false
+        rawCurrent = null
+        freeHeader = null
+        if (RAW_WANTED.some(re => re.test(section)) && out.rawSections.length < 24) {
+          rawCurrent = { name: section, lines: [] }
+          out.rawSections.push(rawCurrent)
+        }
+        continue
+      }
+
+      // capture verbatim output for the whitelisted sections
+      if (rawCurrent) {
+        if (/^\*{5,}/.test(line)) rawCurrent = null
+        else if (rawCurrent.lines.length < RAW_LINE_CAP && line.trim()) {
+          rawCurrent.lines.push(line.slice(0, 200))
+        }
+      }
+
+      // --- services ---
       if (/^ISE PROCESS NAME/.test(line)) { inServices = true; continue }
       if (inServices) {
         if (/^-{5,}$/.test(line)) continue
-        if (!line.trim() || /^\*{5,}/.test(line)) { inServices = false; continue }
-        const s = /^(.{10,45}?)\s{2,}(running|disabled|not running|initializing|stopped)\b\s*(.*)$/i.exec(line)
-        if (s) out.services.push({ name: s[1].trim(), state: s[2].toLowerCase(), detail: s[3].trim() || null })
+        if (!line.trim() || /^\*{5,}/.test(line)) { inServices = false }
+        else {
+          const s = /^(.{10,45}?)\s{2,}(running|disabled|not running|initializing|stopped)\b\s*(.*)$/i.exec(line)
+          if (s) out.services.push({ name: s[1].trim(), state: s[2].toLowerCase(), detail: s[3].trim() || null })
+          continue
+        }
       }
-      const sec = /^Displaying (.+?)\s*\.*\s*$/.exec(line)
-      if (sec) out.sections.push(sec[1].trim())
-      if (/\b(9[0-9]|100)%\s+\//.test(line)) out.diskAlerts.push(line.trim().slice(0, 160))
+
+      const sec = section.toLowerCase()
+
+      // --- hotpatch:  "Mon Jun  9 18:27:04 UTC 2025 => CSCwn63400_3.1.x_patchall"
+      if (sec.includes('hotpatch')) {
+        const h = /^(.+?)\s*=>\s*(\S+)\s*$/.exec(line)
+        if (h) out.hotpatches.push({ when: h[1].trim(), name: h[2] })
+      }
+
+      // --- hardware profile ---
+      if (sec.includes('profile')) {
+        const p = /^Profile\s*:\s*(.+)$/.exec(line)
+        if (p) out.profile = p[1].trim()
+      }
+
+      // --- deployment table ---
+      if (sec.includes('deployment')) {
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(line.trim())) {
+          out.deploymentId = line.trim()
+        } else if (!/^(NAME|-{3,}|Node Config|DEPLOYMENT_ID)/.test(line) && line.trim()) {
+          // columns are tab or multi-space separated; persona may be "PAN,MNT"
+          const cols = line.trim().split(/\t+|\s{2,}/).map(c => c.trim()).filter(Boolean)
+          if (cols.length >= 4 && /^[A-Za-z0-9][\w.-]+$/.test(cols[0])) {
+            out.nodes.push({
+              name: cols[0],
+              persona: cols[1] ?? '',
+              role: cols[2] ?? '',
+              active: cols[3] ?? '',
+              replication: cols.slice(4).join(' ') || 'Not Applicable',
+            })
+          }
+        }
+      }
+
+      // --- per-service CPU ---
+      if (sec.includes('cpu usage')) {
+        const c = /^(.{8,42}?)\s{2,}([\d.]+|N\/A)\s*(\S*)\s*(.*)$/.exec(line)
+        if (c && !/^ISE Function|^-{5,}|^%WARNING/.test(line)) {
+          out.appCpu.push({
+            name: c[1].trim(),
+            cpu: c[2] === 'N/A' ? null : Number(c[2]),
+            cpuTime: c[3] || '',
+            threads: c[4].trim(),
+          })
+        }
+      }
+
+      // --- reboots and shutdowns ---
+      if (sec.includes('starts and stops')) {
+        const r = /^(reboot|shutdown)\s+(.+)$/.exec(line.trim())
+        if (r && out.reboots.length < 60) out.reboots.push({ event: r[1], when: r[2].trim() })
+      }
+
+      // ------------------------------------------------------------
+      // The following are matched on shape rather than on section
+      // name, because the exact banner wording varies between ISE
+      // releases and these are worth catching wherever they appear.
+      // ------------------------------------------------------------
+
+      // df output:  /dev/sda1  50G  38G  12G  76%  /opt
+      const df = /^(\/\S+|\S+fs|tmpfs|devtmpfs)\s+([\d.]+[KMGTP]?)\s+([\d.]+[KMGTP]?)\s+([\d.]+[KMGTP]?)\s+(\d{1,3})%\s+(\/\S*)\s*$/.exec(line)
+      if (df && out.disks.length < 60) {
+        const pct = Number(df[5])
+        out.disks.push({
+          filesystem: df[1], size: df[2], used: df[3],
+          avail: df[4], usePct: pct, mount: df[6],
+        })
+        if (pct >= 80) out.diskAlerts.push(`${df[6]} at ${pct}% (${df[3]} of ${df[2]})`)
+      }
+
+      // meminfo style
+      const memKv = /^(MemTotal|MemFree|MemAvailable|Buffers|Cached|SwapTotal|SwapFree):\s+(.+)$/.exec(line)
+      if (memKv && out.memory.length < 24) out.memory.push({ key: memKv[1], value: memKv[2].trim() })
+
+      // `free` output: a header row of column names, then Mem: and Swap:
+      // rows of bare numbers. The numbers are meaningless without the
+      // header, so it has to be remembered and zipped against them.
+      if (/^\s+total\s+used\s+free/.test(line)) {
+        freeHeader = line.trim().split(/\s+/)
+      } else {
+        const freeRow = /^(Mem|Swap):\s+(.+)$/.exec(line)
+        if (freeRow && out.memory.length < 24) {
+          const values = freeRow[2].trim().split(/\s+/)
+          // Copied to a const: freeHeader is reassigned elsewhere, so
+          // inside the callback its type is no longer narrowed.
+          const header = freeHeader
+          if (header && header.length >= values.length) {
+            values.forEach((v, i) => {
+              if (out.memory.length < 24) {
+                out.memory.push({ key: `${freeRow[1]} ${header[i] ?? `col${i}`}`, value: `${v} MB` })
+              }
+            })
+          } else {
+            out.memory.push({ key: freeRow[1], value: freeRow[2].trim() })
+          }
+        }
+      }
+
+      // load average and uptime
+      const la = /load average[s]?:\s*(.+)$/i.exec(line)
+      if (la && !out.loadAvg) out.loadAvg = la[1].trim()
+      const up = /\bup\s+((\d+\s+days?,?\s*)?[\d:]+)/.exec(line)
+      if (up && !out.uptime && /load average/i.test(line)) out.uptime = up[1].trim()
+
+      // top's cpu summary line
+      const cpuLine = /^%?Cpu\(s\):\s*(.+)$/.exec(line)
+      if (cpuLine && !out.cpuSummary) out.cpuSummary = cpuLine[1].trim()
+
+      // top process rows:  PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
+      const top = /^\s*(\d{2,7})\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S\s+([\d.]+)\s+([\d.]+)\s+\S+\s+(.+)$/.exec(line)
+      if (top && out.topProcesses.length < 25 && Number(top[2]) > 0) {
+        out.topProcesses.push({ pid: top[1], cpu: top[2], mem: top[3], command: top[4].trim().slice(0, 60) })
+      }
+
+      // Cisco inventory blocks
+      const inv = /^(NAME|DESCR|PID|VID|SN|Total RAM|Total Disk|CPU Model|CPU Core Count|NIC Count|Hard Disk Count):\s*(.+)$/.exec(line)
+      if (inv && out.inventory.length < 30) {
+        out.inventory.push({ key: inv[1], value: inv[2].replace(/^["']|["']$/g, '').trim().slice(0, 90) })
+      }
+
+      // Licence lines, with certificates excluded. The trust store
+      // contains "Cisco Licensing Root CA", which matches on the word
+      // and has nothing to do with entitlement.
+      if (/licen[sc]e/i.test(line) && line.trim().length > 8 && out.licence.length < 30) {
+        const t = line.trim()
+        const isCertNoise = /certificate|friendly name|BEGIN|END|Root CA|Issuer|Subject/i.test(t)
+        if (!isCertNoise && !/^\*{3,}|^-{3,}/.test(t)) out.licence.push(t.slice(0, 160))
+      }
     }
-    out.sections = [...new Set(out.sections)].slice(0, 60)
+
+    out.sections = [...new Set(out.sections)].slice(0, 80)
+    out.hotpatches.reverse()
+    out.diskAlerts = [...new Set(out.diskAlerts)].slice(0, 12)
+    out.rawSections = out.rawSections.filter(s => s.lines.length > 0)
     return out
   }
 
@@ -731,10 +1037,32 @@ export class BundleAggregator {
 
   private buildAuth(): BundleReport['auth'] {
     if (this.records === 0 && this.codes.size === 0) return null
-    const dims: Record<string, KeyCount[]> = {}
+
+    const dims: Record<string, DimEntry[]> = {}
     for (const [k, c] of Object.entries(this.dims)) {
-      dims[k] = c.top(k === 'endpoint' || k === 'user' ? 40 : 30)
+      dims[k] = c.top(k === 'endpoint' || k === 'user' ? 60 : 40)
     }
+
+    const topOf = (m: Map<string, Counter>, code: string): KeyCount | null =>
+      m.get(code)?.top(1)[0] ?? null
+
+    const failureDetail: FailureDetail[] = this.failureCodes.top(30).map(f => {
+      const nad = topOf(this.codeByNad, f.key)
+      const ep = topOf(this.codeByEndpoint, f.key)
+      const ssid = topOf(this.codeBySsid, f.key)
+      return {
+        code: f.key,
+        text: this.catalogue[f.key] ?? '',
+        count: f.count,
+        share: this.failed ? +(f.count / this.failed).toFixed(4) : 0,
+        topNad: nad?.key ?? null,
+        topNadCount: nad?.count ?? 0,
+        topEndpoint: ep?.key ?? null,
+        topEndpointCount: ep?.count ?? 0,
+        topSsid: ssid?.key ?? null,
+      }
+    })
+
     return {
       files: this.lsFiles,
       records: this.records, passed: this.passed, failed: this.failed,
@@ -743,7 +1071,10 @@ export class BundleAggregator {
       messageCodes: this.codes.top(50),
       failureCodes: this.failureCodes.top(30),
       dims,
-      failDims: Object.fromEntries(Object.entries(this.failDims).map(([k, c]) => [k, c.top(20)])),
+      failureDetail,
+      hourly: this.authHour.all()
+        .map(({ key, count }) => ({ hour: key, total: count, fail: this.authHourFail.get(key) }))
+        .sort((a, b) => a.hour.localeCompare(b.hour)),
       latency: {
         total: this.totalLatency.summary(),
         totalHistogram: this.totalLatency.histogram(),
@@ -825,7 +1156,28 @@ export class BundleAggregator {
       const oldTls = auth.dims.tlsVersion?.filter(v => /1\.0|1\.1|SSL/i.test(v.key)) ?? []
       if (oldTls.length) {
         add('medium', 'Endpoints are negotiating obsolete TLS versions',
-          oldTls.map(v => `${v.key}: ${num(v.count)}`).join(', ') + '.')
+          oldTls.map(v => `${v.key}: ${num(v.total)}`).join(', ') + '.')
+      }
+
+      // Concentration is the useful signal: a failure code spread evenly
+      // is a configuration story, one landing on a single device is not.
+      for (const f of auth.failureDetail.slice(0, 6)) {
+        if (f.count < 20 || !f.topNad) continue
+        const share = f.topNadCount / f.count
+        if (share < 0.6) continue
+        add('medium',
+          `Failure ${f.code} is concentrated on one device`,
+          `${num(f.topNadCount)} of ${num(f.count)} occurrences (${Math.round(share * 100)}%) came from ${f.topNad}. ` +
+          `${f.text || 'See the failure table for the full message.'}`)
+      }
+
+      // An endpoint failing far more than anything else is usually one
+      // broken supplicant rather than a fleet problem.
+      const worstEndpoint = [...(auth.dims.endpoint ?? [])]
+        .filter(e => e.fail > 0).sort((a, b) => b.fail - a.fail)[0]
+      if (worstEndpoint && worstEndpoint.fail >= 20 && worstEndpoint.fail / Math.max(auth.failed, 1) > 0.1) {
+        add('medium', `${worstEndpoint.key} accounts for ${Math.round(worstEndpoint.fail / auth.failed * 100)}% of all failures`,
+          `${num(worstEndpoint.fail)} failures out of ${num(worstEndpoint.total)} attempts from this one endpoint.`)
       }
     }
 
