@@ -269,12 +269,11 @@ backup-logs NAME repository REPO encryption-key plain YOURKEY</pre>
 }
 
 /**
- * Progress for a support bundle.
+ * Progress for a support bundle archive.
  *
- * The bar tracks bytes read from the ENCRYPTED file, which is the only
- * figure that is honest for the whole run — the decompressed size is
- * unknown until it has all been read, so a bar based on the archive
- * would sit near zero for minutes and then leap.
+ * The bar tracks bytes consumed from the file. Because the archive is
+ * already plaintext, that maps directly onto work done — no guessing at
+ * a decompressed size, and no long opening stretch where nothing moves.
  */
 function BundleProgress({ p, stage }: {
   p: { inBytes: number; inTotal: number; outBytes: number
@@ -319,8 +318,8 @@ function BundleProgress({ p, stage }: {
       )}
 
       <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
-        Decryption is the slow part and happens before any log is read, so the counters below
-        the bar stay at zero for the first stretch. That is expected, not a stall.
+        Only the logs worth reading are parsed; everything else in the archive is skipped as it
+        passes, which is why the megabytes climb faster than the line count.
       </p>
     </div>
   )
@@ -474,10 +473,10 @@ export default function IseReportAnalyser() {
   })
 
   /**
-   * Decrypt and read an encrypted support bundle in a Worker.
-   * The archive expands to gigabytes, so it is streamed: decrypt,
-   * walk the tar, parse only the logs that matter, discard the rest
-   * as it passes. Nothing is uploaded and nothing is written down.
+   * Read a support bundle archive in a Worker.
+   * A bundle is gigabytes, so it is streamed: walk the tar, parse only
+   * the logs that matter, discard the rest as it passes. Nothing is
+   * uploaded and nothing is written down.
    */
   const runBundle = useCallback((f: File) => new Promise<string | null>(resolve => {
     const worker = new Worker(new URL('./bundle-worker.ts', import.meta.url), { type: 'module' })

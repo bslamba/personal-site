@@ -63,7 +63,7 @@ export default function IseReportToolPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-600">
-            Drop in an encrypted support bundle or your CSV exports and press Analyse. Each is
+            Drop in a support bundle archive or your CSV exports and press Analyse. Each is
             recognised on its own and gets its own dashboard — drop several together and you get
             all of them, which is the point: a spike in failures at 11:40 reads very differently
             depending on whether node load spiked too, or OCSP was timing out.

@@ -22,16 +22,16 @@ const TOOLS = [
     status: 'Live',
     name: 'Cisco ISE Report Analyser',
     blurb:
-      'Drop in an encrypted support bundle with its shared key, or your RADIUS Authentications ' +
-      'and Key Performance Metrics exports, and get a full troubleshooting dashboard — failure ' +
-      'reasons with their ISE codes, where failures concentrate by site, device, node and ' +
-      'protocol, per-node throughput and latency, and runtime health with the noise separated ' +
-      'from the signal.',
+      'Drop in a support bundle archive, or your RADIUS Authentications and Key Performance ' +
+      'Metrics exports, and get a full troubleshooting dashboard — failure reasons with their ' +
+      'ISE codes, where failures concentrate by site, device, node and protocol, per-node ' +
+      'throughput and latency, and runtime health with the noise separated from the signal.',
     points: [
-      'Decrypts support bundles in the browser — nothing is uploaded',
+      'Reads every log in a bundle, every rotation, grouped by problem area',
       'All three input types detected automatically, on one page',
       'Ranks what stands out instead of leaving you to spot it',
       'Click anything to filter the whole dashboard to it',
+      'Runs entirely in your browser — nothing is uploaded',
     ],
   },
 ] as const
@@ -135,9 +135,9 @@ export default function ToolsPage() {
             <div className="flex flex-col justify-center border border-dashed border-ink-200 p-8">
               <span className="label text-ink-400">In progress</span>
               <p className="mt-4 text-base leading-relaxed text-ink-500">
-                A Key Performance Metrics analyser is next, alongside a certificate expiry
-                checker for ISE deployments. If there is something you keep doing by hand in a
-                spreadsheet, tell me and it might end up here.
+                A certificate expiry checker for ISE deployments is next, and an EAP-TLS
+                handshake decoder for packet captures. If there is something you keep doing by
+                hand in a spreadsheet, tell me and it might end up here.
               </p>
               <Link href="/#contact" className="mt-6 text-sm font-bold uppercase tracking-wider text-signal-500 hover:underline">
                 Suggest a tool →
