@@ -16,7 +16,7 @@
 // compile instead of failing quietly in the browser.
 // ============================================================
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 
 // ------------------------------------------------------------
 // formatting, shared by every tool
@@ -331,6 +331,43 @@ export const SERIES_COLOURS = [
   '#3A3A40', '#5C5C64', '#8A8A93', '#B5B5BC', '#D9D9DE',
 ]
 
+/**
+ * Twelve identities that stay distinct — including under the two
+ * common forms of colour blindness.
+ *
+ * The ramp above is right for ranked data, where the eye is meant
+ * to read order. It is wrong for nodes: `vcolofrnkf-psn02` is not
+ * "more" than `vcolochicg-psn01`, and five shades of the same red
+ * are indistinguishable once eleven of them share a legend.
+ *
+ * These are drawn from Paul Tol's vibrant, bright and muted
+ * schemes (SRON), which are built specifically so that no two
+ * colours collapse together in green-blind or red-blind vision —
+ * roughly one man in twelve. Vibrant leads because it was designed
+ * for screen data display; bright and muted fill out the set.
+ *
+ * Honest caveat: Tol designs and tests each scheme as a unit and
+ * recommends the discrete rainbow past nine colours. Mixing three
+ * schemes to reach twelve is my choice, not his, and the last few
+ * are the least separated. Node twelve onwards wraps and reuses.
+ */
+export const NODE_COLOURS = [
+  '#0077BB', // vibrant blue
+  '#EE3377', // vibrant magenta
+  '#009988', // vibrant teal
+  '#EE7733', // vibrant orange
+  '#33BBEE', // vibrant cyan
+  '#CC3311', // vibrant red
+  '#332288', // muted indigo
+  '#117733', // muted green
+  '#CCBB44', // bright yellow
+  '#AA3377', // bright purple
+  '#882255', // muted wine
+  '#999933', // muted olive
+]
+
+export const nodeColour = (i: number) => NODE_COLOURS[i % NODE_COLOURS.length]
+
 export interface Slice { label: string; value: number }
 
 /**
@@ -340,12 +377,14 @@ export interface Slice { label: string; value: number }
  * far less arithmetic, no rounding seams between segments, and
  * it animates cleanly if that is ever wanted.
  */
-export function Donut({ slices, total, centreLabel, centreValue, size = 168 }: {
+export function Donut({ slices, total, centreLabel, centreValue, size = 168,
+                       colours = SERIES_COLOURS }: {
   slices: Slice[]
   total?: number
   centreLabel?: string
   centreValue?: string
   size?: number
+  colours?: string[]
 }) {
   const sum = total ?? slices.reduce((a, s) => a + s.value, 0)
   if (!sum) return null
@@ -367,7 +406,7 @@ export function Donut({ slices, total, centreLabel, centreValue, size = 168 }: {
             <circle
               key={s.label}
               cx={size / 2} cy={size / 2} r={r} fill="none"
-              stroke={SERIES_COLOURS[i % SERIES_COLOURS.length]}
+              stroke={colours[i % colours.length]}
               strokeWidth={stroke}
               strokeDasharray={dash}
               strokeDashoffset={-offset}
@@ -394,8 +433,8 @@ export function Donut({ slices, total, centreLabel, centreValue, size = 168 }: {
       <ul className="min-w-0 flex-1 space-y-1.5">
         {slices.map((s, i) => (
           <li key={s.label} className="flex items-center gap-2 text-[11px]">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                  style={{ background: SERIES_COLOURS[i % SERIES_COLOURS.length] }} />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: colours[i % colours.length] }} />
             <span className="min-w-0 flex-1 truncate text-ink-700" title={s.label}>{s.label}</span>
             <span className="shrink-0 font-mono text-ink-500">{n(s.value)}</span>
             <span className="w-11 shrink-0 text-right font-mono text-ink-400">
@@ -421,12 +460,17 @@ export interface Series { label: string; values: (number | null)[] }
  * The exceptions stay legible; the rest still show the envelope
  * they sit inside.
  */
-export function MultiLine({ labels, series, unit = '', height = 240, emphasise }: {
+export function MultiLine({ labels, series, unit = '', height = 240, emphasise,
+                           colours = SERIES_COLOURS, colourOf }: {
   labels: string[]
   series: Series[]
   unit?: string
   height?: number
   emphasise?: string[]
+  colours?: string[]
+  /** Overrides `colours` — lets a caller keep one colour per node
+      across every chart on the page, rather than per chart. */
+  colourOf?: (label: string) => string
 }) {
   if (labels.length < 2 || series.length === 0) return null
 
@@ -471,7 +515,7 @@ export function MultiLine({ labels, series, unit = '', height = 240, emphasise }
         ))}
 
         {hot.map((s, si) => {
-          const colour = SERIES_COLOURS[si % SERIES_COLOURS.length]
+          const colour = colourOf ? colourOf(s.label) : colours[si % colours.length]
           return (
             <g key={s.label}>
               <path d={path(s)} fill="none" stroke={colour} strokeWidth="1.9"
@@ -491,8 +535,8 @@ export function MultiLine({ labels, series, unit = '', height = 240, emphasise }
       <ul className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1">
         {hot.map((s, i) => (
           <li key={s.label} className="flex items-center gap-1.5 text-[10.5px] text-ink-700">
-            <span className="h-1.5 w-4 rounded-sm"
-                  style={{ background: SERIES_COLOURS[i % SERIES_COLOURS.length] }} />
+            <span className="h-1.5 w-4 rounded-full"
+                  style={{ background: colourOf ? colourOf(s.label) : colours[i % colours.length] }} />
             {s.label}
           </li>
         ))}
@@ -560,6 +604,206 @@ export function Sparkline({ values, max, colour = '#D3002D', height = 34, showPe
               vectorEffect="non-scaling-stroke" />
       )}
     </svg>
+  )
+}
+
+// ------------------------------------------------------------
+// liquid gauge
+// ------------------------------------------------------------
+
+/**
+ * A percentage drawn as a sphere filling with liquid.
+ *
+ * Two sine waves drift across a circular clip at different speeds
+ * and in opposite directions, which is what stops the surface
+ * reading as a repeating loop. The waterline is the value; nothing
+ * else encodes it, so the number is printed over the top as well —
+ * a gauge that can only be read approximately is decoration, and
+ * "memory is somewhere near three quarters" is not a thing anyone
+ * can put in a change record.
+ *
+ * The path is 400 units wide across a 100-unit viewBox and shifts
+ * by exactly two wave periods, so the loop closes seamlessly
+ * instead of snapping back.
+ */
+export function LiquidGauge({
+  value, max = 100, colour = '#0077BB', size = 92, unit = '%', caption, alert = false,
+}: {
+  value: number
+  max?: number
+  colour?: string
+  size?: number
+  unit?: string
+  caption?: string
+  alert?: boolean
+}) {
+  // useId gives SSR-stable ids; the colons it contains are not
+  // valid in a url(#…) reference, hence the strip.
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
+  const frac = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0
+  const level = 100 - frac * 100
+
+  const wave = (amp: number) => {
+    let d = `M0,${level.toFixed(2)}`
+    for (let i = 0; i < 8; i++) d += ` q12.5,${-amp} 25,0 q12.5,${amp} 25,0`
+    return `${d} L400,112 L0,112 Z`
+  }
+
+  const shown = value >= 100 ? Math.round(value).toString()
+    : value >= 10 ? value.toFixed(0)
+    : value.toFixed(1)
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <svg width={size} height={size} viewBox="0 0 100 100" role="img"
+           aria-label={`${caption ?? 'Value'}: ${shown}${unit}`}>
+        <defs>
+          <clipPath id={`lgc${uid}`}><circle cx="50" cy="50" r="45" /></clipPath>
+          <radialGradient id={`lgg${uid}`} cx="34%" cy="26%" r="72%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.60" />
+            <stop offset="52%" stopColor="#FFFFFF" stopOpacity="0.05" />
+            <stop offset="100%" stopColor="#0B0B0F" stopOpacity="0.12" />
+          </radialGradient>
+        </defs>
+
+        <circle cx="50" cy="50" r="45" fill="#F2F2F5" />
+
+        <g clipPath={`url(#lgc${uid})`}>
+          <path className="isedash-wave isedash-wave-back" d={wave(2.4)}
+                fill={colour} opacity="0.30" />
+          <path className="isedash-wave isedash-wave-front" d={wave(3.2)}
+                fill={colour} opacity="0.82" />
+        </g>
+
+        {/* glass: specular highlight top-left, faint occlusion bottom-right */}
+        <circle cx="50" cy="50" r="45" fill={`url(#lgg${uid})`} />
+        <circle cx="50" cy="50" r="45" fill="none" strokeWidth="1.6"
+                stroke={alert ? '#CC3311' : colour} strokeOpacity={alert ? 0.85 : 0.35} />
+
+        {/* white stroke under the glyphs so the number stays legible
+            whether it lands on liquid or on empty sphere */}
+        <text x="50" y="52" textAnchor="middle" dominantBaseline="middle"
+              fontSize="26" fontWeight="700" fill="#17171A"
+              stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke"
+              style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {shown}
+        </text>
+        <text x="50" y="73" textAnchor="middle" fontSize="11" fontWeight="700"
+              fill="#5C5C64" stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke">
+          {unit}
+        </text>
+      </svg>
+
+      {caption && (
+        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-ink-400">
+          {caption}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ------------------------------------------------------------
+// the widget style layer
+// ------------------------------------------------------------
+
+/**
+ * Rendered once per page. Holds the keyframes the gauges need and
+ * the surface treatments, because keyframes cannot be scoped to a
+ * component with inline styles and Tailwind has no vocabulary for
+ * backdrop layers of this kind.
+ *
+ * The background is a blueprint grid at four percent — present
+ * enough to read as instrumentation, far too faint to compete with
+ * a number sitting on top of it. That restraint is the whole
+ * design constraint: a dashboard that is hard to read is a failed
+ * dashboard however good it looks in a screenshot.
+ */
+export function WidgetStyles() {
+  return (
+    <style>{`
+      @keyframes isedash-drift {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-100px); }
+      }
+      .isedash-wave { animation: isedash-drift 7s linear infinite; }
+      .isedash-wave-back { animation-duration: 11.5s; animation-direction: reverse; }
+
+      /*
+        Opacity only, deliberately. An entrance that also animated
+        transform would need fill-mode: both to avoid a flash, and a
+        filled animation keeps 'transform: none' applied forever —
+        animated values outrank normal declarations in the cascade,
+        so the hover lift below would silently stop working.
+      */
+      @keyframes isedash-rise { from { opacity: 0; } to { opacity: 1; } }
+      .isedash-rise { animation: isedash-rise .4s ease both; }
+
+      /* the instrument surface */
+      .isedash-canvas {
+        position: relative;
+        background-color: #FAFAFB;
+        background-image:
+          linear-gradient(rgba(23,23,26,.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(23,23,26,.045) 1px, transparent 1px),
+          radial-gradient(58rem 28rem at 12% -8%, rgba(0,119,187,.11), transparent 62%),
+          radial-gradient(46rem 24rem at 96% 2%, rgba(238,51,119,.09), transparent 62%),
+          radial-gradient(40rem 22rem at 60% 108%, rgba(0,153,136,.08), transparent 62%);
+        background-size: 26px 26px, 26px 26px, 100% 100%, 100% 100%, 100% 100%;
+      }
+
+      /* the widget itself: translucent, layered, liftable */
+      .isedash-card {
+        position: relative;
+        border-radius: 16px;
+        background: rgba(255,255,255,.74);
+        /* 10px, not 24 — a page can hold forty of these cards and
+           each blurred layer is composited every scroll frame. The
+           backdrop is a faint grid, so past about ten pixels the
+           extra radius costs GPU time for no visible difference. */
+        -webkit-backdrop-filter: blur(10px) saturate(1.5);
+        backdrop-filter: blur(10px) saturate(1.5);
+        border: 1px solid rgba(23,23,26,.075);
+        box-shadow:
+          0 1px 1px rgba(23,23,26,.04),
+          0 10px 26px -14px rgba(23,23,26,.20),
+          inset 0 1px 0 rgba(255,255,255,.75);
+        transition: transform .18s ease, box-shadow .18s ease;
+      }
+      .isedash-card:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 2px 3px rgba(23,23,26,.05),
+          0 20px 44px -18px rgba(23,23,26,.30),
+          inset 0 1px 0 rgba(255,255,255,.85);
+      }
+      /* the accent hairline that identifies a card at a glance */
+      .isedash-card::before {
+        content: '';
+        position: absolute; inset: 0 0 auto 0; height: 3px;
+        border-radius: 16px 16px 0 0;
+        background: linear-gradient(90deg, var(--accent, #0077BB), transparent 78%);
+        opacity: .9;
+      }
+
+      .isedash-inset {
+        border-radius: 12px;
+        background: rgba(23,23,26,.028);
+        box-shadow: inset 0 1px 2px rgba(23,23,26,.05);
+      }
+
+      .isedash-row {
+        border-radius: 10px;
+        transition: background .15s ease, transform .15s ease;
+      }
+      .isedash-row:hover { background: rgba(23,23,26,.035); transform: translateX(2px); }
+
+      @media (prefers-reduced-motion: reduce) {
+        .isedash-wave, .isedash-rise { animation: none !important; }
+        .isedash-card, .isedash-row { transition: none; }
+        .isedash-card:hover, .isedash-row:hover { transform: none; }
+      }
+    `}</style>
   )
 }
 
