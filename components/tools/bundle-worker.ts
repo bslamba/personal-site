@@ -1,22 +1,28 @@
 // ============================================================
 // components/tools/bundle-worker.ts
 //
-// Opens an encrypted Cisco ISE support bundle inside the browser.
+// Reads a Cisco ISE support bundle archive and produces a report.
 //
-//   .tar.gpg  →  OpenPGP symmetric decrypt  →  streaming tar
-//             →  line-by-line parse of the files we care about
-//             →  a few hundred KB of report
+//   .tar  →  streaming tar walk  →  line-by-line parse of the
+//            logs that matter  →  a few hundred KB of summary
 //
-// It runs in a Web Worker because a bundle expands to a couple of
-// gigabytes and decrypting that on the main thread would freeze
-// the tab for minutes.
+// It runs in a Web Worker because a bundle is a couple of
+// gigabytes and doing this on the main thread would freeze the
+// tab. Nothing is written to disk and nothing leaves the machine.
 //
-// Nothing is written to disk and nothing leaves the machine. The
-// passphrase exists only as a local variable for the duration of
-// the decrypt.
+// WHY THERE IS NO DECRYPTION HERE
+// An earlier version decrypted .tar.gpg in the browser with
+// OpenPGP.js. It was measured at roughly 6 KB/s — about two and a
+// half hours for a 344MB bundle. The cause is structural rather
+// than fixable: OpenPGP must run AES-CFB, the Web Crypto API does
+// not implement CFB, so the cipher falls back to JavaScript and
+// then feeds a two-gigabyte decompression stream.
+//
+// gpg on the user's own machine does the same work with native
+// code in about fifteen seconds, so decryption belongs there. The
+// page asks for a decrypted .tar and skips straight to parsing.
 // ============================================================
 
-import * as openpgp from 'openpgp'
 import { TarReader, LineSplitter } from '@/lib/tools/tar'
 import { BundleAggregator } from '@/lib/tools/bundle-analyse'
 import { specFor } from '@/lib/tools/bundle-registry'
@@ -24,13 +30,9 @@ import type { WorkerOut } from '@/lib/tools/bundle-types'
 
 const post = (m: WorkerOut) => self.postMessage(m)
 
-self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includeBulk: boolean }>) => {
-  const { file, passphrase, includeBulk } = e.data
+self.onmessage = async (e: MessageEvent<{ file: File; includeBulk: boolean }>) => {
+  const { file, includeBulk } = e.data
 
-  // Progress is measured on the ENCRYPTED input rather than on anything
-  // downstream. It is the only number that is honest end to end: the
-  // archive's decompressed size is unknown until it has been read, so a
-  // bar based on output would lie for the first few minutes.
   let inBytes = 0
   let outBytes = 0
   let currentEntry: string | null = null
@@ -43,15 +45,15 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includ
       inBytes, inTotal: file.size, outBytes,
       entry: currentEntry, files: filesParsed, lines: linesParsed,
     })
-  }, 400)
+  }, 300)
 
   try {
     post({ type: 'stage', stage: 'Reading the archive' })
 
-    // The counting stage is what drives the progress bar. It measures the
-    // file as it is consumed, which is the only figure that is honest for
-    // the whole run — the decompressed size is unknown until the end.
-    const counted = (file.stream() as unknown as ReadableStream<Uint8Array>)
+    // Counting the input drives the progress bar. Because the archive is
+    // already plaintext, bytes consumed maps directly onto work done —
+    // no guessing at a decompressed size.
+    const stream = (file.stream() as unknown as ReadableStream<Uint8Array>)
       .pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
           inBytes += chunk.byteLength
@@ -59,60 +61,9 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includ
         },
       }))
 
-    // ---------- decrypt, unless it is already a plain tar ----------
-    // An unencrypted .tar skips OpenPGP entirely. That matters: decryption
-    // is by far the slowest step here, because it runs AES-CFB in
-    // JavaScript — WebCrypto has no CFB implementation to hand off to.
-    // Decrypting with gpg first and dropping the .tar in is several times
-    // faster overall, for exactly this reason.
-    let plaintext: ReadableStream<Uint8Array>
-    const alreadyPlain = /\.tar$/i.test(file.name) && !/\.(gpg|pgp)$/i.test(file.name)
-
-    if (alreadyPlain) {
-      post({ type: 'stage', stage: 'Reading logs' })
-      plaintext = counted
-    } else {
-      const message = await openpgp.readMessage({ binaryMessage: counted })
-
-      post({ type: 'stage', stage: 'Decrypting' })
-
-      let decrypted
-      try {
-        decrypted = await openpgp.decrypt({
-          message,
-          passwords: [passphrase],
-          format: 'binary',
-          config: {
-            // The integrity check happens at the end of the stream.
-            // Allowing data through as it arrives is what makes this
-            // streaming rather than a 2GB buffer; a corrupt archive
-            // still throws at the end.
-            allowUnauthenticatedStream: true,
-          },
-        })
-      } catch (err) {
-        clearInterval(ticker)
-        const msg = String(err instanceof Error ? err.message : err)
-        if (/passphrase|password|decrypt|session key/i.test(msg)) {
-          post({ type: 'error', message: 'That key did not open the bundle. Check the shared key you set when creating it. If the filename contains "-pk-" it is public-key encrypted and only Cisco TAC can open it.' })
-        } else {
-          post({ type: 'error', message: `Could not decrypt: ${msg}` })
-        }
-        return
-      }
-
-      plaintext = decrypted.data as unknown as ReadableStream<Uint8Array>
-    }
-
-    // ---------- walk the archive ----------
-    post({ type: 'stage', stage: 'Reading files from the archive' })
-
-    if (!alreadyPlain) post({ type: 'stage', stage: 'Reading logs' })
-
     const started = Date.now()
     const agg = new BundleAggregator()
-    const tar = new TarReader(plaintext)
-
+    const tar = new TarReader(stream)
     let entries = 0
 
     // One callback reused across every file — allocating a closure per
@@ -160,12 +111,18 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includ
 
     if (entries === 0) {
       clearInterval(ticker)
-      post({ type: 'error', message: 'The archive decrypted but contained no files. It may not be a tar archive.' })
+      post({
+        type: 'error',
+        message: 'No files were found inside this archive. If the name ends in .gpg it is still encrypted — decrypt it first with: gpg --output bundle.tar --decrypt yourbundle.tar.gpg',
+      })
       return
     }
     if (agg.filesRead.length === 0) {
       clearInterval(ticker)
-      post({ type: 'error', message: `Decrypted ${entries} files, but none of the expected ISE logs were present. Is this a Cisco ISE support bundle?` })
+      post({
+        type: 'error',
+        message: `Read ${entries} files, but none of the expected ISE logs were present. Is this a Cisco ISE support bundle?`,
+      })
       return
     }
 
@@ -175,9 +132,12 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string; includ
     post({ type: 'done', report })
   } catch (err) {
     clearInterval(ticker)
+    const msg = err instanceof Error ? err.message : 'The archive could not be read.'
     post({
       type: 'error',
-      message: err instanceof Error ? err.message : 'The bundle could not be read.',
+      message: /invalid|unexpected|corrupt/i.test(msg)
+        ? `${msg} — if this file is still encrypted, decrypt it first with: gpg --output bundle.tar --decrypt yourbundle.tar.gpg`
+        : msg,
     })
   } finally {
     clearInterval(ticker)

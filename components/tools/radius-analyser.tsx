@@ -191,6 +191,84 @@ function Timeline({ analysis, bucketChoice, onBucketChange }: {
 }
 
 /**
+ * Shown when someone drops a .tar.gpg.
+ *
+ * The page used to decrypt these itself. It was measured at roughly
+ * 6 KB/s — two and a half hours for a 344MB bundle — because OpenPGP
+ * needs AES-CFB, the Web Crypto API has no CFB implementation, and so
+ * the cipher runs in JavaScript ahead of a two-gigabyte decompression
+ * stream. It is a structural limit, not a tuning problem. gpg does the
+ * same work natively in about fifteen seconds.
+ */
+function DecryptFirst({ name }: { name: string }) {
+  const [copied, setCopied] = useState(false)
+  const isPublicKey = /-pk-/i.test(name)
+  const command = `gpg --output bundle.tar --decrypt "${name}"`
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard blocked — the command is visible anyway */ }
+  }
+
+  if (isPublicKey) {
+    return (
+      <div className="mx-auto mt-5 max-w-xl border-l-2 border-signal-500 bg-signal-50 p-4 text-left">
+        <p className="text-sm font-bold text-signal-700">This bundle cannot be opened by anyone but Cisco</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-signal-700">
+          The <span className="font-mono">-pk-</span> in the filename means public-key
+          encryption, which encrypts the bundle to Cisco&apos;s own key. Only Cisco TAC holds the
+          matching private key. No tool, here or on your machine, will decrypt it.
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-signal-700">
+          Regenerate it with <strong>Shared Key</strong> encryption instead — under Operations →
+          Troubleshooting → Download Logs, or from the CLI:
+        </p>
+        <pre className="mt-2 overflow-x-auto bg-paper p-2 font-mono text-[11px] text-ink-800">
+backup-logs NAME repository REPO encryption-key plain YOURKEY</pre>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto mt-5 max-w-xl border border-ink-200 bg-paper p-4 text-left">
+      <p className="text-sm font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
+        Decrypt this one first
+      </p>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-ink-600">
+        This page reads the archive, not the encryption. Run the command below — it takes about
+        fifteen seconds using your machine&apos;s native crypto, and will ask for the shared key
+        you set when creating the bundle. Then drop the resulting{' '}
+        <span className="font-mono">bundle.tar</span> here.
+      </p>
+
+      <div className="mt-3 flex items-stretch gap-2">
+        <pre className="flex-1 overflow-x-auto border border-ink-200 bg-paper-dim p-2.5 font-mono text-[11px] text-ink-800">
+{command}</pre>
+        <button onClick={copy}
+                className="shrink-0 border border-ink-200 px-3 text-[10px] font-bold uppercase tracking-wider text-ink-500 hover:border-signal-500 hover:text-signal-500">
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-ink-400">
+        No <span className="font-mono">gpg</span> yet? macOS:{' '}
+        <span className="font-mono">brew install gnupg</span>. Windows: install Gpg4win. Linux:
+        usually already there. Use <span className="font-mono">--output</span> rather than a{' '}
+        <span className="font-mono">&gt;</span> redirect — PowerShell writes redirected output as
+        UTF-16 and silently corrupts the archive.
+      </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+        The decrypted archive will be a few gigabytes. Delete it when you are done; the analysis
+        lives in this tab, not in the file.
+      </p>
+    </div>
+  )
+}
+
+/**
  * Progress for a support bundle.
  *
  * The bar tracks bytes read from the ENCRYPTED file, which is the only
@@ -284,7 +362,6 @@ export default function IseReportAnalyser() {
   const [filters, setFilters] = useState<Filter[]>([])
   const [bucketChoice, setBucketChoice] = useState(0)
   const [detail, setDetail] = useState<PanelData | null>(null)
-  const [passphrase, setPassphrase] = useState('')
   const [stage, setStage] = useState('')
   const [includeBulk, setIncludeBulk] = useState(false)
   const [bundleProgress, setBundleProgress] = useState<{
@@ -430,8 +507,8 @@ export default function IseReportAnalyser() {
       resolve(`${f.name} — ${err.message || 'the worker failed'}`)
     }
 
-    worker.postMessage({ file: f, passphrase, includeBulk })
-  }), [passphrase, includeBulk])
+    worker.postMessage({ file: f, includeBulk })
+  }), [includeBulk])
 
   const run = useCallback(async () => {
     if (files.length === 0) return
@@ -451,11 +528,13 @@ export default function IseReportAnalyser() {
       // the bottleneck is the aggregation, not the disk.
       for (const f of files) {
         setNowReading(f.name)
-        const note = /\.(gpg|pgp|tar)$/i.test(f.name)
-          ? await runBundle(f)
-          : /\.json$/i.test(f.name)
-            ? await parseBundleJson(f)
-            : await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
+        const note = /\.(gpg|pgp)$/i.test(f.name)
+          ? `${f.name} — still encrypted. Decrypt it first, then drop the .tar here.`
+          : /\.tar$/i.test(f.name)
+            ? await runBundle(f)
+            : /\.json$/i.test(f.name)
+              ? await parseBundleJson(f)
+              : await parseOne(f, radius, kpmBuilder, doneBytes, totalBytes)
         if (note) notes.push(note)
         doneBytes += f.size
         if (totalBytes) setProgress(Math.min(99, (doneBytes / totalBytes) * 100))
@@ -569,11 +648,10 @@ export default function IseReportAnalyser() {
             Drop your ISE files here
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
-            An encrypted <strong>support bundle</strong> (.tar.gpg), or the{' '}
+            A decrypted <strong>support bundle</strong> (.tar), or the{' '}
             <strong>RADIUS Authentications</strong> and <strong>Key Performance Metrics</strong>{' '}
             CSV exports. Add as many as you like — each is detected automatically and merged
-            into one dashboard. Everything is read in this browser: the bundle is decrypted
-            here, nothing is uploaded, and the key is never stored.
+            into one dashboard. Everything is read in this browser and nothing is uploaded.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -584,71 +662,41 @@ export default function IseReportAnalyser() {
                      onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
             </label>
             <button onClick={run}
-                    disabled={files.length === 0 || phase === 'reading' || (needsKey && !passphrase)}
+                    disabled={files.length === 0 || phase === 'reading'}
                     className="btn-signal disabled:cursor-not-allowed disabled:opacity-40">
               {phase === 'reading'
                 ? 'Analysing…'
                 : files.length > 1 ? `Analyse ${files.length} files` : 'Analyse'}
             </button>
             {files.length > 0 && phase !== 'reading' && (
-              <button onClick={() => { setFiles([]); setPassphrase(''); reset() }}
+              <button onClick={() => { setFiles([]); reset() }}
                       className="text-xs font-bold uppercase tracking-wider text-ink-400 hover:text-signal-500">
                 Clear
               </button>
             )}
           </div>
 
-          {/* ---------- shared key, only when an encrypted bundle is present ---------- */}
-          {needsKey && (
-            <div className="mx-auto mt-5 max-w-md text-left">
-              <label className="block">
-                <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-500">
-                  Shared key for the bundle
-                </span>
-                <input
-                  type="password"
-                  value={passphrase}
-                  onChange={e => setPassphrase(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && passphrase) run() }}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="the key you set when creating the bundle"
-                  className="mt-1.5 w-full border border-ink-200 bg-paper px-3 py-2 font-mono text-sm text-ink-900 outline-none focus:border-signal-500"
-                />
-              </label>
-              <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
-                Used to decrypt in this tab and then discarded — it is never sent anywhere and
-                never stored. A filename containing <span className="font-mono">-pk-</span> is
-                public-key encrypted and can only be opened by Cisco TAC.
-              </p>
+          {/* ---------- an encrypted bundle needs decrypting first ---------- */}
+          {needsKey && <DecryptFirst name={files.find(f => /\.(gpg|pgp)$/i.test(f.name))!.name} />}
 
-              <p className="mt-2 border-l-2 border-ink-200 pl-2 text-[11px] leading-relaxed text-ink-400">
-                <strong className="text-ink-600">Want it several times faster?</strong> Decryption
-                is the slow step, because AES-CFB has to run in JavaScript. Decrypt it once with{' '}
-                <span className="font-mono">gpg -d bundle.tar.gpg &gt; bundle.tar</span> — about
-                fifteen seconds using your Mac&apos;s native crypto — then drop the{' '}
-                <span className="font-mono">.tar</span> here instead. This page reads a plain
-                archive directly and skips straight to parsing.
-              </p>
-
-              <label className="mt-3 flex cursor-pointer items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={includeBulk}
-                  onChange={e => setIncludeBulk(e.target.checked)}
-                  className="mt-0.5 accent-[#D3002D]"
-                />
-                <span className="text-[11px] leading-relaxed text-ink-500">
-                  Also read the message-bus and GC logs.{' '}
-                  <span className="text-ink-400">
-                    Off by default: <span className="font-mono">ise-messaging</span> alone is
-                    around 600MB across ten rotations, and roughly doubles the time to a result.
-                    The one thing it reports — publishes failing — already shows up in
-                    prrt-server.log.
-                  </span>
+          {/* ---------- bulk log toggle, for archives ---------- */}
+          {files.some(f => /\.tar$/i.test(f.name)) && (
+            <label className="mx-auto mt-5 flex max-w-md cursor-pointer items-start gap-2 text-left">
+              <input
+                type="checkbox"
+                checked={includeBulk}
+                onChange={e => setIncludeBulk(e.target.checked)}
+                className="mt-0.5 accent-[#D3002D]"
+              />
+              <span className="text-[11px] leading-relaxed text-ink-500">
+                Also read the message-bus and GC logs.{' '}
+                <span className="text-ink-400">
+                  Off by default: <span className="font-mono">ise-messaging</span> alone is around
+                  600MB across ten rotations. The one thing it reports — publishes failing —
+                  already shows up in prrt-server.log.
                 </span>
-              </label>
-            </div>
+              </span>
+            </label>
           )}
 
           {files.length > 0 && (
