@@ -680,7 +680,10 @@ export default function IseReportAnalyser() {
 
   if (phase !== 'ready' || (!analysis && !kpm && !bundle && !sessions && !dashboard)) {
     return (
-      <div className="container-page py-12">
+      <div className="lg-canvas container-page py-12">
+        {/* The idle state needs the stylesheet too — it is what
+            defines .lg-dark on the section wrapping this. */}
+        <WidgetStyles />
         <div
           ref={dropRef}
           onDragOver={e => { e.preventDefault(); dropRef.current?.classList.add('drop-live') }}
@@ -690,7 +693,7 @@ export default function IseReportAnalyser() {
             dropRef.current?.classList.remove('drop-live')
             addFiles(e.dataTransfer.files)
           }}
-          className="tool-drop border-2 border-dashed border-ink-200 bg-paper p-8 text-center transition-colors"
+          className="tool-drop rounded-3xl border-2 border-dashed border-white/20 p-8 text-center transition-colors"
         >
           <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
             Drop your ISE files here

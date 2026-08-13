@@ -118,13 +118,13 @@ export function Row({ row, columns, dense }: {
           <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[12px]"
                 style={{
                   width: `${Math.min(100, row.bar * 100)}%`,
-                  background: 'linear-gradient(90deg, rgba(120,100,80,.13), rgba(120,100,80,.02))',
+                  background: 'linear-gradient(90deg, rgba(255,255,255,.13), rgba(255,255,255,.02))',
                 }} aria-hidden="true" />
           {row.barFail !== undefined && row.barFail > 0 && (
             <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[12px]"
                   style={{
                     width: `${Math.min(100, row.bar * row.barFail * 100)}%`,
-                    background: 'linear-gradient(90deg, rgba(204,51,17,.22), rgba(204,51,17,.04))',
+                    background: 'linear-gradient(90deg, rgba(255,143,163,.30), rgba(255,143,163,.05))',
                   }} aria-hidden="true" />
           )}
         </>
@@ -175,7 +175,7 @@ export function Panel({ data, onExpand, accent = '#0077BB' }: {
     <section className="lg-card lg-rise flex flex-col p-3"
              style={{ '--accent': accent } as React.CSSProperties}>
       <header className="px-1 pb-2 pt-0.5">
-        <h3 className="text-[13px] font-bold leading-tight text-ink-950"
+        <h3 className="lg-title text-[13px] font-bold leading-tight"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
           {data.title}
         </h3>
@@ -325,9 +325,9 @@ export function DetailView({ data, onClose, accent = '#0077BB' }: {
 export function Kpi({ label, value, sub, tone = 'ink' }: {
   label: string; value: string; sub?: string; tone?: 'ink' | 'red' | 'green'
 }) {
-  const colour = tone === 'red' ? 'text-[#CC3311]'
-    : tone === 'green' ? 'text-[#0F7B4F]' : 'text-ink-950'
-  const accent = tone === 'red' ? '#CC3311' : tone === 'green' ? '#009988' : '#5C5C64'
+  const colour = tone === 'red' ? 'text-[#FF8FA3]'
+    : tone === 'green' ? 'text-[#7FE3C4]' : 'text-[#F0F2F7]'
+  const accent = tone === 'red' ? '#FF8FA3' : tone === 'green' ? '#7FE3C4' : '#A8BEFF'
   return (
     <div className="lg-card lg-rise px-3 py-2.5"
          style={{ '--accent': accent } as React.CSSProperties}>
@@ -355,9 +355,14 @@ export function Kpi({ label, value, sub, tone = 'ink' }: {
  * categorical colour should still read as one design, and the
  * eye ranks these in order, which suits ranked data.
  */
+/**
+ * A ranked ramp for a dark surface: warm and bright at the top,
+ * cooling and dimming down the list. Every value is light, because
+ * on a near-black ground a dark swatch is not "low", it is absent.
+ */
 export const SERIES_COLOURS = [
-  '#D3002D', '#F5384F', '#FF6B80', '#B80027', '#7A0019',
-  '#3A3A40', '#5C5C64', '#8A8A93', '#B5B5BC', '#D9D9DE',
+  '#FF8FA3', '#FFA98F', '#FFC48E', '#FFDD9B', '#E9E3AE',
+  '#C9CEDA', '#AAB1BF', '#8C94A4', '#727A8B', '#5B6373',
 ]
 
 /**
@@ -381,21 +386,44 @@ export const SERIES_COLOURS = [
  * are the least separated. Node twelve onwards wraps and reuses.
  */
 export const NODE_COLOURS = [
-  '#0077BB', // vibrant blue
-  '#EE3377', // vibrant magenta
-  '#009988', // vibrant teal
-  '#EE7733', // vibrant orange
-  '#33BBEE', // vibrant cyan
-  '#CC3311', // vibrant red
-  '#332288', // muted indigo
-  '#117733', // muted green
-  '#CCBB44', // bright yellow
-  '#AA3377', // bright purple
-  '#882255', // muted wine
-  '#999933', // muted olive
+  '#7CC7F5', // sky
+  '#7FE3C4', // mint
+  '#FFD98E', // sand
+  '#FF9FB2', // rose
+  '#C4B5FD', // lilac
+  '#A7E08A', // leaf
+  '#FFB37A', // peach
+  '#8FE6E6', // aqua
+  '#F0A6DC', // orchid
+  '#D7DC94', // olive
+  '#A8BEFF', // periwinkle
+  '#FF9E8A', // coral
 ]
 
 export const nodeColour = (i: number) => NODE_COLOURS[i % NODE_COLOURS.length]
+
+/** Light reds for the two alert levels, legible on the dark ground. */
+export const ALERT_HIGH = '#FF8FA3'
+export const ALERT_MED = '#FFB37A'
+export const DIM = '#8A93A6'
+
+/**
+ * Rotates the palette by a random amount, once, after mount.
+ *
+ * The point is that the deck deals differently each time the
+ * dashboard loads, so no node is permanently "the blue one" in the
+ * reader's head across sessions. It must not run during render:
+ * a random value on the server will not match the client's and
+ * React will throw a hydration mismatch. Starting at zero and
+ * shifting in an effect keeps the first paint deterministic.
+ */
+export function useInkRotation() {
+  const [offset, setOffset] = useState(0)
+  useEffect(() => {
+    setOffset(Math.floor(Math.random() * NODE_COLOURS.length))
+  }, [])
+  return (i: number) => NODE_COLOURS[(i + offset) % NODE_COLOURS.length]
+}
 
 export interface Slice { label: string; value: number }
 
@@ -427,7 +455,8 @@ export function Donut({ slices, total, centreLabel, centreValue, size = 168,
     <div className="flex items-center gap-4">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0"
            role="img" aria-label={centreLabel ?? 'Breakdown'}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ECECEF" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+                stroke="rgba(255,255,255,.09)" strokeWidth={stroke} />
         {slices.map((s, i) => {
           const frac = s.value / sum
           const dash = `${c * frac} ${c * (1 - frac)}`
@@ -530,8 +559,8 @@ export function MultiLine({ labels, series, unit = '', height = 240, emphasise,
         {[0, 0.25, 0.5, 0.75, 1].map(f => (
           <g key={f}>
             <line x1={padL} x2={W - padR} y1={padT + ih * f} y2={padT + ih * f}
-                  stroke="#ECECEF" strokeWidth="1" />
-            <text x={padL - 7} y={padT + ih * f + 3.5} textAnchor="end" fontSize="9" fill="#B5B5BC">
+                  stroke="rgba(255,255,255,.08)" strokeWidth="1" />
+            <text x={padL - 7} y={padT + ih * f + 3.5} textAnchor="end" fontSize="9" fill="#838B9C">
               {Math.round(max * (1 - f))}
             </text>
           </g>
@@ -539,7 +568,7 @@ export function MultiLine({ labels, series, unit = '', height = 240, emphasise,
 
         {/* context first, so the highlighted lines sit on top */}
         {cold.map(s => (
-          <path key={s.label} d={path(s)} fill="none" stroke="#D9D9DE" strokeWidth="1"
+          <path key={s.label} d={path(s)} fill="none" stroke="rgba(255,255,255,.22)" strokeWidth="1"
                 strokeLinejoin="round" />
         ))}
 
@@ -557,7 +586,7 @@ export function MultiLine({ labels, series, unit = '', height = 240, emphasise,
         })}
 
         {labels.map((l, i) => i % step === 0 || i === labels.length - 1 ? (
-          <text key={i} x={x(i)} y={H - 7} textAnchor="middle" fontSize="9" fill="#8A8A93">{l}</text>
+          <text key={i} x={x(i)} y={H - 7} textAnchor="middle" fontSize="9" fill="#838B9C">{l}</text>
         ) : null)}
       </svg>
 
@@ -571,7 +600,7 @@ export function MultiLine({ labels, series, unit = '', height = 240, emphasise,
         ))}
         {cold.length > 0 && (
           <li className="flex items-center gap-1.5 text-[10.5px] text-ink-400">
-            <span className="h-1.5 w-4 rounded-sm bg-ink-200" />
+            <span className="h-1.5 w-4 rounded-full" style={{ background: 'rgba(255,255,255,.22)' }} />
             {cold.length} other node{cold.length === 1 ? '' : 's'}
           </li>
         )}
@@ -616,7 +645,7 @@ export function Sparkline({ values, max, colour = '#D3002D', height = 34, showPe
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
          className="w-full" style={{ height }} aria-hidden="true">
-      <path d={area} fill={colour} opacity="0.10" />
+      <path d={area} fill={colour} opacity="0.20" />
       <path d={line} fill="none" stroke={colour} strokeWidth="1.4"
             vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       {/*
@@ -689,15 +718,18 @@ export function LiquidGauge({
         <defs>
           <clipPath id={`lgc${uid}`}><circle cx="50" cy="50" r="45" /></clipPath>
           <radialGradient id={`lgg${uid}`} cx="34%" cy="26%" r="72%">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.60" />
-            <stop offset="52%" stopColor="#FFFFFF" stopOpacity="0.05" />
-            <stop offset="100%" stopColor="#0B0B0F" stopOpacity="0.12" />
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.20" />
+            <stop offset="52%" stopColor="#FFFFFF" stopOpacity="0.03" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0.28" />
           </radialGradient>
         </defs>
 
-        {/* the empty part of the sphere: a warm translucent well,
-            not grey — grey on cream reads as a hole */}
-        <circle cx="50" cy="50" r="45" fill="#7A6448" fillOpacity="0.07" />
+        {/* the empty part of the sphere: a well cut into the dark
+            ground, so an empty gauge reads as unfilled rather than
+            as a bright disc waiting to be filled */}
+        <circle cx="50" cy="50" r="45" fill="#000000" fillOpacity="0.28" />
+        <circle cx="50" cy="50" r="45" fill="none"
+                stroke="rgba(255,255,255,.10)" strokeWidth="1" />
 
         <g clipPath={`url(#lgc${uid})`}>
           <path className="lg-wave lg-wave-back" d={wave(2.4)}
@@ -709,18 +741,21 @@ export function LiquidGauge({
         {/* glass: specular highlight top-left, faint occlusion bottom-right */}
         <circle cx="50" cy="50" r="45" fill={`url(#lgg${uid})`} />
         <circle cx="50" cy="50" r="45" fill="none" strokeWidth="1.6"
-                stroke={alert ? '#CC3311' : colour} strokeOpacity={alert ? 0.85 : 0.35} />
+                stroke={alert ? ALERT_HIGH : colour} strokeOpacity={alert ? 0.9 : 0.45} />
 
-        {/* white stroke under the glyphs so the number stays legible
-            whether it lands on liquid or on empty sphere */}
+        {/* A dark stroke under the glyphs, not a white one. The
+            number has to survive landing on lit liquid at the
+            bottom of the sphere and on near-black emptiness at the
+            top, so it is drawn light with a dark halo — the
+            opposite of the light-theme version. */}
         <text x="50" y="52" textAnchor="middle" dominantBaseline="middle"
-              fontSize="26" fontWeight="700" fill="#17171A"
-              stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke"
+              fontSize="26" fontWeight="700" fill="#FFFFFF"
+              stroke="rgba(6,7,11,.85)" strokeWidth="4" paintOrder="stroke"
               style={{ fontVariantNumeric: 'tabular-nums' }}>
           {shown}
         </text>
         <text x="50" y="73" textAnchor="middle" fontSize="11" fontWeight="700"
-              fill="#5C5C64" stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke">
+              fill="#C6CCD8" stroke="rgba(6,7,11,.85)" strokeWidth="3" paintOrder="stroke">
           {unit}
         </text>
       </svg>
@@ -788,112 +823,70 @@ export function WidgetStyles() {
       @keyframes lg-fade { from { opacity: 0; } to { opacity: 1; } }
       .lg-rise { animation: lg-fade .42s ease both; }
 
-      /* ---- the canvas ----
-         Transparent on purpose: the dashboard sits directly on the
-         page's own cream, with no seam where one surface meets
-         another. All it adds is the colour the glass needs
-         something to refract. */
-      .lg-canvas {
-        position: relative;
-        isolation: isolate;
-        background: transparent;
-      }
-      .lg-canvas::before {
-        content: '';
-        position: absolute;
-        /* Bleeds vertically but never horizontally: a negative
-           inline inset on a centred container pushes past the
-           viewport on narrow screens and produces a horizontal
-           scrollbar that is very hard to trace back to a glow. */
-        inset: -6rem 0;
-        z-index: -1;
-        pointer-events: none;
-        background:
-          radial-gradient(34rem 24rem at  6%  2%, rgba(0,119,187,.26),  transparent 62%),
-          radial-gradient(30rem 22rem at 94%  7%, rgba(238,51,119,.20), transparent 62%),
-          radial-gradient(27rem 20rem at 74% 44%, rgba(238,119,51,.17), transparent 62%),
-          radial-gradient(32rem 23rem at 18% 72%, rgba(0,153,136,.20),  transparent 62%),
-          radial-gradient(26rem 20rem at 90% 95%, rgba(170,51,119,.16), transparent 62%);
-        filter: blur(42px) saturate(118%);
+      /* ---- the dark ground ----
+         Not one colour but five, all dark: a cold navy top-left,
+         plum top-right, a deep teal through the middle, slate low
+         left and a warm near-black bottom right. Held apart they
+         give the surface somewhere to go across a long scroll,
+         while every one of them stays dark enough that light text
+         over it clears contrast everywhere. */
+      .lg-dark {
+        color-scheme: dark;
+        background-color: #07080C;
+        background-image:
+          radial-gradient(46rem 32rem at  6% -4%, #16203A 0%, transparent 62%),
+          radial-gradient(40rem 30rem at 94%  3%, #251530 0%, transparent 62%),
+          radial-gradient(38rem 28rem at 72% 42%, #0D2A2A 0%, transparent 64%),
+          radial-gradient(42rem 30rem at 12% 70%, #191F36 0%, transparent 64%),
+          radial-gradient(36rem 28rem at 90% 94%, #2A1620 0%, transparent 64%);
       }
 
-      /* ---- the material ---- */
+      .lg-canvas { position: relative; }
+
+      /* ---- the material ----
+         Completely transparent. There is no fill, no tint and no
+         sheen: the card is a blurred window onto the ground behind
+         it, described entirely by one hairline of light around its
+         edge and the shadow it casts. On a dark surface that is
+         enough — the eye reads the rim as an object boundary and
+         stops needing a background to be told where the card is. */
       .lg-card {
         position: relative;
-        isolation: isolate;
         border-radius: 20px;
         /* Continuous corners where the browser has them. Chrome 139+
            only for now; everywhere else quietly keeps the plain
            radius, which is the correct way to spend a new property. */
         corner-shape: squircle;
-        background: linear-gradient(180deg, rgba(255,255,255,.60), rgba(255,255,255,.34));
-        -webkit-backdrop-filter: blur(20px) saturate(185%);
-        backdrop-filter: blur(20px) saturate(185%);
+        background: transparent;
+        -webkit-backdrop-filter: blur(18px) saturate(115%);
+        backdrop-filter: blur(18px) saturate(115%);
         box-shadow:
-          inset 0 1px 0 rgba(255,255,255,.95),
-          inset 0 0 0 .5px rgba(255,255,255,.55),
-          inset 0 -16px 30px -22px rgba(120,100,80,.28),
-          0 1px 1.5px rgba(74,60,45,.05),
-          0 10px 22px -12px rgba(74,60,45,.15),
-          0 28px 52px -30px rgba(74,60,45,.22);
+          inset 0 0 0 1px rgba(255,255,255,.10),
+          inset 0 1px 0 rgba(255,255,255,.16),
+          0 16px 38px -22px rgba(0,0,0,.85);
         transition: transform .24s cubic-bezier(.2,.8,.3,1), box-shadow .24s ease;
       }
-      /* the accent, as a bloom under the glass rather than a stripe */
-      .lg-card::before {
-        content: '';
-        position: absolute; inset: 0; z-index: -1;
-        border-radius: inherit;
-        pointer-events: none;
-        background:
-          radial-gradient(122% 88% at 0% 0%,
-            color-mix(in srgb, var(--accent, #0077BB) 30%, transparent), transparent 62%),
-          radial-gradient(96% 74% at 100% 100%,
-            color-mix(in srgb, var(--accent, #0077BB) 14%, transparent), transparent 66%);
-        opacity: .9;
-      }
-      /*
-        Specular sheen down the top-left bevel.
-        Two constraints, both learned the hard way:
-        it falls off within a fifth of the card so it lights the
-        edge rather than washing the face, and content is lifted
-        above it — a positioned pseudo-element paints above normal
-        in-flow text, so without the z-index the title of every
-        card would sit under a white veil.
-      */
-      .lg-card::after {
-        content: '';
-        position: absolute; inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        background: linear-gradient(133deg,
-          rgba(255,255,255,.58) 0%,
-          rgba(255,255,255,.10) 9%,
-          rgba(255,255,255,0)   23%);
-      }
-      .lg-card > * { position: relative; z-index: 1; }
       .lg-card:hover {
         transform: translateY(-3px);
         box-shadow:
-          inset 0 1px 0 rgba(255,255,255,1),
-          inset 0 0 0 .5px rgba(255,255,255,.7),
-          inset 0 -16px 30px -22px rgba(120,100,80,.24),
-          0 2px 3px rgba(74,60,45,.06),
-          0 18px 36px -14px rgba(74,60,45,.20),
-          0 40px 70px -34px rgba(74,60,45,.28);
+          inset 0 0 0 1px rgba(255,255,255,.19),
+          inset 0 1px 0 rgba(255,255,255,.26),
+          0 26px 54px -24px rgba(0,0,0,.92);
       }
       .lg-card:focus-within {
-        outline: 2px solid color-mix(in srgb, var(--accent, #0077BB) 70%, transparent);
+        outline: 2px solid var(--accent, #7CC7F5);
         outline-offset: 2px;
       }
 
-      /* a recessed well inside a card — the inverse lighting */
+      /* the one place colour is allowed: the heading of each card */
+      .lg-title { color: var(--accent, #E8EAF0); }
+
+      /* a slightly recessed well — darker, not lighter */
       .lg-inset {
         border-radius: 14px;
         corner-shape: squircle;
-        background: linear-gradient(180deg, rgba(120,100,80,.055), rgba(120,100,80,.02));
-        box-shadow:
-          inset 0 1px 2px rgba(74,60,45,.09),
-          inset 0 -1px 0 rgba(255,255,255,.7);
+        background: rgba(0,0,0,.22);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
       }
 
       /* ---- rows ---- */
@@ -903,50 +896,72 @@ export function WidgetStyles() {
         transition: background .16s ease, box-shadow .16s ease;
       }
       .lg-row:hover {
-        background: rgba(255,255,255,.52);
-        box-shadow: inset 0 0 0 .5px rgba(255,255,255,.85);
+        background: rgba(255,255,255,.06);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
       }
       .lg-rowhead {
         border-radius: 12px;
-        background: rgba(255,255,255,.34);
-        -webkit-backdrop-filter: blur(10px) saturate(150%);
-        backdrop-filter: blur(10px) saturate(150%);
+        background: rgba(255,255,255,.045);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
       }
 
       /* ---- small controls ---- */
       .lg-pill {
         border-radius: 999px;
-        background: rgba(255,255,255,.55);
-        -webkit-backdrop-filter: blur(12px) saturate(170%);
-        backdrop-filter: blur(12px) saturate(170%);
-        box-shadow:
-          inset 0 1px 0 rgba(255,255,255,.95),
-          inset 0 0 0 .5px rgba(255,255,255,.6),
-          0 2px 6px -2px rgba(74,60,45,.16);
+        background: rgba(255,255,255,.06);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
         transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
       }
       .lg-pill:hover {
-        background: rgba(255,255,255,.75);
+        background: rgba(255,255,255,.12);
         transform: translateY(-1px);
-        box-shadow:
-          inset 0 1px 0 rgba(255,255,255,1),
-          inset 0 0 0 .5px rgba(255,255,255,.8),
-          0 5px 12px -3px rgba(74,60,45,.22);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.28);
       }
       .lg-field {
         border-radius: 999px;
-        background: rgba(255,255,255,.5);
-        box-shadow:
-          inset 0 1px 2px rgba(74,60,45,.10),
-          inset 0 0 0 .5px rgba(255,255,255,.6);
+        background: rgba(0,0,0,.28);
+        color: #E8EAF0;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
         transition: box-shadow .16s ease, background .16s ease;
       }
+      .lg-field::placeholder { color: #6F7788; }
       .lg-field:focus {
-        background: rgba(255,255,255,.8);
-        box-shadow:
-          inset 0 1px 2px rgba(74,60,45,.06),
-          inset 0 0 0 1.5px color-mix(in srgb, var(--accent, #0077BB) 60%, transparent);
+        background: rgba(0,0,0,.42);
+        box-shadow: inset 0 0 0 1.5px var(--accent, #7CC7F5);
       }
+      .lg-dark select.lg-field option { background: #12141C; color: #E8EAF0; }
+
+      /* ---- flipping the existing light-theme utilities ----
+         Every section on this page was written against a cream
+         background using ink-* text and paper backgrounds. Rather
+         than rewrite twenty files, the tokens are remapped inside
+         .lg-dark. Two classes beats one, so these win over
+         Tailwind's originals without !important — which matters,
+         because !important here would also override the deliberate
+         colour set inline on individual cards. */
+      .lg-dark .text-ink-950, .lg-dark .text-ink-900 { color: #F0F2F7; }
+      .lg-dark .text-ink-800 { color: #E1E4EC; }
+      .lg-dark .text-ink-700 { color: #CBD0DB; }
+      .lg-dark .text-ink-600 { color: #B2B8C6; }
+      .lg-dark .text-ink-500 { color: #98A0B0; }
+      .lg-dark .text-ink-400 { color: #838B9C; }
+      .lg-dark .text-ink-300 { color: #6C7484; }
+      .lg-dark .text-signal-500, .lg-dark .text-signal-600,
+      .lg-dark .text-signal-700 { color: #FF8FA3; }
+
+      .lg-dark .bg-paper, .lg-dark .bg-paper-dim { background-color: transparent; }
+      .lg-dark .bg-signal-50 { background-color: rgba(255,143,163,.10); }
+      .lg-dark .bg-ink-100 { background-color: rgba(255,255,255,.09); }
+
+      .lg-dark .border-ink-100 { border-color: rgba(255,255,255,.07); }
+      .lg-dark .border-ink-200 { border-color: rgba(255,255,255,.12); }
+      .lg-dark .border-ink-950 { border-color: rgba(255,255,255,.30); }
+
+      .lg-dark pre, .lg-dark code { color: #DCE0E9; }
+      .lg-dark ::selection { background: rgba(124,199,245,.30); }
 
       /* ---- the zoom sheet ---- */
       @keyframes lg-scrim-in { from { opacity: 0; } to { opacity: 1; } }
@@ -963,39 +978,41 @@ export function WidgetStyles() {
       }
       .lg-scrim {
         animation: lg-scrim-in .24s ease both;
-        background: rgba(38,30,22,.30);
-        -webkit-backdrop-filter: blur(26px) saturate(140%);
-        backdrop-filter: blur(26px) saturate(140%);
+        background: rgba(4,5,9,.62);
+        -webkit-backdrop-filter: blur(22px);
+        backdrop-filter: blur(22px);
       }
       .lg-sheet {
         animation: lg-zoom-in .36s cubic-bezier(.19,1.08,.30,1) both;
         transform-origin: center;
         border-radius: 26px;
         corner-shape: squircle;
-        background: linear-gradient(180deg, rgba(255,255,255,.80), rgba(255,255,255,.66));
-        -webkit-backdrop-filter: blur(34px) saturate(190%);
-        backdrop-filter: blur(34px) saturate(190%);
+        /* The one surface that is not fully transparent. A sheet
+           floating over a scrolled page needs to stop the content
+           behind it from reading through as text; a hint of ground
+           does that without becoming a solid panel. */
+        background: rgba(12,14,20,.62);
+        -webkit-backdrop-filter: blur(34px) saturate(130%);
+        backdrop-filter: blur(34px) saturate(130%);
         box-shadow:
-          inset 0 1px 0 rgba(255,255,255,1),
-          inset 0 0 0 .5px rgba(255,255,255,.7),
-          0 30px 70px -20px rgba(30,22,14,.45),
-          0 80px 140px -60px rgba(30,22,14,.55);
+          inset 0 0 0 1px rgba(255,255,255,.13),
+          inset 0 1px 0 rgba(255,255,255,.20),
+          0 40px 90px -30px rgba(0,0,0,.9);
       }
 
       .lg-num { font-variant-numeric: tabular-nums; }
 
       /*
-        Where the browser cannot blur a backdrop the material would
-        become a washed-out translucent rectangle with unreadable
-        text over it. Fall back to near-opaque instead: it loses the
-        effect and keeps the legibility, which is the right way
-        round.
+        Where the browser cannot blur a backdrop, a transparent card
+        sitting on a busy gradient becomes text on noise. Fall back
+        to a near-opaque dark fill: it loses the effect and keeps
+        the legibility, which is the right way round.
       */
       @supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
-        .lg-card, .lg-sheet, .lg-pill, .lg-rowhead {
-          background: rgba(255,253,250,.94);
-        }
-        .lg-scrim { background: rgba(38,30,22,.62); }
+        .lg-card, .lg-rowhead { background: rgba(14,16,23,.86); }
+        .lg-sheet { background: rgba(12,14,20,.96); }
+        .lg-pill  { background: rgba(255,255,255,.12); }
+        .lg-scrim { background: rgba(4,5,9,.86); }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -1019,10 +1036,10 @@ export function Tile({ label, value, sub, tone = 'ink', spark }: {
   spark?: number[]
 }) {
   const skin = {
-    ink:   { accent: '#5C5C64', text: 'text-ink-950' },
-    red:   { accent: '#CC3311', text: 'text-[#CC3311]' },
-    green: { accent: '#009988', text: 'text-[#0F7B4F]' },
-    amber: { accent: '#EE7733', text: 'text-[#B45309]' },
+    ink:   { accent: '#A8BEFF', text: 'text-[#F0F2F7]' },
+    red:   { accent: '#FF8FA3', text: 'text-[#FF8FA3]' },
+    green: { accent: '#7FE3C4', text: 'text-[#7FE3C4]' },
+    amber: { accent: '#FFB37A', text: 'text-[#FFB37A]' },
   }[tone]
 
   const peak = spark && spark.length ? Math.max(...spark, 1) : 1
@@ -1067,7 +1084,7 @@ export function SectionBanner({ title, subtitle, right }: {
       */}
       <span aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
-            style={{ background: 'linear-gradient(90deg, rgba(23,23,26,.45), rgba(23,23,26,.06) 55%, transparent)' }} />
+            style={{ background: 'linear-gradient(90deg, rgba(255,255,255,.42), rgba(255,255,255,.07) 55%, transparent)' }} />
       <div>
         <h2 className="text-xl font-bold leading-tight text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>

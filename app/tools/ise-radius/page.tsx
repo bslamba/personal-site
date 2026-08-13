@@ -110,7 +110,19 @@ export default function IseReportToolPage() {
         </div>
       </section>
 
-      <section className="bg-paper-dim pb-24">
+      {/*
+        Everything from here down is the instrument, and it runs on
+        a dark ground. The break is deliberate and it is placed
+        exactly here: above this line the page is a document you
+        read, below it the page is a tool you operate. A change of
+        ground is the clearest signal available that the mode has
+        changed, and it costs no words to say it.
+
+        `.lg-dark` is defined in the stylesheet the analyser mounts,
+        so the class is inert until that component renders — which
+        it does in both its idle and its loaded state.
+      */}
+      <section className="lg-dark pb-24">
         <IseReportAnalyser />
       </section>
     </>

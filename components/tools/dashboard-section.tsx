@@ -24,7 +24,8 @@
 
 import {
   Panel, Donut, MultiLine, Sparkline, LiquidGauge,
-  SectionBanner, NODE_COLOURS, nodeColour,
+  SectionBanner, NODE_COLOURS, useInkRotation,
+  ALERT_HIGH, ALERT_MED, DIM,
   n, pc, ms, type PanelData,
 } from './panel'
 import type { DashboardAnalysis, NodeSeries, Pair } from '@/lib/tools/dashboard'
@@ -40,7 +41,7 @@ const cssVar = (accent: string) => ({ '--accent': accent }) as React.CSSProperti
 // widget shells
 // ------------------------------------------------------------
 
-function Widget({ title, note, accent = '#0077BB', className = '', right, children }: {
+function Widget({ title, note, accent = NODE_COLOURS[0], className = '', right, children }: {
   title?: string
   note?: string
   accent?: string
@@ -54,7 +55,7 @@ function Widget({ title, note, accent = '#0077BB', className = '', right, childr
       {title && (
         <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-3.5">
           <div className="min-w-0">
-            <h3 className="text-[13px] font-bold leading-tight text-ink-950"
+            <h3 className="lg-title text-[13px] font-bold leading-tight"
                 style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
               {title}
             </h3>
@@ -82,7 +83,8 @@ function StatCard({ label, value, unit, sub, accent, spark, sparkMax }: {
     <div className="lg-card lg-rise flex flex-col justify-between p-3.5"
          style={cssVar(accent)}>
       <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-ink-400">{label}</p>
-      <p className="mt-2 font-mono text-[24px] font-bold leading-none tabular-nums text-ink-950">
+      <p className="mt-2 font-mono text-[24px] font-bold leading-none tabular-nums"
+         style={{ color: accent }}>
         {value}
         {unit && <span className="ml-0.5 text-[12px] font-normal text-ink-400">{unit}</span>}
       </p>
@@ -107,9 +109,9 @@ function GaugeCard({ label, value, sub, accent, alert }: {
 }) {
   return (
     <div className="lg-card lg-rise flex flex-col items-center justify-center gap-1.5 p-3.5"
-         style={cssVar(alert ? '#CC3311' : accent)}>
-      <LiquidGauge value={value} colour={accent} size={84} alert={alert} />
-      <p className="text-center text-[9px] font-bold uppercase tracking-[0.11em] text-ink-500">
+         style={cssVar(alert ? ALERT_HIGH : accent)}>
+      <LiquidGauge value={value} colour={alert ? ALERT_HIGH : accent} size={84} alert={alert} />
+      <p className="lg-title text-center text-[9px] font-bold uppercase tracking-[0.11em]">
         {label}
       </p>
       {sub && <p className="text-center text-[10px] leading-tight text-ink-400">{sub}</p>}
@@ -117,10 +119,10 @@ function GaugeCard({ label, value, sub, accent, alert }: {
   )
 }
 
-const SEV: Record<string, { accent: string; label: string; tone: string }> = {
-  high:   { accent: '#CC3311', label: 'High',   tone: 'text-[#CC3311]' },
-  medium: { accent: '#EE7733', label: 'Medium', tone: 'text-[#B45309]' },
-  info:   { accent: '#8A8A93', label: 'Note',   tone: 'text-ink-400' },
+const SEV: Record<string, { accent: string; label: string }> = {
+  high:   { accent: ALERT_HIGH, label: 'High' },
+  medium: { accent: ALERT_MED,  label: 'Medium' },
+  info:   { accent: DIM,        label: 'Note' },
 }
 
 function Finding({ f }: { f: DashboardAnalysis['findings'][number] }) {
@@ -128,11 +130,12 @@ function Finding({ f }: { f: DashboardAnalysis['findings'][number] }) {
   return (
     <div className="lg-card lg-rise p-3" style={cssVar(s.accent)}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-[13px] font-bold leading-tight text-ink-950"
+        <p className="lg-title text-[13px] font-bold leading-tight"
            style={{ fontFamily: 'var(--font-heading)' }}>
           {f.headline}
         </p>
-        <span className={`text-[9px] font-bold uppercase tracking-[0.1em] ${s.tone}`}>
+        <span className="text-[9px] font-bold uppercase tracking-[0.1em]"
+              style={{ color: s.accent }}>
           {s.label}
         </span>
       </div>
@@ -154,11 +157,12 @@ function Finding({ f }: { f: DashboardAnalysis['findings'][number] }) {
  * rather than in its own column, which buys back roughly a third
  * of the width for labels that are otherwise all truncated.
  */
-function RankWidget({ title, note, rows, accent, unit, onOpen, take = 7 }: {
+function RankWidget({ title, note, rows, accent, tint, unit, onOpen, take = 7 }: {
   title: string
   note: string
   rows: Pair[]
   accent: string
+  tint: (i: number) => string
   unit?: string
   onOpen?: () => void
   take?: number
@@ -177,19 +181,20 @@ function RankWidget({ title, note, rows, accent, unit, onOpen, take = 7 }: {
             <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[10px]"
                   style={{
                     width: `${(r.count / max) * 100}%`,
-                    background: `linear-gradient(90deg, ${accent}26, ${accent}05)`,
+                    background: `linear-gradient(90deg, ${accent}33, ${accent}08)`,
                   }}
                   aria-hidden="true" />
             <span className="relative w-4 shrink-0 text-center font-mono text-[9.5px] font-bold text-ink-300">
               {i + 1}
             </span>
             <span className="relative h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: nodeColour(i) }} aria-hidden="true" />
-            <span className="relative min-w-0 flex-1 truncate text-[11.5px] text-ink-900"
+                  style={{ background: tint(i) }} aria-hidden="true" />
+            <span className="relative min-w-0 flex-1 truncate text-[11.5px] text-ink-800"
                   title={r.label}>
               {r.label}
             </span>
-            <span className="relative shrink-0 font-mono text-[11.5px] font-bold tabular-nums text-ink-950">
+            <span className="relative shrink-0 font-mono text-[11.5px] font-bold tabular-nums"
+                  style={{ color: tint(i) }}>
               {n(r.count)}{unit}
             </span>
             <span className="relative w-11 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-400">
@@ -200,9 +205,9 @@ function RankWidget({ title, note, rows, accent, unit, onOpen, take = 7 }: {
       </ol>
       {rows.length > take && onOpen && (
         <button onClick={onOpen}
-                className="mt-2.5 text-[9.5px] font-bold uppercase tracking-[0.1em] text-signal-500
-                           transition-opacity hover:opacity-70">
-          {rows.length - take} more — open sortable
+                className="lg-pill mt-2.5 px-3 py-1 text-[9.5px] font-bold uppercase tracking-[0.1em]"
+                style={{ color: accent }}>
+          {rows.length - take} more — open
         </button>
       )}
     </Widget>
@@ -229,7 +234,9 @@ function RankWidget({ title, note, rows, accent, unit, onOpen, take = 7 }: {
  * Drawing it as a gauge would mean inventing a maximum and
  * implying a full tank meant something.
  */
-function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
+function NodeGrid({ nodes, hours, tint }: {
+  nodes: NodeSeries[]; hours: string[]; tint: (i: number) => string
+}) {
   if (nodes.length === 0) return null
 
   const at = (nd: NodeSeries, key: 'latency' | 'cpu' | 'memory') =>
@@ -241,7 +248,7 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
   return (
     <div>
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-[15px] font-bold text-ink-950"
+        <h3 className="text-[15px] font-bold text-ink-900"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.015em' }}>
           Every node, side by side
         </h3>
@@ -253,7 +260,7 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
 
       <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {nodes.map((nd, i) => {
-          const colour = nodeColour(i)
+          const colour = tint(i)
           const slow = nd.avgLatency > fleetLatency * 1.5 && nd.avgLatency > 20
           const hotCpu = nd.peakCpu >= 80
           const hotMem = nd.peakMemory >= 85
@@ -261,17 +268,18 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
           return (
             <section key={nd.name}
                      className="lg-card lg-rise overflow-hidden"
-                     style={cssVar(slow ? '#CC3311' : colour)}>
+                     style={cssVar(slow ? ALERT_HIGH : colour)}>
               <header className="flex items-center gap-2 px-3.5 pb-2 pt-3.5">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ background: colour, boxShadow: `0 0 0 3px ${colour}22` }}
+                      style={{ background: colour, boxShadow: `0 0 0 3px ${colour}33` }}
                       aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate font-mono text-[12px] font-bold text-ink-950">
+                <span className="min-w-0 flex-1 truncate font-mono text-[12px] font-bold"
+                      style={{ color: colour }}>
                   {nd.name}
                 </span>
                 {nd.role && (
-                  <span className="shrink-0 rounded-full bg-ink-950/[.055] px-2 py-0.5
-                                   text-[8.5px] font-bold uppercase tracking-[0.09em] text-ink-500">
+                  <span className="lg-pill shrink-0 px-2 py-0.5
+                                   text-[8.5px] font-bold uppercase tracking-[0.09em] text-ink-400">
                     {nd.role}
                   </span>
                 )}
@@ -279,9 +287,9 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
 
               <div className="flex items-center gap-3 px-3.5 pb-3.5">
                 <div className="flex shrink-0 gap-2">
-                  <LiquidGauge value={nd.avgCpu} colour={colour} size={64}
+                  <LiquidGauge value={nd.avgCpu} colour={hotCpu ? ALERT_HIGH : colour} size={64}
                                caption="CPU" alert={hotCpu} />
-                  <LiquidGauge value={nd.avgMemory} colour={colour} size={64}
+                  <LiquidGauge value={nd.avgMemory} colour={hotMem ? ALERT_HIGH : colour} size={64}
                                caption="Memory" alert={hotMem} />
                 </div>
 
@@ -291,14 +299,14 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
                       Latency
                     </span>
                     <span className="font-mono text-[9.5px] tabular-nums text-ink-400">
-                      peak <span className={slow ? 'font-bold text-[#CC3311]' : 'text-ink-600'}>
+                      peak <span className={slow ? 'font-bold' : 'text-ink-600'}
+                                 style={slow ? { color: ALERT_HIGH } : undefined}>
                         {metric(nd.peakLatency)}
                       </span>
                     </span>
                   </div>
-                  <p className={`mt-0.5 font-mono text-[20px] font-bold leading-none tabular-nums ${
-                    slow ? 'text-[#CC3311]' : 'text-ink-950'
-                  }`}>
+                  <p className="mt-0.5 font-mono text-[20px] font-bold leading-none tabular-nums"
+                     style={{ color: slow ? ALERT_HIGH : colour }}>
                     {metric(nd.avgLatency)}
                     <span className="text-[10px] font-normal text-ink-400"> ms</span>
                   </p>
@@ -308,12 +316,14 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2 border-t border-ink-950/[.055]
+              <div className="flex items-center justify-between gap-2 border-t border-white/[.07]
                               px-3.5 py-1.5 font-mono text-[9.5px] tabular-nums text-ink-400">
-                <span>peak cpu <span className={hotCpu ? 'font-bold text-[#CC3311]' : 'text-ink-700'}>
+                <span>peak cpu <span className={hotCpu ? 'font-bold' : 'text-ink-700'}
+                                     style={hotCpu ? { color: ALERT_HIGH } : undefined}>
                   {metric(nd.peakCpu)}%
                 </span></span>
-                <span>peak mem <span className={hotMem ? 'font-bold text-[#CC3311]' : 'text-ink-700'}>
+                <span>peak mem <span className={hotMem ? 'font-bold' : 'text-ink-700'}
+                                     style={hotMem ? { color: ALERT_HIGH } : undefined}>
                   {metric(nd.peakMemory)}%
                 </span></span>
                 <span>{nd.samples.length} samples</span>
@@ -360,6 +370,10 @@ export default function DashboardSection({ a, onExpand }: {
   a: DashboardAnalysis
   onExpand: (d: PanelData) => void
 }) {
+  // The palette is dealt from a different starting card on each
+  // load, so nothing on the page is permanently "the blue one".
+  const tint = useInkRotation()
+
   const withSamples = a.nodes.filter(nd => nd.samples.length > 1)
 
   // Node series aligned to one shared hour axis — a node missing an
@@ -372,8 +386,8 @@ export default function DashboardSection({ a, onExpand }: {
 
   // One colour per node, fixed here and reused by every chart, so a
   // node keeps its identity as the eye moves down the page.
-  const colourByNode = new Map(withSamples.map((nd, i) => [nd.name, nodeColour(i)]))
-  const colourOf = (label: string) => colourByNode.get(label) ?? '#8A8A93'
+  const colourByNode = new Map(withSamples.map((nd, i) => [nd.name, tint(i)]))
+  const colourOf = (label: string) => colourByNode.get(label) ?? DIM
 
   // Only nodes that actually depart from the pack get drawn in
   // colour on the combined chart. The rest become grey context —
@@ -471,38 +485,38 @@ export default function DashboardSection({ a, onExpand }: {
         {/* ---------- gauges: the four bounded percentages ---------- */}
         <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <GaugeCard label="Authentication success" value={successRate}
-                     accent="#009988" alert={successRate < 90}
+                     accent={tint(0)} alert={successRate < 90}
                      sub={`${n(a.totals.failures)} failed of ${n(a.totals.authentications)}`} />
           <GaugeCard label="Endpoints connected" value={connectedShare}
-                     accent="#0077BB"
+                     accent={tint(1)}
                      sub={`${n(a.totals.connected)} up · ${n(a.totals.disconnected)} down`} />
           <GaugeCard label="Fleet average CPU" value={fleetCpu}
-                     accent="#EE7733" alert={fleetCpu >= 70}
+                     accent={tint(2)} alert={fleetCpu >= 70}
                      sub={`mean of ${withSamples.length} node${withSamples.length === 1 ? '' : 's'}`} />
           <GaugeCard label="Fleet average memory" value={fleetMem}
-                     accent="#AA3377" alert={fleetMem >= 85}
+                     accent={tint(3)} alert={fleetMem >= 85}
                      sub={worstMem ? `worst ${worstMem.name} at ${metric(worstMem.peakMemory)}%` : undefined} />
         </div>
 
         {/* ---------- counts and durations, which are not percentages ---------- */}
         <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatCard label="Average latency" value={metric(a.totals.avgLatency)} unit="ms"
-                    accent="#0077BB" spark={fleetLatencySpark}
+                    accent={tint(4)} spark={fleetLatencySpark}
                     sub={`across ${withSamples.length} nodes`} />
           <StatCard label="Peak latency" value={metric(a.totals.peakLatency)} unit="ms"
-                    accent="#CC3311" sub={a.totals.slowestNode ?? undefined} />
+                    accent={tint(5)} sub={a.totals.slowestNode ?? undefined} />
           <StatCard label="Authentications" value={n(a.totals.authentications)}
-                    accent="#009988" sub="in the export window" />
+                    accent={tint(6)} sub="in the export window" />
           <StatCard label="Failures" value={n(a.totals.failures)}
-                    accent="#EE3377"
+                    accent={a.totals.failures > 0 ? ALERT_HIGH : tint(7)}
                     sub={a.totals.authentications
                       ? pc(a.totals.failures / a.totals.authentications, 2) + ' of total'
                       : undefined} />
           <StatCard label="Total endpoints" value={n(a.totals.endpointsTotal)}
-                    accent="#332288"
+                    accent={tint(8)}
                     sub={`${n(a.totals.endpointsActive)} active · ${pc(activeShare / 100)}`} />
           <StatCard label="Alarms firing" value={n(a.alarms.reduce((s, x) => s + x.occurrences, 0))}
-                    accent="#EE7733"
+                    accent={tint(9)}
                     sub={`${a.alarms.length} distinct type${a.alarms.length === 1 ? '' : 's'}`} />
         </div>
 
@@ -510,7 +524,7 @@ export default function DashboardSection({ a, onExpand }: {
         {a.findings.length > 0 && (
           <div className="mb-3">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-[15px] font-bold text-ink-950"
+              <h3 className="text-[15px] font-bold text-ink-900"
                   style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.015em' }}>
                 What stands out
               </h3>
@@ -526,14 +540,14 @@ export default function DashboardSection({ a, onExpand }: {
 
         {/* ---------- per-node small multiples ---------- */}
         <div className="mb-3">
-          <NodeGrid nodes={withSamples} hours={a.latencyHours} />
+          <NodeGrid nodes={withSamples} hours={a.latencyHours} tint={tint} />
         </div>
 
         {/* ---------- the combined latency chart ---------- */}
         {latencySeries.length > 0 && (
           <div className="mb-3">
             <Widget
-              accent="#CC3311"
+              accent={tint(10)}
               title="Authentication latency — where it spikes"
               note={`${a.latencyHours.length} hourly samples. The three nodes with the highest peaks are named; the remaining ${Math.max(0, latencySeries.length - 3)} sit behind them in grey so normal is visible. A spike shared by several nodes points at a common dependency; a spike on one points at that node.`}
             >
@@ -547,30 +561,31 @@ export default function DashboardSection({ a, onExpand }: {
         {a.alarms.length > 0 && (
           <div className="mb-3">
             <Widget
-              accent="#EE7733"
+              accent={tint(11)}
               title="Alarms"
               note="Ranked by how often each has fired. Severity is as ISE numbers it — 1 critical, 2 warning, 3 information."
             >
               <div className="space-y-0.5">
                 {a.alarms.slice(0, 12).map(al => {
-                  const c = al.severity === 1 ? '#CC3311'
-                    : al.severity === 2 ? '#EE7733' : '#8A8A93'
+                  const c = al.severity === 1 ? ALERT_HIGH
+                    : al.severity === 2 ? ALERT_MED : DIM
                   return (
                     <div key={al.name}
                          className="lg-row relative flex items-center gap-2.5 px-2 py-[7px]">
                       <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[10px]"
                             style={{
                               width: `${(al.occurrences / alarmMax) * 100}%`,
-                              background: `linear-gradient(90deg, ${c}26, ${c}05)`,
+                              background: `linear-gradient(90deg, ${c}33, ${c}08)`,
                             }}
                             aria-hidden="true" />
                       <span className="relative h-5 w-[3px] shrink-0 rounded-full"
                             style={{ background: c }} aria-hidden="true" />
-                      <span className="relative min-w-0 flex-1 truncate text-[11.5px] text-ink-900"
+                      <span className="relative min-w-0 flex-1 truncate text-[11.5px] text-ink-800"
                             title={al.name}>
                         {al.name}
                       </span>
-                      <span className="relative shrink-0 font-mono text-[11.5px] font-bold tabular-nums text-ink-950">
+                      <span className="relative shrink-0 font-mono text-[11.5px] font-bold tabular-nums"
+                            style={{ color: c }}>
                         {n(al.occurrences)}
                       </span>
                       <span className="relative hidden w-32 shrink-0 text-right font-mono
@@ -600,10 +615,10 @@ export default function DashboardSection({ a, onExpand }: {
                       sort: [al.name, al.severity, al.occurrences, -al.minutesAgo],
                     })),
                   })}
-                  className="mt-2.5 text-[9.5px] font-bold uppercase tracking-[0.1em] text-signal-500
-                             transition-opacity hover:opacity-70"
+                  className="lg-pill mt-2.5 px-3 py-1 text-[9.5px] font-bold uppercase tracking-[0.1em]"
+                  style={{ color: tint(11) }}
                 >
-                  {a.alarms.length - 12} more — open sortable
+                  {a.alarms.length - 12} more — open
                 </button>
               )}
             </Widget>
@@ -613,24 +628,24 @@ export default function DashboardSection({ a, onExpand }: {
         {/* ---------- ranked breakdowns ---------- */}
         <div className="mb-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
           <RankWidget title="Network devices" note="Authentications handled by each device."
-                      accent="#0077BB" rows={a.networkDevices}
+                      accent={tint(0)} tint={tint} rows={a.networkDevices}
                       onOpen={() => onExpand(pairPanel('Network devices',
                         'Authentications handled by each device.', 'Device', a.networkDevices, 'Auths'))} />
           <RankWidget title="Endpoint profiles" note="What profiling identified across the estate."
-                      accent="#009988" rows={a.endpointProfiles}
+                      accent={tint(2)} tint={tint} rows={a.endpointProfiles}
                       onOpen={() => onExpand(pairPanel('Endpoint profiles',
                         'What profiling identified.', 'Profile', a.endpointProfiles, 'Endpoints'))} />
           <RankWidget title="Identity stores" note="Where identities were verified."
-                      accent="#332288" rows={a.identityStores}
+                      accent={tint(4)} tint={tint} rows={a.identityStores}
                       onOpen={() => onExpand(pairPanel('Identity stores',
                         'Where identities were verified.', 'Identity store', a.identityStores, 'Auths'))} />
           <RankWidget title="Identity groups" note="Which group each authentication resolved to."
-                      accent="#AA3377" rows={a.identityGroups}
+                      accent={tint(6)} tint={tint} rows={a.identityGroups}
                       onOpen={() => onExpand(pairPanel('Identity groups',
                         'Which group each authentication resolved to.', 'Identity group',
                         a.identityGroups, 'Auths'))} />
           <RankWidget title="Failure reasons" note="Top reasons by count, with ISE message codes."
-                      accent="#CC3311"
+                      accent={ALERT_HIGH} tint={tint}
                       rows={a.failureReasons.map(f => ({
                         label: f.code ? `${f.code} · ${f.text}` : f.text, count: f.count,
                       }))}
@@ -641,7 +656,7 @@ export default function DashboardSection({ a, onExpand }: {
         <div className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {a.endpointStatus.length > 0 && (
             <Widget title="Endpoint connectivity" note="Connected against disconnected, right now."
-                    accent="#0077BB">
+                    accent={tint(1)}>
               <Donut colours={NODE_COLOURS} size={150}
                      slices={a.endpointStatus.map(s => ({ label: s.label, value: s.count }))}
                      centreValue={n(a.totals.connected)} centreLabel="connected" />
@@ -650,7 +665,7 @@ export default function DashboardSection({ a, onExpand }: {
 
           {a.failureReasons.length > 0 && (
             <Widget title="Failures by reason" note="Top reasons, remainder grouped."
-                    accent="#CC3311">
+                    accent={ALERT_HIGH}>
               <Donut colours={NODE_COLOURS} size={150}
                      slices={toSlices(a.failureReasons.map(f => ({
                        label: f.code || f.text.slice(0, 28), count: f.count,
@@ -661,7 +676,7 @@ export default function DashboardSection({ a, onExpand }: {
 
           {a.endpointProfiles.length > 0 && (
             <Widget title="Endpoint profiles" note="What profiling has identified."
-                    accent="#009988">
+                    accent={tint(3)}>
               <Donut colours={NODE_COLOURS} size={150} slices={toSlices(a.endpointProfiles, 6)}
                      centreValue={n(a.endpointProfiles.reduce((s, p) => s + p.count, 0))}
                      centreLabel="endpoints" />
@@ -670,7 +685,7 @@ export default function DashboardSection({ a, onExpand }: {
 
           {a.identityStores.length > 0 && (
             <Widget title="Identity stores" note="Where authentications were verified."
-                    accent="#332288">
+                    accent={tint(5)}>
               <Donut colours={NODE_COLOURS} size={150} slices={toSlices(a.identityStores, 6)}
                      centreValue={n(a.totals.authentications)} centreLabel="auths" />
             </Widget>
@@ -678,7 +693,7 @@ export default function DashboardSection({ a, onExpand }: {
 
           {a.networkDevices.length > 0 && (
             <Widget title="Network devices" note="Share of authentications per device."
-                    accent="#EE7733">
+                    accent={tint(7)}>
               <Donut colours={NODE_COLOURS} size={150} slices={toSlices(a.networkDevices, 7)}
                      centreValue={n(a.networkDevices.length)} centreLabel="devices" />
             </Widget>
@@ -686,8 +701,8 @@ export default function DashboardSection({ a, onExpand }: {
 
           {a.alarmsBySeverity.length > 0 && (
             <Widget title="Alarms by severity" note="Occurrences, not distinct alarm types."
-                    accent="#EE3377">
-              <Donut colours={['#CC3311', '#EE7733', '#8A8A93', '#B5B5BC']} size={150}
+                    accent={tint(9)}>
+              <Donut colours={[ALERT_HIGH, ALERT_MED, DIM, '#6C7484']} size={150}
                      slices={a.alarmsBySeverity.map(s => ({ label: s.label, value: s.occurrences }))}
                      centreValue={n(a.alarms.reduce((s, x) => s + x.occurrences, 0))}
                      centreLabel="occurrences" />
@@ -700,6 +715,7 @@ export default function DashboardSection({ a, onExpand }: {
           <div className="mb-3">
             <Panel
               onExpand={onExpand}
+              accent={tint(8)}
               data={{
                 title: 'Node summary',
                 note: 'Averages and peaks across the sampled window, slowest first. Sortable — click any column head.',
@@ -719,19 +735,21 @@ export default function DashboardSection({ a, onExpand }: {
                   cells: [
                     <span key="nm" className="flex items-center gap-2">
                       <span className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ background: nodeColour(i) }} />
-                      <span>{nd.name}</span>
+                            style={{ background: tint(i) }} />
+                      <span style={{ color: tint(i) }}>{nd.name}</span>
                       <span className="text-ink-400">{nd.type}</span>
                     </span>,
                     nd.role,
                     ms(nd.avgLatency),
                     ms(nd.peakLatency),
                     `${metric(nd.avgCpu)}%`,
-                    <span key="pc" className={nd.peakCpu >= 80 ? 'font-bold text-[#CC3311]' : ''}>
+                    <span key="pc" className={nd.peakCpu >= 80 ? 'font-bold' : ''}
+                          style={nd.peakCpu >= 80 ? { color: ALERT_HIGH } : undefined}>
                       {metric(nd.peakCpu)}%
                     </span>,
                     `${metric(nd.avgMemory)}%`,
-                    <span key="pm" className={nd.peakMemory >= 85 ? 'font-bold text-[#CC3311]' : ''}>
+                    <span key="pm" className={nd.peakMemory >= 85 ? 'font-bold' : ''}
+                          style={nd.peakMemory >= 85 ? { color: ALERT_HIGH } : undefined}>
                       {metric(nd.peakMemory)}%
                     </span>,
                   ],
