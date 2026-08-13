@@ -67,7 +67,7 @@ function KpmTimeline({ a }: { a: KpmAnalysis }) {
   const ticks = data.map((_, i) => i).filter(i => i % step === 0 || i === data.length - 1)
 
   return (
-    <section className="mb-4 border border-ink-200 bg-paper">
+    <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -141,7 +141,7 @@ function Sparklines({ a }: { a: KpmAnalysis }) {
   }
 
   return (
-    <section className="mb-4 border border-ink-200 bg-paper">
+    <section className="lg-card lg-rise mb-4">
       <header className="border-b border-ink-200 px-3 py-2.5">
         <h3 className="text-[13px] font-bold text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -351,7 +351,7 @@ export default function KpmSection({ a, onExpand }: {
 
       <KpmTimeline a={a} />
 
-      <section className="mb-4 border border-ink-200 bg-paper-dim p-3">
+      <section className="lg-card lg-rise mb-4 p-3">
         <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-[13px] font-bold text-ink-950"
               style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -363,7 +363,7 @@ export default function KpmSection({ a, onExpand }: {
           </p>
         </div>
         {a.findings.length === 0 ? (
-          <p className="border border-ink-200 bg-paper p-3 text-[11.5px] text-ink-500">
+          <p className="lg-card p-3 text-[11.5px] text-ink-500">
             Nothing stands out. Load, latency and suppression are consistent across the
             nodes handling RADIUS.
           </p>

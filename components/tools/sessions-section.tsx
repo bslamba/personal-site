@@ -219,7 +219,7 @@ export default function SessionsSection({ a, onExpand }: {
       </div>
 
       {a.findings.length > 0 && (
-        <section className="mb-4 border border-ink-200 bg-paper-dim p-3">
+        <section className="lg-card lg-rise mb-4 p-3">
           <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-[13px] font-bold text-ink-950"
                 style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>

@@ -39,7 +39,7 @@ import {
 } from '@/lib/tools/kpm'
 import type { WorkerOut } from '@/lib/tools/bundle-types'
 import {
-  Panel, DetailView, Kpi, SectionBanner,
+  Panel, DetailView, Kpi, SectionBanner, WidgetStyles,
   n, pc, ms, clock, stamp, duration, bytes, rateTone,
   type PanelData,
 } from './panel'
@@ -131,8 +131,8 @@ function Timeline({ analysis, bucketChoice, onBucketChange }: {
                  Math.floor(data.length * 3 / 4), data.length - 1]
 
   return (
-    <section className="border border-ink-200 bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 px-3 py-2">
+    <section className="lg-card lg-rise" style={{ '--accent': '#0077BB' } as React.CSSProperties}>
+      <header className="flex flex-wrap items-center justify-between gap-2 px-3 pb-1.5 pt-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h3 className="text-[13px] font-bold text-ink-950"
               style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -151,7 +151,7 @@ function Timeline({ analysis, bucketChoice, onBucketChange }: {
           <select
             value={bucketChoice}
             onChange={e => onBucketChange(Number(e.target.value))}
-            className="border border-ink-200 bg-paper px-2 py-1 text-[11px] text-ink-800 outline-none focus:border-signal-500"
+            className="lg-field px-2.5 py-1 text-[11px] text-ink-800 outline-none"
           >
             <option value={0}>Auto</option>
             {BUCKET_STEPS
@@ -337,7 +337,7 @@ function BundleProgress({ p, stage }: {
 
 function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: string) => void }) {
   return (
-    <div className="border border-ink-200 border-l-2 border-l-signal-500 bg-paper p-3">
+    <div className="lg-card lg-rise p-3" style={{ '--accent': '#CC3311' } as React.CSSProperties}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
            style={{ fontFamily: 'var(--font-heading)' }}>
@@ -754,7 +754,7 @@ export default function IseReportAnalyser() {
               <div className="flex flex-wrap justify-center gap-1.5">
                 {files.map(f => (
                   <span key={f.name + f.size}
-                        className="inline-flex items-center gap-2 border border-ink-200 bg-paper-dim px-2.5 py-1 font-mono text-[11px] text-ink-600">
+                        className="lg-pill inline-flex items-center gap-2 px-2.5 py-1 font-mono text-[11px] text-ink-700">
                     <span className="max-w-[22rem] truncate" title={f.name}>{f.name}</span>
                     <span className="text-ink-400">{bytes(f.size)}</span>
                     {phase !== 'reading' && (
@@ -1001,7 +1001,18 @@ export default function IseReportAnalyser() {
   const looksCapped = a ? a.rows % 100_000 === 0 && a.rows >= 100_000 : false
 
   return (
-    <div className="container-page py-8">
+    <>
+      <WidgetStyles />
+
+      {/*
+        The canvas isolates a stacking context so its colour blooms
+        can sit at z-index -1 without falling behind the page's own
+        background. That is also why the modal below is a sibling
+        rather than a child: a fixed element inside an isolated
+        ancestor is trapped in that context and would render beneath
+        the site header.
+      */}
+      <div className="lg-canvas container-page py-8">
 
       {/* ---------- toolbar ---------- */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 pb-3">
@@ -1094,7 +1105,7 @@ export default function IseReportAnalyser() {
             <Timeline analysis={a} bucketChoice={bucketChoice} onBucketChange={setBucketChoice} />
           </div>
 
-          <section className="mb-4 border border-ink-200 bg-paper-dim p-3">
+          <section className="lg-card lg-rise mb-4 p-3">
             <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[13px] font-bold text-ink-950"
                   style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -1106,7 +1117,7 @@ export default function IseReportAnalyser() {
               </p>
             </div>
             {a.findings.length === 0 ? (
-              <p className="border border-ink-200 bg-paper p-3 text-[11.5px] text-ink-500">
+              <p className="lg-card p-3 text-[11.5px] text-ink-500">
                 Nothing is statistically apart from the baseline. Failures are spread evenly
                 rather than concentrated, which usually points at a general condition rather
                 than a specific fault.
@@ -1136,14 +1147,16 @@ export default function IseReportAnalyser() {
       {/* ================= SUPPORT BUNDLE ================= */}
       {bundle && <BundleSection r={bundle} onExpand={setDetail} />}
 
-      <p className="mt-6 max-w-3xl text-[11px] leading-relaxed text-ink-400">
+      <p className="mt-6 max-w-3xl text-[11px] leading-relaxed text-ink-500">
         Every panel shows its top rows — open any of them for the full list with sorting and
         search. In the authentication section, clicking a row filters the entire dashboard to
         that value. These files were read inside your browser; nothing was uploaded, stored or
         logged, and reloading the tab discards them.
       </p>
 
+      </div>
+
       {detail && <DetailView data={detail} onClose={() => setDetail(null)} />}
-    </div>
+    </>
   )
 }

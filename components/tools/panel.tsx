@@ -106,17 +106,26 @@ export function Row({ row, columns, dense }: {
       onKeyDown={e => {
         if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); row.onClick!() }
       }}
-      className={`relative flex items-center gap-2 border-t border-ink-100 ${
-        dense ? 'px-2.5 py-[5px]' : 'px-3 py-1.5'
-      } ${clickable ? 'cursor-pointer hover:bg-signal-50' : ''}`}
+      className={`lg-row relative flex items-center gap-2 ${
+        dense ? 'px-2.5 py-[6px]' : 'px-3 py-2'
+      } ${clickable ? 'cursor-pointer' : ''}`}
     >
       {row.bar !== undefined && (
         <>
-          <span className="pointer-events-none absolute inset-y-0 left-0 bg-ink-100"
-                style={{ width: `${Math.min(100, row.bar * 100)}%` }} aria-hidden="true" />
+          {/* The volume bar is a gradient that fades out rather than a
+              flat block that stops. A hard right edge reads as a
+              second column and competes with the number beside it. */}
+          <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[12px]"
+                style={{
+                  width: `${Math.min(100, row.bar * 100)}%`,
+                  background: 'linear-gradient(90deg, rgba(120,100,80,.13), rgba(120,100,80,.02))',
+                }} aria-hidden="true" />
           {row.barFail !== undefined && row.barFail > 0 && (
-            <span className="pointer-events-none absolute inset-y-0 left-0 bg-signal-500/25"
-                  style={{ width: `${Math.min(100, row.bar * row.barFail * 100)}%` }} aria-hidden="true" />
+            <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[12px]"
+                  style={{
+                    width: `${Math.min(100, row.bar * row.barFail * 100)}%`,
+                    background: 'linear-gradient(90deg, rgba(204,51,17,.22), rgba(204,51,17,.04))',
+                  }} aria-hidden="true" />
           )}
         </>
       )}
@@ -125,7 +134,9 @@ export function Row({ row, columns, dense }: {
           key={i}
           className={`relative ${i === 0 ? 'min-w-0 flex-1 truncate' : `shrink-0 ${c.width ?? 'w-16'}`} ${
             c.align === 'right' ? 'text-right' : ''
-          } ${dense ? 'text-[11px]' : 'text-xs'} ${i === 0 ? 'text-ink-900' : 'font-mono text-ink-600'}`}
+          } ${dense ? 'text-[11px]' : 'text-xs'} ${
+            i === 0 ? 'text-ink-900' : 'lg-num font-mono text-ink-600'
+          }`}
           title={i === 0 && typeof row.cells[0] === 'string' ? row.cells[0] : undefined}
         >
           {row.cells[i]}
@@ -137,7 +148,9 @@ export function Row({ row, columns, dense }: {
 
 function Headers({ columns, dense }: { columns: Column[]; dense: boolean }) {
   return (
-    <div className={`flex items-center gap-2 bg-paper-dim ${dense ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}>
+    <div className={`lg-rowhead mb-0.5 flex items-center gap-2 ${
+      dense ? 'px-2.5 py-1.5' : 'px-3 py-2'
+    }`}>
       {columns.map((c, i) => (
         <span
           key={i}
@@ -152,24 +165,25 @@ function Headers({ columns, dense }: { columns: Column[]; dense: boolean }) {
   )
 }
 
-export function Panel({ data, onExpand }: {
-  data: PanelData; onExpand: (d: PanelData) => void
+export function Panel({ data, onExpand, accent = '#0077BB' }: {
+  data: PanelData; onExpand: (d: PanelData) => void; accent?: string
 }) {
   const shown = data.rows.slice(0, PREVIEW_ROWS)
   const more = data.rows.length - shown.length
 
   return (
-    <section className="flex flex-col border border-ink-200 bg-paper">
-      <header className="border-b border-ink-200 px-3 py-2.5">
+    <section className="lg-card lg-rise flex flex-col p-3"
+             style={{ '--accent': accent } as React.CSSProperties}>
+      <header className="px-1 pb-2 pt-0.5">
         <h3 className="text-[13px] font-bold leading-tight text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
           {data.title}
         </h3>
-        {data.note && <p className="mt-0.5 text-[10.5px] leading-snug text-ink-400">{data.note}</p>}
+        {data.note && <p className="mt-0.5 text-[10.5px] leading-snug text-ink-500">{data.note}</p>}
       </header>
 
       {data.rows.length === 0 ? (
-        <div className="flex-1 px-3 py-5 text-[11px] leading-relaxed text-ink-400">
+        <div className="flex-1 px-1 py-5 text-[11px] leading-relaxed text-ink-400">
           {data.empty ?? 'Not populated in this export.'}
         </div>
       ) : (
@@ -181,16 +195,16 @@ export function Panel({ data, onExpand }: {
         </>
       )}
 
-      <footer className="flex items-center justify-between border-t border-ink-100 px-3 py-1.5">
-        <span className="text-[10px] text-ink-400">
+      <footer className="mt-2 flex items-center justify-between gap-2 px-1">
+        <span className="lg-num text-[10px] text-ink-400">
           {data.rows.length > 0 ? `${n(data.rows.length)} row${data.rows.length === 1 ? '' : 's'}` : ''}
         </span>
         {data.rows.length > 0 && (
           <button
             onClick={() => onExpand(data)}
-            className="text-[10px] font-bold uppercase tracking-[0.09em] text-signal-500 hover:underline"
+            className="lg-pill px-3 py-1 text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-700"
           >
-            {more > 0 ? `${n(more)} more — open` : 'Open'}
+            {more > 0 ? `${n(more)} more` : 'Open'}
           </button>
         )}
       </footer>
@@ -199,7 +213,9 @@ export function Panel({ data, onExpand }: {
 }
 
 /** Full-screen view of one panel: every row, searchable and sortable. */
-export function DetailView({ data, onClose }: { data: PanelData; onClose: () => void }) {
+export function DetailView({ data, onClose, accent = '#0077BB' }: {
+  data: PanelData; onClose: () => void; accent?: string
+}) {
   const [q, setQ] = useState('')
   const [sortCol, setSortCol] = useState<number | null>(null)
   const [desc, setDesc] = useState(true)
@@ -234,37 +250,50 @@ export function DetailView({ data, onClose }: { data: PanelData; onClose: () => 
   }, [data.rows, q, sortCol, desc])
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center bg-ink-950/55 p-3 sm:p-8"
+    <div className="lg-scrim fixed inset-0 z-[120] flex items-start justify-center p-3 sm:p-8"
          onClick={onClose} role="dialog" aria-modal="true" aria-label={data.title}>
-      <div className="flex max-h-full w-full max-w-5xl flex-col bg-paper shadow-2xl"
+      {/* The sheet must own its own style block: it is portalled to
+          the page root and may open from a section that never
+          rendered WidgetStyles. */}
+      <WidgetStyles />
+
+      <div className="lg-sheet flex max-h-full w-full max-w-5xl flex-col overflow-hidden"
+           style={{ '--accent': accent } as React.CSSProperties}
            onClick={e => e.stopPropagation()}>
 
-        <header className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
+        <header className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
           <div className="min-w-0">
             <h3 className="text-lg font-bold text-ink-950"
-                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
+                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.015em' }}>
               {data.title}
             </h3>
-            {data.note && <p className="mt-1 text-xs leading-relaxed text-ink-500">{data.note}</p>}
+            {data.note && <p className="mt-1 text-xs leading-relaxed text-ink-600">{data.note}</p>}
           </div>
-          <button onClick={onClose}
-                  className="shrink-0 border border-ink-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-500 hover:border-signal-500 hover:text-signal-500">
-            Close
+          {/* A round glass button, the size iOS uses for a sheet
+              dismiss — 30px is below the 44px touch target, so the
+              hit area is padded out rather than the glyph enlarged. */}
+          <button onClick={onClose} aria-label="Close"
+                  className="lg-pill grid h-8 w-8 shrink-0 place-items-center text-[15px]
+                             leading-none text-ink-600">
+            ✕
           </button>
         </header>
 
-        <div className="flex items-center gap-3 border-b border-ink-100 px-5 py-2.5">
+        <div className="flex items-center gap-3 px-5 pb-3">
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Filter these rows…"
-            className="w-full border border-ink-200 bg-paper px-3 py-1.5 text-xs text-ink-900 outline-none focus:border-signal-500"
+            className="lg-field w-full px-3.5 py-1.5 text-xs text-ink-900 outline-none
+                       placeholder:text-ink-400"
           />
-          <span className="shrink-0 font-mono text-[11px] text-ink-400">{n(rows.length)}</span>
+          <span className="lg-num shrink-0 font-mono text-[11px] text-ink-500">
+            {n(rows.length)}
+          </span>
         </div>
 
-        <div className="overflow-y-auto">
-          <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-ink-200 bg-paper-dim px-5 py-2">
+        <div className="overflow-y-auto px-3 pb-4">
+          <div className="lg-rowhead sticky top-0 z-10 mb-1 flex items-center gap-2 px-3 py-2">
             {data.columns.map((c, i) => (
               <button
                 key={i}
@@ -275,20 +304,18 @@ export function DetailView({ data, onClose }: { data: PanelData; onClose: () => 
                 title={`Sort by ${c.head}`}
                 className={`${i === 0 ? 'min-w-0 flex-1' : `shrink-0 ${c.width ?? 'w-16'}`} ${
                   c.align === 'right' ? 'text-right' : 'text-left'
-                } text-[9.5px] font-bold uppercase tracking-[0.09em] ${
-                  sortCol === i ? 'text-signal-500' : 'text-ink-500'
-                } hover:text-signal-500`}
+                } text-[9.5px] font-bold uppercase tracking-[0.09em] transition-colors ${
+                  sortCol === i ? 'text-ink-950' : 'text-ink-500 hover:text-ink-800'
+                }`}
               >
                 {c.head}
-                <span className={sortCol === i ? '' : 'text-ink-300'}>
+                <span className={sortCol === i ? 'text-signal-500' : 'text-ink-300'}>
                   {sortCol === i ? (desc ? ' ↓' : ' ↑') : ' ⇅'}
                 </span>
               </button>
             ))}
           </div>
-          <div className="px-5 pb-5">
-            {rows.map(r => <Row key={r.id} row={r} columns={data.columns} dense={false} />)}
-          </div>
+          {rows.map(r => <Row key={r.id} row={r} columns={data.columns} dense={false} />)}
         </div>
       </div>
     </div>
@@ -298,16 +325,18 @@ export function DetailView({ data, onClose }: { data: PanelData; onClose: () => 
 export function Kpi({ label, value, sub, tone = 'ink' }: {
   label: string; value: string; sub?: string; tone?: 'ink' | 'red' | 'green'
 }) {
-  const colour = tone === 'red' ? 'text-signal-500'
+  const colour = tone === 'red' ? 'text-[#CC3311]'
     : tone === 'green' ? 'text-[#0F7B4F]' : 'text-ink-950'
+  const accent = tone === 'red' ? '#CC3311' : tone === 'green' ? '#009988' : '#5C5C64'
   return (
-    <div className="border border-ink-200 bg-paper px-3 py-2.5">
-      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{label}</div>
-      <div className={`mt-1 text-[1.35rem] font-bold leading-none ${colour}`}
+    <div className="lg-card lg-rise px-3 py-2.5"
+         style={{ '--accent': accent } as React.CSSProperties}>
+      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-500">{label}</div>
+      <div className={`lg-num mt-1 text-[1.35rem] font-bold leading-none ${colour}`}
            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
         {value}
       </div>
-      {sub && <div className="mt-1 text-[10px] leading-snug text-ink-400">{sub}</div>}
+      {sub && <div className="mt-1 text-[10px] leading-snug text-ink-500">{sub}</div>}
     </div>
   )
 }
@@ -666,13 +695,15 @@ export function LiquidGauge({
           </radialGradient>
         </defs>
 
-        <circle cx="50" cy="50" r="45" fill="#F2F2F5" />
+        {/* the empty part of the sphere: a warm translucent well,
+            not grey — grey on cream reads as a hole */}
+        <circle cx="50" cy="50" r="45" fill="#7A6448" fillOpacity="0.07" />
 
         <g clipPath={`url(#lgc${uid})`}>
-          <path className="isedash-wave isedash-wave-back" d={wave(2.4)}
-                fill={colour} opacity="0.30" />
-          <path className="isedash-wave isedash-wave-front" d={wave(3.2)}
-                fill={colour} opacity="0.82" />
+          <path className="lg-wave lg-wave-back" d={wave(2.4)}
+                fill={colour} opacity="0.32" />
+          <path className="lg-wave" d={wave(3.2)}
+                fill={colour} opacity="0.80" />
         </g>
 
         {/* glass: specular highlight top-left, faint occlusion bottom-right */}
@@ -704,104 +735,273 @@ export function LiquidGauge({
 }
 
 // ------------------------------------------------------------
-// the widget style layer
+// the glass layer
 // ------------------------------------------------------------
 
 /**
- * Rendered once per page. Holds the keyframes the gauges need and
- * the surface treatments, because keyframes cannot be scoped to a
- * component with inline styles and Tailwind has no vocabulary for
- * backdrop layers of this kind.
+ * Rendered once per page. Keyframes cannot be expressed as inline
+ * styles and Tailwind has no vocabulary for backdrop layers, so
+ * the whole material lives here as one stylesheet.
  *
- * The background is a blueprint grid at four percent — present
- * enough to read as instrumentation, far too faint to compete with
- * a number sitting on top of it. That restraint is the whole
- * design constraint: a dashboard that is hard to read is a failed
- * dashboard however good it looks in a screenshot.
+ * The material is modelled on iOS 26's liquid glass, adapted to a
+ * light page. Four things make it read as glass rather than as a
+ * grey box with rounded corners:
+ *
+ *   · it refracts. backdrop-filter blurs AND saturates what is
+ *     behind, which is why colour has to exist behind it — hence
+ *     the blooms on the canvas. Glass over a flat surface just
+ *     looks like paint.
+ *   · it has a lit edge. A one-pixel inset white highlight along
+ *     the top, falling off around the rim, is the specular
+ *     response of a bevelled edge to light from above.
+ *   · it has depth, not a border. Two shadows at different radii
+ *     read as an object floating above a surface; a 1px grey
+ *     outline reads as a rectangle drawn on it. There are no
+ *     hairline borders anywhere in here.
+ *   · it is tinted by what it sits on, not by a stripe. Each card
+ *     carries a soft bloom of its own accent in the corner
+ *     instead of the hard 3px bar it had before.
+ *
+ * Every shadow is warm — rgba(74,60,45) rather than black. On a
+ * cream page a neutral shadow reads as dirt. This is the kind of
+ * detail that is invisible when right and obvious when wrong.
  */
 export function WidgetStyles() {
   return (
     <style>{`
-      @keyframes isedash-drift {
+      /* ---- gauge motion ---- */
+      @keyframes lg-drift {
         from { transform: translateX(0); }
         to   { transform: translateX(-100px); }
       }
-      .isedash-wave { animation: isedash-drift 7s linear infinite; }
-      .isedash-wave-back { animation-duration: 11.5s; animation-direction: reverse; }
+      .lg-wave { animation: lg-drift 7s linear infinite; }
+      .lg-wave-back { animation-duration: 11.5s; animation-direction: reverse; }
 
       /*
-        Opacity only, deliberately. An entrance that also animated
-        transform would need fill-mode: both to avoid a flash, and a
-        filled animation keeps 'transform: none' applied forever —
-        animated values outrank normal declarations in the cascade,
-        so the hover lift below would silently stop working.
+        Entrance animates opacity only, deliberately. Animating
+        transform would need fill-mode: both to avoid a first-frame
+        flash, and a filled animation keeps 'transform: none'
+        applied forever — animated values outrank normal
+        declarations in the cascade, so the hover lift below would
+        silently stop working.
       */
-      @keyframes isedash-rise { from { opacity: 0; } to { opacity: 1; } }
-      .isedash-rise { animation: isedash-rise .4s ease both; }
+      @keyframes lg-fade { from { opacity: 0; } to { opacity: 1; } }
+      .lg-rise { animation: lg-fade .42s ease both; }
 
-      /* the instrument surface */
-      .isedash-canvas {
+      /* ---- the canvas ----
+         Transparent on purpose: the dashboard sits directly on the
+         page's own cream, with no seam where one surface meets
+         another. All it adds is the colour the glass needs
+         something to refract. */
+      .lg-canvas {
         position: relative;
-        background-color: #FAFAFB;
-        background-image:
-          linear-gradient(rgba(23,23,26,.045) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(23,23,26,.045) 1px, transparent 1px),
-          radial-gradient(58rem 28rem at 12% -8%, rgba(0,119,187,.11), transparent 62%),
-          radial-gradient(46rem 24rem at 96% 2%, rgba(238,51,119,.09), transparent 62%),
-          radial-gradient(40rem 22rem at 60% 108%, rgba(0,153,136,.08), transparent 62%);
-        background-size: 26px 26px, 26px 26px, 100% 100%, 100% 100%, 100% 100%;
+        isolation: isolate;
+        background: transparent;
       }
-
-      /* the widget itself: translucent, layered, liftable */
-      .isedash-card {
-        position: relative;
-        border-radius: 16px;
-        background: rgba(255,255,255,.74);
-        /* 10px, not 24 — a page can hold forty of these cards and
-           each blurred layer is composited every scroll frame. The
-           backdrop is a faint grid, so past about ten pixels the
-           extra radius costs GPU time for no visible difference. */
-        -webkit-backdrop-filter: blur(10px) saturate(1.5);
-        backdrop-filter: blur(10px) saturate(1.5);
-        border: 1px solid rgba(23,23,26,.075);
-        box-shadow:
-          0 1px 1px rgba(23,23,26,.04),
-          0 10px 26px -14px rgba(23,23,26,.20),
-          inset 0 1px 0 rgba(255,255,255,.75);
-        transition: transform .18s ease, box-shadow .18s ease;
-      }
-      .isedash-card:hover {
-        transform: translateY(-2px);
-        box-shadow:
-          0 2px 3px rgba(23,23,26,.05),
-          0 20px 44px -18px rgba(23,23,26,.30),
-          inset 0 1px 0 rgba(255,255,255,.85);
-      }
-      /* the accent hairline that identifies a card at a glance */
-      .isedash-card::before {
+      .lg-canvas::before {
         content: '';
-        position: absolute; inset: 0 0 auto 0; height: 3px;
-        border-radius: 16px 16px 0 0;
-        background: linear-gradient(90deg, var(--accent, #0077BB), transparent 78%);
+        position: absolute;
+        /* Bleeds vertically but never horizontally: a negative
+           inline inset on a centred container pushes past the
+           viewport on narrow screens and produces a horizontal
+           scrollbar that is very hard to trace back to a glow. */
+        inset: -6rem 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+          radial-gradient(34rem 24rem at  6%  2%, rgba(0,119,187,.26),  transparent 62%),
+          radial-gradient(30rem 22rem at 94%  7%, rgba(238,51,119,.20), transparent 62%),
+          radial-gradient(27rem 20rem at 74% 44%, rgba(238,119,51,.17), transparent 62%),
+          radial-gradient(32rem 23rem at 18% 72%, rgba(0,153,136,.20),  transparent 62%),
+          radial-gradient(26rem 20rem at 90% 95%, rgba(170,51,119,.16), transparent 62%);
+        filter: blur(42px) saturate(118%);
+      }
+
+      /* ---- the material ---- */
+      .lg-card {
+        position: relative;
+        isolation: isolate;
+        border-radius: 20px;
+        /* Continuous corners where the browser has them. Chrome 139+
+           only for now; everywhere else quietly keeps the plain
+           radius, which is the correct way to spend a new property. */
+        corner-shape: squircle;
+        background: linear-gradient(180deg, rgba(255,255,255,.60), rgba(255,255,255,.34));
+        -webkit-backdrop-filter: blur(20px) saturate(185%);
+        backdrop-filter: blur(20px) saturate(185%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.95),
+          inset 0 0 0 .5px rgba(255,255,255,.55),
+          inset 0 -16px 30px -22px rgba(120,100,80,.28),
+          0 1px 1.5px rgba(74,60,45,.05),
+          0 10px 22px -12px rgba(74,60,45,.15),
+          0 28px 52px -30px rgba(74,60,45,.22);
+        transition: transform .24s cubic-bezier(.2,.8,.3,1), box-shadow .24s ease;
+      }
+      /* the accent, as a bloom under the glass rather than a stripe */
+      .lg-card::before {
+        content: '';
+        position: absolute; inset: 0; z-index: -1;
+        border-radius: inherit;
+        pointer-events: none;
+        background:
+          radial-gradient(122% 88% at 0% 0%,
+            color-mix(in srgb, var(--accent, #0077BB) 30%, transparent), transparent 62%),
+          radial-gradient(96% 74% at 100% 100%,
+            color-mix(in srgb, var(--accent, #0077BB) 14%, transparent), transparent 66%);
         opacity: .9;
       }
+      /*
+        Specular sheen down the top-left bevel.
+        Two constraints, both learned the hard way:
+        it falls off within a fifth of the card so it lights the
+        edge rather than washing the face, and content is lifted
+        above it — a positioned pseudo-element paints above normal
+        in-flow text, so without the z-index the title of every
+        card would sit under a white veil.
+      */
+      .lg-card::after {
+        content: '';
+        position: absolute; inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: linear-gradient(133deg,
+          rgba(255,255,255,.58) 0%,
+          rgba(255,255,255,.10) 9%,
+          rgba(255,255,255,0)   23%);
+      }
+      .lg-card > * { position: relative; z-index: 1; }
+      .lg-card:hover {
+        transform: translateY(-3px);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,1),
+          inset 0 0 0 .5px rgba(255,255,255,.7),
+          inset 0 -16px 30px -22px rgba(120,100,80,.24),
+          0 2px 3px rgba(74,60,45,.06),
+          0 18px 36px -14px rgba(74,60,45,.20),
+          0 40px 70px -34px rgba(74,60,45,.28);
+      }
+      .lg-card:focus-within {
+        outline: 2px solid color-mix(in srgb, var(--accent, #0077BB) 70%, transparent);
+        outline-offset: 2px;
+      }
 
-      .isedash-inset {
+      /* a recessed well inside a card — the inverse lighting */
+      .lg-inset {
+        border-radius: 14px;
+        corner-shape: squircle;
+        background: linear-gradient(180deg, rgba(120,100,80,.055), rgba(120,100,80,.02));
+        box-shadow:
+          inset 0 1px 2px rgba(74,60,45,.09),
+          inset 0 -1px 0 rgba(255,255,255,.7);
+      }
+
+      /* ---- rows ---- */
+      .lg-row {
         border-radius: 12px;
-        background: rgba(23,23,26,.028);
-        box-shadow: inset 0 1px 2px rgba(23,23,26,.05);
+        corner-shape: squircle;
+        transition: background .16s ease, box-shadow .16s ease;
+      }
+      .lg-row:hover {
+        background: rgba(255,255,255,.52);
+        box-shadow: inset 0 0 0 .5px rgba(255,255,255,.85);
+      }
+      .lg-rowhead {
+        border-radius: 12px;
+        background: rgba(255,255,255,.34);
+        -webkit-backdrop-filter: blur(10px) saturate(150%);
+        backdrop-filter: blur(10px) saturate(150%);
       }
 
-      .isedash-row {
-        border-radius: 10px;
-        transition: background .15s ease, transform .15s ease;
+      /* ---- small controls ---- */
+      .lg-pill {
+        border-radius: 999px;
+        background: rgba(255,255,255,.55);
+        -webkit-backdrop-filter: blur(12px) saturate(170%);
+        backdrop-filter: blur(12px) saturate(170%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.95),
+          inset 0 0 0 .5px rgba(255,255,255,.6),
+          0 2px 6px -2px rgba(74,60,45,.16);
+        transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
       }
-      .isedash-row:hover { background: rgba(23,23,26,.035); transform: translateX(2px); }
+      .lg-pill:hover {
+        background: rgba(255,255,255,.75);
+        transform: translateY(-1px);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,1),
+          inset 0 0 0 .5px rgba(255,255,255,.8),
+          0 5px 12px -3px rgba(74,60,45,.22);
+      }
+      .lg-field {
+        border-radius: 999px;
+        background: rgba(255,255,255,.5);
+        box-shadow:
+          inset 0 1px 2px rgba(74,60,45,.10),
+          inset 0 0 0 .5px rgba(255,255,255,.6);
+        transition: box-shadow .16s ease, background .16s ease;
+      }
+      .lg-field:focus {
+        background: rgba(255,255,255,.8);
+        box-shadow:
+          inset 0 1px 2px rgba(74,60,45,.06),
+          inset 0 0 0 1.5px color-mix(in srgb, var(--accent, #0077BB) 60%, transparent);
+      }
+
+      /* ---- the zoom sheet ---- */
+      @keyframes lg-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+      /*
+        Scale and fade together, with a curve that overshoots very
+        slightly past 1 before settling. That tiny overshoot is what
+        separates "a box appeared" from "a thing came forward" — it
+        is how iOS presents a sheet, and the eye reads the absence
+        of it as cheapness without being able to say why.
+      */
+      @keyframes lg-zoom-in {
+        from { opacity: 0; transform: scale(.90) translateY(14px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      .lg-scrim {
+        animation: lg-scrim-in .24s ease both;
+        background: rgba(38,30,22,.30);
+        -webkit-backdrop-filter: blur(26px) saturate(140%);
+        backdrop-filter: blur(26px) saturate(140%);
+      }
+      .lg-sheet {
+        animation: lg-zoom-in .36s cubic-bezier(.19,1.08,.30,1) both;
+        transform-origin: center;
+        border-radius: 26px;
+        corner-shape: squircle;
+        background: linear-gradient(180deg, rgba(255,255,255,.80), rgba(255,255,255,.66));
+        -webkit-backdrop-filter: blur(34px) saturate(190%);
+        backdrop-filter: blur(34px) saturate(190%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,1),
+          inset 0 0 0 .5px rgba(255,255,255,.7),
+          0 30px 70px -20px rgba(30,22,14,.45),
+          0 80px 140px -60px rgba(30,22,14,.55);
+      }
+
+      .lg-num { font-variant-numeric: tabular-nums; }
+
+      /*
+        Where the browser cannot blur a backdrop the material would
+        become a washed-out translucent rectangle with unreadable
+        text over it. Fall back to near-opaque instead: it loses the
+        effect and keeps the legibility, which is the right way
+        round.
+      */
+      @supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+        .lg-card, .lg-sheet, .lg-pill, .lg-rowhead {
+          background: rgba(255,253,250,.94);
+        }
+        .lg-scrim { background: rgba(38,30,22,.62); }
+      }
 
       @media (prefers-reduced-motion: reduce) {
-        .isedash-wave, .isedash-rise { animation: none !important; }
-        .isedash-card, .isedash-row { transition: none; }
-        .isedash-card:hover, .isedash-row:hover { transform: none; }
+        .lg-wave, .lg-rise, .lg-sheet, .lg-scrim { animation: none !important; }
+        .lg-card, .lg-row, .lg-pill { transition: none; }
+        .lg-card:hover, .lg-pill:hover { transform: none; }
       }
     `}</style>
   )
@@ -819,23 +1019,23 @@ export function Tile({ label, value, sub, tone = 'ink', spark }: {
   spark?: number[]
 }) {
   const skin = {
-    ink:   { bg: 'linear-gradient(145deg,rgba(23,23,26,.045),rgba(23,23,26,.008))', text: 'text-ink-950', edge: 'border-ink-200' },
-    red:   { bg: 'linear-gradient(145deg,rgba(211,0,45,.11),rgba(211,0,45,.02))',   text: 'text-signal-500', edge: 'border-signal-500/35' },
-    green: { bg: 'linear-gradient(145deg,rgba(15,123,79,.11),rgba(15,123,79,.02))', text: 'text-[#0F7B4F]', edge: 'border-[#0F7B4F]/30' },
-    amber: { bg: 'linear-gradient(145deg,rgba(180,83,9,.11),rgba(180,83,9,.02))',   text: 'text-[#B45309]', edge: 'border-[#B45309]/30' },
+    ink:   { accent: '#5C5C64', text: 'text-ink-950' },
+    red:   { accent: '#CC3311', text: 'text-[#CC3311]' },
+    green: { accent: '#009988', text: 'text-[#0F7B4F]' },
+    amber: { accent: '#EE7733', text: 'text-[#B45309]' },
   }[tone]
 
   const peak = spark && spark.length ? Math.max(...spark, 1) : 1
 
   return (
-    <div className={`relative overflow-hidden border ${skin.edge} px-3.5 py-3 backdrop-blur-sm`}
-         style={{ background: skin.bg }}>
-      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{label}</div>
-      <div className={`mt-1.5 text-[1.6rem] font-bold leading-none ${skin.text}`}
+    <div className="lg-card lg-rise px-3.5 py-3"
+         style={{ '--accent': skin.accent } as React.CSSProperties}>
+      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-500">{label}</div>
+      <div className={`lg-num mt-1.5 text-[1.6rem] font-bold leading-none ${skin.text}`}
            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
         {value}
       </div>
-      {sub && <div className="mt-1.5 text-[10px] leading-snug text-ink-400">{sub}</div>}
+      {sub && <div className="mt-1.5 text-[10px] leading-snug text-ink-500">{sub}</div>}
 
       {spark && spark.length > 1 && (
         <svg viewBox={`0 0 100 22`} preserveAspectRatio="none"
@@ -858,7 +1058,16 @@ export function SectionBanner({ title, subtitle, right }: {
   title: string; subtitle: string; right?: React.ReactNode
 }) {
   return (
-    <div className="mb-4 mt-8 flex flex-wrap items-end justify-between gap-3 border-b-2 border-ink-950 pb-2 first:mt-0">
+    <div className="relative mb-4 mt-9 flex flex-wrap items-end justify-between gap-3 pb-2.5 first:mt-0">
+      {/*
+        A rule that fades rather than stopping. A full-width 2px
+        black bar was right on the old flat surface; against glass
+        it reads as a scar, because nothing else on the page has a
+        hard edge any more.
+      */}
+      <span aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
+            style={{ background: 'linear-gradient(90deg, rgba(23,23,26,.45), rgba(23,23,26,.06) 55%, transparent)' }} />
       <div>
         <h2 className="text-xl font-bold leading-tight text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>

@@ -56,7 +56,7 @@ function DayStrip({ data, title, note }: { data: KeyCount[]; title: string; note
   if (!data || data.length < 2) return null
   const max = Math.max(1, ...data.map(d => d.count))
   return (
-    <section className="mb-4 border border-ink-200 bg-paper">
+    <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>{title}</h3>
@@ -165,7 +165,7 @@ function AuthTimeline({ hourly }: { hourly: { hour: string; total: number; fail:
   const ticks = hourly.map((_, i) => i).filter(i => i % step === 0 || i === hourly.length - 1)
 
   return (
-    <section className="mb-4 border border-ink-200 bg-paper">
+    <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -224,7 +224,7 @@ function CorrelationChart({ c }: { c: Correlation }) {
   const step = Math.max(1, Math.ceil(c.hours.length / 10))
 
   return (
-    <section className="mb-4 border border-ink-200 bg-paper">
+    <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
             style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -872,7 +872,7 @@ export default function BundleSection({ r, onExpand }: {
 
       {/* ---------- the headline facts, before anything else ---------- */}
       {system && (
-        <div className="mb-4 border border-ink-200 bg-paper">
+        <div className="lg-card lg-rise mb-4">
           <div className="grid divide-ink-100 sm:grid-cols-2 sm:divide-x lg:grid-cols-4">
             {[
               ['Version', system.iseVersion ?? '—',
@@ -937,7 +937,7 @@ export default function BundleSection({ r, onExpand }: {
 
       {/* ---------- findings ---------- */}
       {r.findings?.length > 0 && (
-        <section className="mb-4 border border-ink-200 bg-paper-dim p-3">
+        <section className="lg-card lg-rise mb-4 p-3">
           <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-[13px] font-bold text-ink-950"
                 style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
@@ -1043,7 +1043,7 @@ export default function BundleSection({ r, onExpand }: {
             subtitle={`${system.rawSections.length} sections shown exactly as ISE printed them — summarising these would lose more than it saves`} />
           <div className="grid gap-3 lg:grid-cols-2">
             {system.rawSections.map(s => (
-              <details key={s.name} className="group border border-ink-200 bg-paper">
+              <details key={s.name} className="lg-card group">
                 <summary className="cursor-pointer list-none px-3 py-2.5 marker:content-none">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-[13px] font-bold text-ink-950"

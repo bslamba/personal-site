@@ -23,7 +23,7 @@
 // ============================================================
 
 import {
-  Panel, Donut, MultiLine, Sparkline, LiquidGauge, WidgetStyles,
+  Panel, Donut, MultiLine, Sparkline, LiquidGauge,
   SectionBanner, NODE_COLOURS, nodeColour,
   n, pc, ms, type PanelData,
 } from './panel'
@@ -49,7 +49,7 @@ function Widget({ title, note, accent = '#0077BB', className = '', right, childr
   children: React.ReactNode
 }) {
   return (
-    <section className={`isedash-card isedash-rise overflow-hidden ${className}`}
+    <section className={`lg-card lg-rise overflow-hidden ${className}`}
              style={cssVar(accent)}>
       {title && (
         <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-3.5">
@@ -79,7 +79,7 @@ function StatCard({ label, value, unit, sub, accent, spark, sparkMax }: {
   sparkMax?: number
 }) {
   return (
-    <div className="isedash-card isedash-rise flex flex-col justify-between p-3.5"
+    <div className="lg-card lg-rise flex flex-col justify-between p-3.5"
          style={cssVar(accent)}>
       <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-ink-400">{label}</p>
       <p className="mt-2 font-mono text-[24px] font-bold leading-none tabular-nums text-ink-950">
@@ -106,7 +106,7 @@ function GaugeCard({ label, value, sub, accent, alert }: {
   alert?: boolean
 }) {
   return (
-    <div className="isedash-card isedash-rise flex flex-col items-center justify-center gap-1.5 p-3.5"
+    <div className="lg-card lg-rise flex flex-col items-center justify-center gap-1.5 p-3.5"
          style={cssVar(alert ? '#CC3311' : accent)}>
       <LiquidGauge value={value} colour={accent} size={84} alert={alert} />
       <p className="text-center text-[9px] font-bold uppercase tracking-[0.11em] text-ink-500">
@@ -126,7 +126,7 @@ const SEV: Record<string, { accent: string; label: string; tone: string }> = {
 function Finding({ f }: { f: DashboardAnalysis['findings'][number] }) {
   const s = SEV[f.severity] ?? SEV.info
   return (
-    <div className="isedash-card isedash-rise p-3" style={cssVar(s.accent)}>
+    <div className="lg-card lg-rise p-3" style={cssVar(s.accent)}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
            style={{ fontFamily: 'var(--font-heading)' }}>
@@ -173,7 +173,7 @@ function RankWidget({ title, note, rows, accent, unit, onOpen, take = 7 }: {
       <ol className="space-y-0.5">
         {shown.map((r, i) => (
           <li key={r.label}
-              className="isedash-row relative flex items-center gap-2.5 px-2 py-[7px]">
+              className="lg-row relative flex items-center gap-2.5 px-2 py-[7px]">
             <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[10px]"
                   style={{
                     width: `${(r.count / max) * 100}%`,
@@ -260,7 +260,7 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
 
           return (
             <section key={nd.name}
-                     className="isedash-card isedash-rise overflow-hidden"
+                     className="lg-card lg-rise overflow-hidden"
                      style={cssVar(slow ? '#CC3311' : colour)}>
               <header className="flex items-center gap-2 px-3.5 pb-2 pt-3.5">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -285,7 +285,7 @@ function NodeGrid({ nodes, hours }: { nodes: NodeSeries[]; hours: string[] }) {
                                caption="Memory" alert={hotMem} />
                 </div>
 
-                <div className="isedash-inset min-w-0 flex-1 px-2.5 py-2">
+                <div className="lg-inset min-w-0 flex-1 px-2.5 py-2">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-ink-400">
                       Latency
@@ -451,8 +451,8 @@ export default function DashboardSection({ a, onExpand }: {
 
   return (
     <>
-      <WidgetStyles />
-
+      {/* WidgetStyles is rendered once by the analyser root, which
+          is the only thing that mounts this section. */}
       <SectionBanner
         title="ISE Dashboard Export"
         subtitle={
@@ -462,7 +462,11 @@ export default function DashboardSection({ a, onExpand }: {
         }
       />
 
-      <div className="isedash-canvas rounded-2xl border border-ink-950/[.06] p-3 sm:p-4">
+      {/* No canvas of its own — the analyser root already supplies
+          one, and nesting two sets of blooms would double the tint
+          under these cards and leave a visible seam where the
+          dashboard starts. */}
+      <div>
 
         {/* ---------- gauges: the four bounded percentages ---------- */}
         <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -553,7 +557,7 @@ export default function DashboardSection({ a, onExpand }: {
                     : al.severity === 2 ? '#EE7733' : '#8A8A93'
                   return (
                     <div key={al.name}
-                         className="isedash-row relative flex items-center gap-2.5 px-2 py-[7px]">
+                         className="lg-row relative flex items-center gap-2.5 px-2 py-[7px]">
                       <span className="pointer-events-none absolute inset-y-0 left-0 rounded-[10px]"
                             style={{
                               width: `${(al.occurrences / alarmMax) * 100}%`,
