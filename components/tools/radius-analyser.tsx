@@ -693,7 +693,7 @@ export default function IseReportAnalyser() {
             dropRef.current?.classList.remove('drop-live')
             addFiles(e.dataTransfer.files)
           }}
-          className="tool-drop rounded-3xl border-2 border-dashed border-white/20 p-8 text-center transition-colors"
+          className="tool-drop rounded-[28px] border-2 border-dashed border-white/30 bg-white/[.04] p-8 text-center transition-colors"
         >
           <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
             Drop your ISE files here

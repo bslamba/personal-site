@@ -122,7 +122,7 @@ export default function IseReportToolPage() {
         so the class is inert until that component renders — which
         it does in both its idle and its loaded state.
       */}
-      <section className="lg-dark pb-24">
+      <section className="lg-dark pb-28 pt-24">
         <IseReportAnalyser />
       </section>
     </>

@@ -727,9 +727,9 @@ export function LiquidGauge({
         {/* the empty part of the sphere: a well cut into the dark
             ground, so an empty gauge reads as unfilled rather than
             as a bright disc waiting to be filled */}
-        <circle cx="50" cy="50" r="45" fill="#000000" fillOpacity="0.28" />
+        <circle cx="50" cy="50" r="45" fill="#000000" fillOpacity="0.20" />
         <circle cx="50" cy="50" r="45" fill="none"
-                stroke="rgba(255,255,255,.10)" strokeWidth="1" />
+                stroke="rgba(255,255,255,.22)" strokeWidth="1" />
 
         <g clipPath={`url(#lgc${uid})`}>
           <path className="lg-wave lg-wave-back" d={wave(2.4)}
@@ -832,13 +832,42 @@ export function WidgetStyles() {
          over it clears contrast everywhere. */
       .lg-dark {
         color-scheme: dark;
-        background-color: #07080C;
+        background-color: #2C323B;
+        /*
+          Layer order is the whole trick here, and CSS paints the
+          FIRST listed layer on top. So the two fades come first and
+          sit over everything below them; the weather sits in the
+          middle; the flat slate is last and underneath.
+
+          The fades are what stop the section starting and ending
+          with a hard line. The top dissolves into the page's cream
+          over nine rem and the bottom into the footer's near-black
+          over ten, so the dark arrives and leaves as a gradient
+          rather than an edge. Doing it in the background stack
+          avoids masks and stacking contexts entirely — a mask would
+          also fade the content, and an isolated ancestor would trap
+          the fixed modal underneath the site header.
+        */
         background-image:
-          radial-gradient(46rem 32rem at  6% -4%, #16203A 0%, transparent 62%),
-          radial-gradient(40rem 30rem at 94%  3%, #251530 0%, transparent 62%),
-          radial-gradient(38rem 28rem at 72% 42%, #0D2A2A 0%, transparent 64%),
-          radial-gradient(42rem 30rem at 12% 70%, #191F36 0%, transparent 64%),
-          radial-gradient(36rem 28rem at 90% 94%, #2A1620 0%, transparent 64%);
+          /* 6rem and 8rem are not arbitrary: the section carries
+             pt-24 / pb-28, so both transition bands finish before
+             any content begins. Light text drifting into the cream
+             band would be invisible, and that is exactly the kind
+             of thing that only shows up on a real screen. */
+          linear-gradient(to bottom, #FAF8F5 0, rgba(250,248,245,0) 6rem),
+          linear-gradient(to top,    #08080A 0, rgba(8,8,10,0)      8rem),
+
+          /* weather: light wisps above, heavier shadow below, and
+             two cold hues held well back so the grey stays grey */
+          radial-gradient(62rem 34rem at 18%  6%, rgba(255,255,255,.075), transparent 60%),
+          radial-gradient(52rem 30rem at 86% 20%, rgba(146,170,205,.10), transparent 62%),
+          radial-gradient(44rem 28rem at 48% 44%, rgba(255,255,255,.045), transparent 60%),
+          radial-gradient(50rem 32rem at 12% 62%, rgba(120,142,178,.09), transparent 62%),
+          radial-gradient(46rem 30rem at 74% 78%, rgba(0,0,0,.20),       transparent 62%),
+          radial-gradient(54rem 34rem at  8% 94%, rgba(0,0,0,.17),       transparent 64%),
+
+          linear-gradient(#2C323B, #2C323B);
+        background-repeat: no-repeat;
       }
 
       .lg-canvas { position: relative; }
@@ -852,26 +881,32 @@ export function WidgetStyles() {
          stops needing a background to be told where the card is. */
       .lg-card {
         position: relative;
-        border-radius: 20px;
-        /* Continuous corners where the browser has them. Chrome 139+
-           only for now; everywhere else quietly keeps the plain
-           radius, which is the correct way to spend a new property. */
+        /*
+          Matched to the iOS folder container: a large continuous
+          radius, a barely-there light fill, and a single crisp
+          hairline of white around the whole edge. The hairline is
+          the load-bearing part — it is what makes an almost
+          invisible panel read as an object, and it is why there is
+          no drop shadow. iOS does not shadow these; the ring alone
+          separates the panel from the wallpaper.
+        */
+        border-radius: 28px;
         corner-shape: squircle;
-        background: transparent;
-        -webkit-backdrop-filter: blur(18px) saturate(115%);
-        backdrop-filter: blur(18px) saturate(115%);
+        background: rgba(255,255,255,.055);
+        -webkit-backdrop-filter: blur(26px) saturate(140%);
+        backdrop-filter: blur(26px) saturate(140%);
         box-shadow:
-          inset 0 0 0 1px rgba(255,255,255,.10),
-          inset 0 1px 0 rgba(255,255,255,.16),
-          0 16px 38px -22px rgba(0,0,0,.85);
-        transition: transform .24s cubic-bezier(.2,.8,.3,1), box-shadow .24s ease;
+          inset 0 0 0 1px rgba(255,255,255,.32),
+          0 8px 24px -18px rgba(0,0,0,.55);
+        transition: transform .24s cubic-bezier(.2,.8,.3,1),
+                    box-shadow .24s ease, background .24s ease;
       }
       .lg-card:hover {
-        transform: translateY(-3px);
+        transform: translateY(-2px);
+        background: rgba(255,255,255,.085);
         box-shadow:
-          inset 0 0 0 1px rgba(255,255,255,.19),
-          inset 0 1px 0 rgba(255,255,255,.26),
-          0 26px 54px -24px rgba(0,0,0,.92);
+          inset 0 0 0 1px rgba(255,255,255,.45),
+          0 14px 32px -18px rgba(0,0,0,.6);
       }
       .lg-card:focus-within {
         outline: 2px solid var(--accent, #7CC7F5);
@@ -881,12 +916,13 @@ export function WidgetStyles() {
       /* the one place colour is allowed: the heading of each card */
       .lg-title { color: var(--accent, #E8EAF0); }
 
-      /* a slightly recessed well — darker, not lighter */
+      /* a nested panel: same language, one step quieter, so it
+         reads as inside the card rather than on top of it */
       .lg-inset {
-        border-radius: 14px;
+        border-radius: 18px;
         corner-shape: squircle;
-        background: rgba(0,0,0,.22);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+        background: rgba(255,255,255,.04);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
       }
 
       /* ---- rows ---- */
@@ -896,12 +932,13 @@ export function WidgetStyles() {
         transition: background .16s ease, box-shadow .16s ease;
       }
       .lg-row:hover {
-        background: rgba(255,255,255,.06);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
+        background: rgba(255,255,255,.07);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
       }
       .lg-rowhead {
-        border-radius: 12px;
-        background: rgba(255,255,255,.045);
+        border-radius: 14px;
+        background: rgba(255,255,255,.05);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
         -webkit-backdrop-filter: blur(10px);
         backdrop-filter: blur(10px);
       }
@@ -909,27 +946,27 @@ export function WidgetStyles() {
       /* ---- small controls ---- */
       .lg-pill {
         border-radius: 999px;
-        background: rgba(255,255,255,.06);
+        background: rgba(255,255,255,.07);
         -webkit-backdrop-filter: blur(12px);
         backdrop-filter: blur(12px);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.30);
         transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
       }
       .lg-pill:hover {
-        background: rgba(255,255,255,.12);
+        background: rgba(255,255,255,.14);
         transform: translateY(-1px);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.28);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.48);
       }
       .lg-field {
         border-radius: 999px;
-        background: rgba(0,0,0,.28);
-        color: #E8EAF0;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+        background: rgba(255,255,255,.05);
+        color: #EDEFF4;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.26);
         transition: box-shadow .16s ease, background .16s ease;
       }
-      .lg-field::placeholder { color: #6F7788; }
+      .lg-field::placeholder { color: #8A93A6; }
       .lg-field:focus {
-        background: rgba(0,0,0,.42);
+        background: rgba(255,255,255,.10);
         box-shadow: inset 0 0 0 1.5px var(--accent, #7CC7F5);
       }
       .lg-dark select.lg-field option { background: #12141C; color: #E8EAF0; }
@@ -942,23 +979,27 @@ export function WidgetStyles() {
          Tailwind's originals without !important — which matters,
          because !important here would also override the deliberate
          colour set inline on individual cards. */
-      .lg-dark .text-ink-950, .lg-dark .text-ink-900 { color: #F0F2F7; }
-      .lg-dark .text-ink-800 { color: #E1E4EC; }
-      .lg-dark .text-ink-700 { color: #CBD0DB; }
-      .lg-dark .text-ink-600 { color: #B2B8C6; }
-      .lg-dark .text-ink-500 { color: #98A0B0; }
-      .lg-dark .text-ink-400 { color: #838B9C; }
-      .lg-dark .text-ink-300 { color: #6C7484; }
+      /* The ground is #2C323B, which is a good deal lighter than a
+         true black, so the dim end of this scale has to come up
+         with it — #838B9C on this slate is only about 3.3:1 and
+         fails for body text. Everything below is at or above 4.5. */
+      .lg-dark .text-ink-950, .lg-dark .text-ink-900 { color: #F4F6FA; }
+      .lg-dark .text-ink-800 { color: #E7EAF1; }
+      .lg-dark .text-ink-700 { color: #D5DAE4; }
+      .lg-dark .text-ink-600 { color: #C2C8D5; }
+      .lg-dark .text-ink-500 { color: #ADB4C3; }
+      .lg-dark .text-ink-400 { color: #9AA2B2; }
+      .lg-dark .text-ink-300 { color: #878FA1; }
       .lg-dark .text-signal-500, .lg-dark .text-signal-600,
-      .lg-dark .text-signal-700 { color: #FF8FA3; }
+      .lg-dark .text-signal-700 { color: #FF9AAC; }
 
       .lg-dark .bg-paper, .lg-dark .bg-paper-dim { background-color: transparent; }
-      .lg-dark .bg-signal-50 { background-color: rgba(255,143,163,.10); }
-      .lg-dark .bg-ink-100 { background-color: rgba(255,255,255,.09); }
+      .lg-dark .bg-signal-50 { background-color: rgba(255,154,172,.12); }
+      .lg-dark .bg-ink-100 { background-color: rgba(255,255,255,.12); }
 
-      .lg-dark .border-ink-100 { border-color: rgba(255,255,255,.07); }
-      .lg-dark .border-ink-200 { border-color: rgba(255,255,255,.12); }
-      .lg-dark .border-ink-950 { border-color: rgba(255,255,255,.30); }
+      .lg-dark .border-ink-100 { border-color: rgba(255,255,255,.10); }
+      .lg-dark .border-ink-200 { border-color: rgba(255,255,255,.18); }
+      .lg-dark .border-ink-950 { border-color: rgba(255,255,255,.38); }
 
       .lg-dark pre, .lg-dark code { color: #DCE0E9; }
       .lg-dark ::selection { background: rgba(124,199,245,.30); }
@@ -978,26 +1019,25 @@ export function WidgetStyles() {
       }
       .lg-scrim {
         animation: lg-scrim-in .24s ease both;
-        background: rgba(4,5,9,.62);
-        -webkit-backdrop-filter: blur(22px);
-        backdrop-filter: blur(22px);
+        background: rgba(16,19,25,.55);
+        -webkit-backdrop-filter: blur(24px);
+        backdrop-filter: blur(24px);
       }
       .lg-sheet {
         animation: lg-zoom-in .36s cubic-bezier(.19,1.08,.30,1) both;
         transform-origin: center;
-        border-radius: 26px;
+        border-radius: 32px;
         corner-shape: squircle;
-        /* The one surface that is not fully transparent. A sheet
-           floating over a scrolled page needs to stop the content
-           behind it from reading through as text; a hint of ground
-           does that without becoming a solid panel. */
-        background: rgba(12,14,20,.62);
-        -webkit-backdrop-filter: blur(34px) saturate(130%);
-        backdrop-filter: blur(34px) saturate(130%);
+        /* Carries slightly more fill than a card and the same
+           hairline. A sheet floating over a scrolled page has to
+           stop the text behind it reading through; the cards do
+           not, because nothing moves behind them. */
+        background: rgba(44,50,59,.55);
+        -webkit-backdrop-filter: blur(38px) saturate(150%);
+        backdrop-filter: blur(38px) saturate(150%);
         box-shadow:
-          inset 0 0 0 1px rgba(255,255,255,.13),
-          inset 0 1px 0 rgba(255,255,255,.20),
-          0 40px 90px -30px rgba(0,0,0,.9);
+          inset 0 0 0 1px rgba(255,255,255,.34),
+          0 40px 90px -30px rgba(0,0,0,.75);
       }
 
       .lg-num { font-variant-numeric: tabular-nums; }
@@ -1009,10 +1049,10 @@ export function WidgetStyles() {
         the legibility, which is the right way round.
       */
       @supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
-        .lg-card, .lg-rowhead { background: rgba(14,16,23,.86); }
-        .lg-sheet { background: rgba(12,14,20,.96); }
-        .lg-pill  { background: rgba(255,255,255,.12); }
-        .lg-scrim { background: rgba(4,5,9,.86); }
+        .lg-card, .lg-rowhead { background: rgba(38,43,52,.90); }
+        .lg-sheet { background: rgba(38,43,52,.97); }
+        .lg-pill  { background: rgba(255,255,255,.14); }
+        .lg-scrim { background: rgba(16,19,25,.88); }
       }
 
       @media (prefers-reduced-motion: reduce) {
