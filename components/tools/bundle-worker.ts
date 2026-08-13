@@ -18,7 +18,8 @@
 
 import * as openpgp from 'openpgp'
 import { TarReader, LineSplitter } from '@/lib/tools/tar'
-import { BundleAggregator, roleFor } from '@/lib/tools/bundle-analyse'
+import { BundleAggregator } from '@/lib/tools/bundle-analyse'
+import { specFor } from '@/lib/tools/bundle-registry'
 import type { WorkerOut } from '@/lib/tools/bundle-types'
 
 const post = (m: WorkerOut) => self.postMessage(m)
@@ -66,11 +67,17 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => 
     // ---------- walk the archive ----------
     post({ type: 'stage', stage: 'Reading files from the archive' })
 
+    const started = Date.now()
     const agg = new BundleAggregator()
     const tar = new TarReader(plaintext)
 
     let lastPost = 0
     let entries = 0
+
+    // One splitter reused across files — allocating a closure per log
+    // matters when there are hundreds of rotations.
+    const feed = (l: string) => agg.line(l)
+    const dec = () => new TextDecoder('utf-8', { fatal: false })
 
     for (;;) {
       const header = await tar.next()
@@ -82,43 +89,35 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => 
         continue
       }
 
-      const role = roleFor(header.name)
+      const spec = specFor(header.name)
 
-      if (!role) {
-        // Everything we do not need is discarded as it passes.
+      if (!spec) {
+        // Everything we do not need is discarded as its bytes pass.
         await tar.skipBody(header.size)
       } else {
-        agg.noteFile(header.name, header.size)
+        agg.startFile(spec, header.name, header.size)
 
-        if (role === 'showtech') {
+        if (spec.role === 'showtech') {
           let text = ''
-          const dec = new TextDecoder('utf-8', { fatal: false })
-          await tar.readBody(header.size, chunk => { text += dec.decode(chunk, { stream: true }) })
+          const d = dec()
+          await tar.readBody(header.size, chunk => { text += d.decode(chunk, { stream: true }) })
           agg.appendShowtech(text)
         } else {
-          if (role === 'localstore') agg.localStoreFile(header.name)
-          const handler =
-            role === 'prrt' ? (l: string) => agg.prrtLine(l)
-              : role === 'localstore' ? (l: string) => agg.localStoreLine(l)
-              : role === 'psc' ? (l: string) => agg.pscLine(l)
-              : role === 'alarms' ? (l: string) => agg.alarmLine(l)
-              : (l: string) => agg.catalogueLine(l)
-
-          const splitter = new LineSplitter(handler)
+          const splitter = new LineSplitter(feed)
           await tar.readBody(header.size, chunk => splitter.push(chunk))
           splitter.flush()
         }
       }
 
-      // throttle progress so postMessage does not become the bottleneck
       const now = Date.now()
-      if (now - lastPost > 250) {
+      if (now - lastPost > 200) {
         lastPost = now
         post({ type: 'progress', bytes: tar.consumed, entry: header.name })
       }
     }
 
     await tar.cancel()
+    agg.archiveEntries = entries
 
     if (entries === 0) {
       post({ type: 'error', message: 'The archive decrypted but contained no files. It may not be a tar archive.' })
@@ -130,7 +129,7 @@ self.onmessage = async (e: MessageEvent<{ file: File; passphrase: string }>) => 
     }
 
     post({ type: 'stage', stage: 'Building the report' })
-    const report = agg.finish(file.name)
+    const report = agg.finish(file.name, (Date.now() - started) / 1000)
     post({ type: 'done', report })
   } catch (err) {
     post({

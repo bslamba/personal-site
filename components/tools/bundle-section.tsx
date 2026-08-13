@@ -331,6 +331,105 @@ export default function BundleSection({ r, onExpand }: {
     }
   }
 
+  // ---------- every log family ----------
+  const logPanels: PanelData[] = []
+  if (r.logs?.length) {
+    const maxLines = Math.max(1, ...r.logs.map(l => l.lines))
+    logPanels.push({
+      title: 'Every log read',
+      note: 'One row per log family — all rotations of a file counted together. Errors and warnings come from the severity in each line.',
+      columns: [
+        { head: 'Log', align: 'left' },
+        { head: 'Files', align: 'right', width: 'w-12' },
+        { head: 'Lines', align: 'right', width: 'w-20' },
+        { head: 'Errors', align: 'right', width: 'w-16' },
+        { head: 'Warnings', align: 'right', width: 'w-18' },
+      ],
+      rows: r.logs.map(l => ({
+        id: l.label,
+        bar: l.lines / maxLines,
+        barFail: l.lines ? Math.min(1, (l.errors + l.warnings) / l.lines) : 0,
+        cells: [
+          <span key="l">
+            <span className="text-ink-900">{l.label}</span>
+            {l.areas.length > 0 && (
+              <span className="ml-2 text-ink-400">{l.areas.slice(0, 3).join(' · ')}</span>
+            )}
+          </span>,
+          n(l.rotations), n(l.lines),
+          <span key="e" className={l.errors > 0 ? 'text-signal-500 font-bold' : 'text-ink-400'}>
+            {l.errors ? n(l.errors) : '—'}
+          </span>,
+          <span key="w" className={l.warnings > 1000 ? 'text-[#B45309] font-bold' : 'text-ink-400'}>
+            {l.warnings ? n(l.warnings) : '—'}
+          </span>,
+        ],
+        sort: [l.label, l.rotations, l.lines, l.errors, l.warnings],
+      })),
+    })
+
+    // per-log component and problem breakdowns, biggest first
+    for (const l of r.logs.slice(0, 10)) {
+      if (l.byComponent.length > 1) {
+        logPanels.push(kcPanel(
+          `${l.label} — components`,
+          'Logger names, grouped to four segments. This is what the debug attributes in Cisco’s troubleshooting table map onto.',
+          'Component', l.byComponent, 'Lines'))
+      }
+      if (l.problems.length) {
+        logPanels.push(kcPanel(
+          `${l.label} — warnings and errors`,
+          'Repeated messages grouped, with MAC addresses, IPs and numbers collapsed.',
+          'Message', l.problems, 'Lines'))
+      }
+    }
+  }
+
+  // ---------- problem areas ----------
+  const areaPanels: PanelData[] = []
+  if (r.areas?.length) {
+    const maxA = Math.max(1, ...r.areas.map(a => a.errors + a.warnings))
+    areaPanels.push({
+      title: 'Troubleshooting areas',
+      note: 'Grouped the way Cisco groups debug attributes. Only areas whose logs are present in this bundle appear.',
+      columns: [
+        { head: 'Area', align: 'left' },
+        { head: 'Logs', align: 'right', width: 'w-12' },
+        { head: 'Lines', align: 'right', width: 'w-20' },
+        { head: 'Errors', align: 'right', width: 'w-16' },
+        { head: 'Warnings', align: 'right', width: 'w-18' },
+      ],
+      rows: r.areas.map(a => ({
+        id: a.area,
+        bar: (a.errors + a.warnings) / maxA,
+        barFail: 1,
+        cells: [
+          <span key="a">
+            <span className="text-ink-900">{a.area}</span>
+            <span className="ml-2 text-ink-400">{a.present.join(', ')}</span>
+            {a.missing.length > 0 && (
+              <span className="ml-2 text-ink-300">missing: {a.missing.join(', ')}</span>
+            )}
+          </span>,
+          n(a.present.length), n(a.lines),
+          <span key="e" className={a.errors > 0 ? 'text-signal-500 font-bold' : 'text-ink-400'}>
+            {a.errors ? n(a.errors) : '—'}
+          </span>,
+          <span key="w" className={a.warnings > 1000 ? 'text-[#B45309] font-bold' : 'text-ink-400'}>
+            {a.warnings ? n(a.warnings) : '—'}
+          </span>,
+        ],
+        sort: [a.area, a.present.length, a.lines, a.errors, a.warnings],
+      })),
+    })
+
+    for (const a of r.areas.slice(0, 8)) {
+      if (!a.topProblems.length) continue
+      areaPanels.push(kcPanel(
+        a.area, `From ${a.present.join(', ')}.`, 'Message', a.topProblems, 'Lines'))
+    }
+  }
+
   // ---------- application ----------
   const appPanels: PanelData[] = []
   if (app) {
@@ -359,10 +458,17 @@ export default function BundleSection({ r, onExpand }: {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-        {r.filesRead && r.filesRead.length > 0 && (
-          <Kpi label="Files read" value={n(r.filesRead.length)}
-               sub={`${(r.filesRead.reduce((a, f) => a + f.bytes, 0) / 1048576).toFixed(0)} MB parsed`} />
+        {r.stats && (
+          <Kpi label="Files parsed" value={n(r.stats.filesParsed)}
+               sub={`of ${n(r.stats.archiveEntries)} in the archive`} />
         )}
+        {r.stats && (
+          <Kpi label="Lines read" value={n(r.stats.linesParsed)}
+               sub={`${(r.stats.bytesParsed / 1048576).toFixed(0)} MB in ${r.stats.seconds}s`} />
+        )}
+        {r.logs && <Kpi label="Log families" value={n(r.logs.length)}
+               sub={`${n(r.logs.reduce((a, l) => a + l.rotations, 0))} files with rotations`} />}
+        {r.areas && <Kpi label="Areas covered" value={n(r.areas.length)} sub="with logs present" />}
         {system?.iseVersion && <Kpi label="ISE version" value={system.iseVersion}
           sub={system.patches.length ? `patch ${system.patches[system.patches.length - 1].version}` : undefined} />}
         {system?.adeOs && <Kpi label="ADE-OS" value={system.adeOs} sub={system.architecture ?? undefined} />}
@@ -399,6 +505,32 @@ export default function BundleSection({ r, onExpand }: {
             {r.findings.map((f, i) => <Finding key={i} f={f} />)}
           </div>
         </section>
+      )}
+
+      {/* ---------- problem areas ---------- */}
+      {areaPanels.length > 0 && (
+        <>
+          <SectionBanner title="By troubleshooting area"
+            subtitle={`${r.areas?.length ?? 0} areas have logs in this bundle · ranked by error and warning volume`} />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {areaPanels.map(p => <Panel key={p.title} data={p} onExpand={onExpand} />)}
+          </div>
+        </>
+      )}
+
+      {/* ---------- logs ---------- */}
+      {logPanels.length > 0 && (
+        <>
+          <SectionBanner title="Logs"
+            subtitle={
+              `${r.logs?.length ?? 0} log families · ` +
+              `${n(r.logs?.reduce((a, l) => a + l.rotations, 0) ?? 0)} files including rotations · ` +
+              `${n(r.logs?.reduce((a, l) => a + l.lines, 0) ?? 0)} lines`
+            } />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {logPanels.map(p => <Panel key={p.title} data={p} onExpand={onExpand} />)}
+          </div>
+        </>
       )}
 
       {/* ---------- system ---------- */}

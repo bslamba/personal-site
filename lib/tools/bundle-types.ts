@@ -78,6 +78,48 @@ export interface BundleReport {
   findings: { severity: string; headline: string; detail: string }[]
   /** files inside the archive that were read, for transparency */
   filesRead?: { name: string; bytes: number }[]
+  /** one entry per log family, rotations merged */
+  logs?: LogSummary[]
+  /** rolled up by troubleshooting area */
+  areas?: AreaSummary[]
+  stats?: {
+    archiveEntries: number
+    filesParsed: number
+    bytesParsed: number
+    linesParsed: number
+    seconds: number
+  }
+}
+
+/** One log family — every rotation of ise-psc.log counted together. */
+export interface LogSummary {
+  label: string
+  role: string
+  areas: string[]
+  rotations: number
+  bytes: number
+  lines: number
+  /** lines that matched the expected record layout */
+  parsed: number
+  /** continuation lines of a multi-line record */
+  continuation: number
+  window: { start: string | null; end: string | null }
+  byLevel: KeyCount[]
+  byComponent: KeyCount[]
+  problems: KeyCount[]
+  perDay: KeyCount[]
+  errors: number
+  warnings: number
+}
+
+export interface AreaSummary {
+  area: string
+  present: string[]
+  missing: string[]
+  lines: number
+  errors: number
+  warnings: number
+  topProblems: KeyCount[]
 }
 
 export function isBundleReport(v: unknown): v is BundleReport {
