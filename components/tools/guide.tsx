@@ -79,12 +79,12 @@ const POSE: Record<GuideStep, 'greet' | 'point' | 'work' | 'cheer'> = {
  * but nothing guarantees it and a missing clip is invisible.
  */
 const CLIPS: Record<string, RegExp[]> = {
-  idle:  [/^idle$/i, /idle_?1/i, /idle/i, /rest/i],
+  idle:  [/^idle$/i, /idle_?1/i, /idle/i, /survey|sniff|look/i, /rest/i],
   walk:  [/^walk$/i, /walk/i, /trot/i],
-  sit:   [/sit/i, /idle_?2/i, /idle/i],
-  jump:  [/jump/i, /gallop/i, /run/i],
-  alert: [/attack|bark|headbutt/i, /jump/i, /idle_?2/i],
-  eat:   [/eat/i, /idle_?3/i, /idle/i],
+  sit:   [/sit/i, /idle_?2/i, /survey/i, /idle/i],
+  jump:  [/jump/i, /gallop/i, /^run$/i, /run/i],
+  alert: [/attack|bark|headbutt/i, /jump/i, /^run$/i, /idle_?2/i],
+  eat:   [/eat/i, /idle_?3/i, /sniff|survey/i, /idle/i],
 }
 
 export function useGuideStep({ hasFiles, busy, ready }: {
