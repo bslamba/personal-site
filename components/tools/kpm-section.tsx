@@ -29,7 +29,7 @@ function FindingCard({ f }: { f: KpmFinding }) {
     <div className={`border border-ink-200 border-l-2 ${s.border} bg-paper p-3`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
-           style={{ letterSpacing: '-0.005em' }}>
+           style={{ fontFamily: 'var(--font-heading)' }}>
           {f.headline}
         </p>
         <span className={`text-[9.5px] font-bold uppercase tracking-[0.09em] ${s.tone}`}>
@@ -70,7 +70,7 @@ function KpmTimeline({ a }: { a: KpmAnalysis }) {
     <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
-            style={{ letterSpacing: '-0.005em' }}>
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
           Deployment throughput and load
         </h3>
         <p className="text-[10.5px] text-ink-400">
@@ -144,7 +144,7 @@ function Sparklines({ a }: { a: KpmAnalysis }) {
     <section className="lg-card lg-rise mb-4">
       <header className="border-b border-ink-200 px-3 py-2.5">
         <h3 className="text-[13px] font-bold text-ink-950"
-            style={{ letterSpacing: '-0.005em' }}>
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
           Requests per hour, node by node
         </h3>
         <p className="mt-0.5 text-[10.5px] text-ink-400">
@@ -354,7 +354,7 @@ export default function KpmSection({ a, onExpand }: {
       <section className="lg-card lg-rise mb-4 p-3">
         <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-[13px] font-bold text-ink-950"
-              style={{ letterSpacing: '-0.005em' }}>
+              style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
             Node health findings
           </h3>
           <p className="text-[10.5px] text-ink-400">

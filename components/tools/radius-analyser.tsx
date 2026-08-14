@@ -136,7 +136,7 @@ function Timeline({ analysis, bucketChoice, onBucketChange }: {
       <header className="flex flex-wrap items-center justify-between gap-2 px-3 pb-1.5 pt-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h3 className="text-[13px] font-bold text-ink-950"
-              style={{ letterSpacing: '-0.005em' }}>
+              style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
             Authentications over time
           </h3>
           <p className="text-[10.5px] text-ink-400">
@@ -245,7 +245,7 @@ backup-logs NAME repository REPO encryption-key plain YOURKEY</pre>
 
   return (
     <div className="mx-auto mt-5 max-w-xl border border-ink-200 bg-paper p-4 text-left">
-      <p className="text-sm font-bold text-ink-950" style={{ letterSpacing: '-0.005em' }}>
+      <p className="text-sm font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
         Decrypt this one first
       </p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-600">
@@ -341,7 +341,7 @@ function FindingCard({ f, onFilter }: { f: Finding; onFilter: (d: Dimension, k: 
     <div className="lg-card lg-rise p-3" style={{ '--accent': '#CC3311' } as React.CSSProperties}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
-           style={{ letterSpacing: '-0.005em' }}>
+           style={{ fontFamily: 'var(--font-heading)' }}>
           {f.headline}
         </p>
         <span className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{f.label}</span>
@@ -726,7 +726,7 @@ export default function IseReportAnalyser() {
           }}
           className="tool-drop rounded-[28px] border-2 border-dashed border-white/30 bg-white/[.04] p-8 text-center transition-colors"
         >
-          <p className="text-lg font-bold text-ink-950" style={{ letterSpacing: '-0.005em' }}>
+          <p className="text-lg font-bold text-ink-950" style={{ fontFamily: 'var(--font-heading)' }}>
             Drop your ISE files here
           </p>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-500">
@@ -1148,7 +1148,7 @@ export default function IseReportAnalyser() {
           <section className="lg-card lg-rise mb-4 p-3">
             <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[13px] font-bold text-ink-950"
-                  style={{ letterSpacing: '-0.005em' }}>
+                  style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
                 What stands out
               </h3>
               <p className="text-[10.5px] text-ink-400">

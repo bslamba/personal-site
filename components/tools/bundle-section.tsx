@@ -41,7 +41,7 @@ function Finding({ f }: { f: BundleReport['findings'][number] }) {
     <div className={`border border-ink-200 border-l-2 ${s.border} bg-paper p-3`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-[13px] font-bold leading-tight text-ink-950"
-           style={{ letterSpacing: '-0.005em' }}>
+           style={{ fontFamily: 'var(--font-heading)' }}>
           {f.headline}
         </p>
         <span className={`text-[9.5px] font-bold uppercase tracking-[0.09em] ${s.tone}`}>{s.label}</span>
@@ -59,7 +59,7 @@ function DayStrip({ data, title, note }: { data: KeyCount[]; title: string; note
     <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
-            style={{ letterSpacing: '-0.005em' }}>{title}</h3>
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>{title}</h3>
         <p className="text-[10.5px] text-ink-400">{note}</p>
       </header>
       <div className="flex items-end gap-1 px-3 py-3" style={{ height: 92 }}>
@@ -168,7 +168,7 @@ function AuthTimeline({ hourly }: { hourly: { hour: string; total: number; fail:
     <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
-            style={{ letterSpacing: '-0.005em' }}>
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
           Authentications over time
         </h3>
         <p className="text-[10.5px] text-ink-400">
@@ -227,7 +227,7 @@ function CorrelationChart({ c }: { c: Correlation }) {
     <section className="lg-card lg-rise mb-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ink-200 px-3 py-2">
         <h3 className="text-[13px] font-bold text-ink-950"
-            style={{ letterSpacing: '-0.005em' }}>
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
           What happened at the same time
         </h3>
         <p className="text-[10.5px] text-ink-400">
@@ -889,7 +889,7 @@ export default function BundleSection({ r, onExpand }: {
               <div key={label as string} className="px-4 py-3">
                 <p className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-ink-400">{label}</p>
                 <p className="mt-1 break-words text-[15px] font-bold leading-tight text-ink-950"
-                   style={{ letterSpacing: '-0.005em' }}>
+                   style={{ fontFamily: 'var(--font-heading)' }}>
                   {value}
                 </p>
                 {sub && <p className="mt-0.5 text-[10.5px] text-ink-400">{sub}</p>}
@@ -940,7 +940,7 @@ export default function BundleSection({ r, onExpand }: {
         <section className="lg-card lg-rise mb-4 p-3">
           <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-[13px] font-bold text-ink-950"
-                style={{ letterSpacing: '-0.005em' }}>
+                style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.01em' }}>
               What stands out
             </h3>
             <p className="text-[10.5px] text-ink-400">
@@ -1047,7 +1047,7 @@ export default function BundleSection({ r, onExpand }: {
                 <summary className="cursor-pointer list-none px-3 py-2.5 marker:content-none">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-[13px] font-bold text-ink-950"
-                          style={{ letterSpacing: '-0.005em' }}>
+                          style={{ fontFamily: 'var(--font-heading)' }}>
                       {s.name}
                     </span>
                     <span className="shrink-0 text-[10px] text-ink-400">
