@@ -12,8 +12,8 @@ import { ArrowUpRight, ShieldCheck, Lock, Gauge } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Tools',
   description:
-    'Free browser-based tools for network and security engineers. Analyse Cisco ISE ' +
-    'RADIUS authentication exports without uploading anything anywhere.',
+    'Free browser-based tools for network and security engineers. Analyse Cisco ISE and ' +
+    'Aruba ClearPass authentication exports without uploading anything anywhere.',
 }
 
 const TOOLS = [
@@ -32,6 +32,23 @@ const TOOLS = [
       'All four input types detected automatically, on one page',
       'Ranks what stands out instead of leaving you to spot it',
       'Click anything to filter the whole dashboard to it',
+      'Runs entirely in your browser — nothing is uploaded',
+    ],
+  },
+  {
+    href: '/tools/clearpass',
+    status: 'Live',
+    name: 'Aruba ClearPass Log Analyser',
+    blurb:
+      'Drop in an Access Tracker or Insight export and get every failure reason ranked, plus ' +
+      'where the rejections actually concentrate — by network device, service, authentication ' +
+      'source, enforcement profile, user and endpoint. Columns are worked out from your file ' +
+      'rather than assumed, so exports from any ClearPass version work.',
+    points: [
+      'Detects which column is which from the values, not just the headers',
+      'Shows you the mapping and lets you correct it before anything is computed',
+      'Failure reasons ranked, with where each one concentrates',
+      'Handles a multi-file export as one dataset',
       'Runs entirely in your browser — nothing is uploaded',
     ],
   },
