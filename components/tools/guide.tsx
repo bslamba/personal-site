@@ -45,7 +45,10 @@ import { useEffect, useRef, useState } from 'react'
 
 export type GuideStep = 'welcome' | 'choose' | 'analyse' | 'working' | 'done'
 
-const DISMISS_KEY = 'ise-guide-dismissed'
+// Versioned. The previous key is still set in the browser of
+// anyone who dismissed Rover, and reusing it means the new guide
+// never appears for them — with no clue as to why.
+const DISMISS_KEY = 'ise-guide-dismissed-v3'
 const MODEL_URL = '/models/dog.glb'
 
 const STAGE = 300      // canvas edge, px
@@ -366,8 +369,16 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
           renderer.dispose()
           renderer.domElement.remove()
         }
-      } catch {
-        // No WebGL, no model, no network — the tool is the product.
+      } catch (err) {
+        // Fail soft for visitors — the analysis tools are the
+        // product and must not go down with the mascot — but say
+        // so loudly in the console. A silent failure gives whoever
+        // is debugging this nothing at all to go on, which is
+        // exactly the hole the first version of this fell into.
+        console.warn(
+          `[guide] 3D dog did not start. Most likely ${MODEL_URL} is missing ` +
+          `from /public, or WebGL is unavailable. Underlying error:`, err,
+        )
         if (!cancelled) setLive(false)
       }
     })()
