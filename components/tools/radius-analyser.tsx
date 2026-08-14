@@ -43,7 +43,6 @@ import {
   n, pc, ms, clock, stamp, duration, bytes, rateTone,
   type PanelData,
 } from './panel'
-import Guide, { useGuideStep } from './guide'
 import KpmSection from './kpm-section'
 import BundleSection, { isBundleReport, type BundleReport } from './bundle-section'
 import SessionsSection from './sessions-section'
@@ -367,12 +366,6 @@ export default function IseReportAnalyser() {
   // reader's local hour, and guessing it produces a hydration
   // mismatch rather than a wrong colour.
   const sky = useSkyPhase()
-
-  // The guide's stage and the two things he points at.
-  const stageRef = useRef<HTMLDivElement | null>(null)
-  const chooseRef = useRef<HTMLLabelElement | null>(null)
-  const analyseRef = useRef<HTMLButtonElement | null>(null)
-
   const [files, setFiles] = useState<File[]>([])
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState(0)
@@ -690,14 +683,6 @@ export default function IseReportAnalyser() {
   const dashboard = dashRef.current
   const needsKey = files.some(f => /\.(gpg|pgp)$/i.test(f.name))
 
-  // Derived from what the page is actually doing, so the guide can
-  // never claim a state the tool is not in.
-  const guideStep = useGuideStep({
-    hasFiles: files.length > 0,
-    busy: phase === 'reading',
-    ready: phase === 'ready',
-  })
-
   if (phase !== 'ready' || (!analysis && !kpm && !bundle && !sessions && !dashboard)) {
     return (
       <div className="lg-sky" data-sky={sky}>
@@ -709,12 +694,6 @@ export default function IseReportAnalyser() {
           <SkyToggle />
         </div>
 
-        {/* `relative` makes this the stage the guide is positioned
-            against, so his coordinates are independent of where the
-            page has been scrolled to. */}
-        <div className="relative" ref={stageRef}>
-        <Guide step={guideStep} stageRef={stageRef}
-               chooseRef={chooseRef} analyseRef={analyseRef} />
         <div
           ref={dropRef}
           onDragOver={e => { e.preventDefault(); dropRef.current?.classList.add('drop-live') }}
@@ -739,13 +718,13 @@ export default function IseReportAnalyser() {
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <label ref={chooseRef} className="btn-ghost cursor-pointer">
+            <label className="btn-ghost cursor-pointer">
               {files.length ? 'Add more files' : 'Choose files'}
               <input type="file" accept=".csv,text/csv,.tsv,.txt,.json,.gpg,.pgp,.tar" multiple
                      className="sr-only"
                      onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
             </label>
-            <button ref={analyseRef} onClick={run}
+            <button onClick={run}
                     disabled={files.length === 0 || phase === 'reading'}
                     className="btn-signal disabled:cursor-not-allowed disabled:opacity-40">
               {phase === 'reading'
@@ -844,7 +823,6 @@ export default function IseReportAnalyser() {
               <p className="mt-2 text-sm leading-relaxed text-ink-600">{b}</p>
             </div>
           ))}
-        </div>
         </div>
         </div>
       </div>
