@@ -45,7 +45,10 @@ export type GuideStep = 'welcome' | 'choose' | 'analyse' | 'working' | 'done'
 const DISMISS_KEY = 'ise-guide-dismissed-v3'
 const MODEL_URL = '/models/dog.glb'
 const STAGE = 320
-const STAND_OFF = 26
+// Small, because he also shifts toward the button inside his own
+// canvas — the two together put him beside the control rather than
+// loitering in the next postcode.
+const STAND_OFF = 8
 
 /** A warm Shiba palette. Dark values become brown, never black. */
 const COAT = {
@@ -120,7 +123,9 @@ function useBox(
 interface DogApi {
   setPose: (p: string) => void
   lookAt: (nx: number, ny: number) => void
-  face: (deg: number) => void
+  /** Face a direction in screen terms: +x right, +z toward viewer. */
+  faceDir: (x: number, z: number) => void
+  side: (s: number) => void
   point: (on: boolean) => void
   hop: () => void
   spin: () => void
@@ -290,6 +295,32 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
         const headRest = head ? (head as import('three').Object3D).quaternion.clone() : null
         const pawRest = paw ? (paw as import('three').Object3D).quaternion.clone() : null
 
+        // ---- which way does this model face? ----
+        //
+        // Every previous version of this guessed, and the last one
+        // guessed wrong — he pointed his tail at the button. It is
+        // not a guess: a quadruped's head sits at the front, so the
+        // vector from the body's centre to the head bone IS the
+        // forward axis, sign included. Measure it once at load and
+        // every later rotation is arithmetic.
+        //
+        // Falls back to +Z if there is no head bone, which is the
+        // glTF convention.
+        let baseYaw = 0
+        {
+          const centre = new THREE.Vector3()
+          new THREE.Box3().setFromObject(dog).getCenter(centre)
+          if (head) {
+            const hp = (head as import('three').Object3D).getWorldPosition(new THREE.Vector3())
+            const fwd = hp.sub(centre)
+            fwd.y = 0
+            if (fwd.lengthSq() > 1e-6) baseYaw = Math.atan2(fwd.x, fwd.z)
+          }
+        }
+        // Turn him to face `dir` on screen. dir is in view terms:
+        // +x is right, +z is out of the screen toward the reader.
+        const yawFor = (dx: number, dz: number) => Math.atan2(dx, dz) - baseYaw
+
         // No procedural eyes. The model ships with its own, and
         // welding spheres onto a rig whose head geometry I cannot
         // see was never going to land — the offsets were a guess
@@ -327,14 +358,21 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
         let spinFrom = 0, spinTo = 0, spinT = -1
         let mischiefAt = 5 + Math.random() * 4
 
+        // Where he stands inside his own canvas. Shifting him toward
+        // the button closes the dead space that made him look like
+        // he was loitering three hundred pixels away from it.
+        let wantX = 0
+
         const api: DogApi = {
           setPose,
           lookAt: (nx, ny) => { aim.x = nx; aim.y = ny },
-          face: deg => { wantYaw = (deg * Math.PI) / 180 },
+          faceDir: (dx, dz) => { wantYaw = yawFor(dx, dz) },
+          side: s => { wantX = s * 0.85 },
           point: on => { pointing = on },
           hop: () => { if (hopT < 0) hopT = 0 },
           spin: () => { if (spinT < 0) { spinFrom = dog.rotation.y; spinTo = spinFrom + Math.PI * 2; spinT = 0 } },
         }
+        api.faceDir(0, 1)
 
         // clicking him is the whole point of a pet
         const onClick = (e: MouseEvent) => {
@@ -370,8 +408,16 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
           // when told is furniture.
           mischiefAt -= dt
           if (mischiefAt <= 0) {
-            mischiefAt = 6 + Math.random() * 6
-            if (!pointing && Math.random() < 0.45) api.spin()
+            // More often while pointing: he is trying to get you to
+            // click something, and a guide that goes quiet at the
+            // moment it wants your attention has the timing exactly
+            // backwards.
+            mischiefAt = pointing ? 2.6 + Math.random() * 2 : 5 + Math.random() * 5
+            const r = Math.random()
+            if (pointing) {
+              api.hop()
+              if (r < 0.3) { setPose('alert'); window.setTimeout(() => setPose('sit'), 700) }
+            } else if (r < 0.4) api.spin()
             else api.hop()
           }
 
@@ -405,16 +451,26 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
             dog.rotation.y += d * Math.min(1, dt * 4)
           }
 
+          // slide toward his standing spot inside the canvas
+          dog.position.x += (wantX - dog.position.x) * Math.min(1, dt * 3)
+
           // gentle breathing on top of the clip
           dog.scale.x = dog.scale.z
           if (hopT < 0) dog.scale.y = dog.scale.x * (1 + Math.sin(t * 1.9) * 0.012)
 
-          // ---- head aim. AFTER the mixer, always. ----
+          // ---- head. AFTER the mixer, always. ----
+          //
+          // Deliberately gentle now. The body does the facing,
+          // because body yaw is computed from a measured axis and
+          // is therefore correct; the head bone's own local axes
+          // are not knowable from here, so a large rotation on it
+          // is a coin flip. A small one reads as a glance either
+          // way, which is the safe failure.
           gaze.x += (aim.x - gaze.x) * Math.min(1, dt * 6)
           gaze.y += (aim.y - gaze.y) * Math.min(1, dt * 6)
           if (head && headRest) {
-            const tilt = pointing ? Math.sin(t * 1.3) * 0.09 : 0
-            euler.set(gaze.y * 0.5, -gaze.x * 0.8, tilt, 'XYZ')
+            const tilt = pointing ? Math.sin(t * 1.25) * 0.13 : Math.sin(t * 0.6) * 0.05
+            euler.set(gaze.y * 0.22, gaze.x * 0.2, tilt, 'XYZ')
             q.setFromEuler(euler)
             ;(head as import('three').Object3D).quaternion.copy(headRest).multiply(q)
           }
@@ -472,30 +528,43 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
     return () => { cancelled = true; cleanup?.(); apiRef.current = null }
   }, [dismissed])
 
-  // ---- pose and facing from page state ----
+  // ---- pose from page state ----
   useEffect(() => {
     const api = apiRef.current
     if (!api || !live) return
     api.point(pointing)
     api.setPose(pose === 'point' ? 'sit' : pose === 'work' ? 'eat' : pose === 'cheer' ? 'jump' : 'idle')
-    // Quarter-turn toward the button; the head aim does the rest.
-    api.face(pointing ? (flip ? 46 : -46) : 0)
     if (pose === 'cheer' || pose === 'greet') api.hop()
-  }, [pose, pointing, flip, live])
+  }, [pose, pointing, live])
 
-  // ---- keep his eyes on the button ----
+  // ---- face the button, and stand on the side nearest it ----
   useEffect(() => {
     const api = apiRef.current
     if (!api || !live) return
-    if (pointing) api.lookAt(aimX, aimY)
-  }, [pointing, aimX, aimY, live])
+    if (pointing) {
+      // 0.5 on z keeps a three-quarter view, so he is angled at the
+      // button but the reader still sees his face rather than his
+      // flank. Pure profile reads as ignoring you.
+      api.faceDir(aimX, 0.5)
+      api.lookAt(aimX, aimY)
+      api.side(flip ? -1 : 1)
+    } else {
+      api.faceDir(0, 1)     // square to the reader
+      api.lookAt(0, 0)
+      api.side(0)
+    }
+  }, [pointing, aimX, aimY, flip, live])
 
-  // ---- trot when the holder glides somewhere new ----
+  // ---- walk to the next spot, facing the way he is going ----
   useEffect(() => {
     const api = apiRef.current
     if (!api || !live || !target) return
     api.setPose('walk')
-    const t = window.setTimeout(() => api.setPose('sit'), 1100)
+    api.faceDir(flip ? -1 : 1, 0.25)          // look where you're going
+    const t = window.setTimeout(() => {
+      api.setPose('sit')
+      api.faceDir(aimX, 0.5)                   // then turn to the button
+    }, 1150)
     return () => window.clearTimeout(t)
   }, [target?.x, target?.y, live])   // eslint-disable-line react-hooks/exhaustive-deps
 
