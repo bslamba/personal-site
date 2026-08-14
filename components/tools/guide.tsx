@@ -47,11 +47,6 @@ const MODEL_URL = '/models/dog.glb'
 const STAGE = 320
 const STAND_OFF = 26
 
-// Eye placement, in fractions of the head bone's own size. These
-// are the numbers to nudge if the eyes sit wrong on the skull —
-// everything else is derived.
-const EYE = { fwd: 0.52, up: 0.10, sep: 0.30, r: 0.19 }
-
 /** A warm Shiba palette. Dark values become brown, never black. */
 const COAT = {
   deep:  0x6B4A33,
@@ -295,46 +290,11 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
         const headRest = head ? (head as import('three').Object3D).quaternion.clone() : null
         const pawRest = paw ? (paw as import('three').Object3D).quaternion.clone() : null
 
-        // ---- cartoon eyes, parented to the head ----
-        // The model has no face, so he gets one. Sizes come from
-        // the head bone's own scale so this survives a model swap.
-        let eyeL: import('three').Mesh | null = null
-        let eyeR: import('three').Mesh | null = null
-        let pupL: import('three').Mesh | null = null
-        let pupR: import('three').Mesh | null = null
-        if (head) {
-          const hb = new THREE.Box3().setFromObject(head as import('three').Object3D)
-          const hs = new THREE.Vector3(); hb.getSize(hs)
-          const unit = Math.max(hs.x, hs.y, hs.z) || 0.5
-          const inv = 1 / ((head as import('three').Object3D).getWorldScale(new THREE.Vector3()).x || 1)
-          const R = unit * EYE.r * inv
-
-          const white = new THREE.MeshStandardMaterial({
-            color: 0xffffff, roughness: 0.35, metalness: 0,
-          })
-          const black = new THREE.MeshStandardMaterial({
-            color: 0x120e0a, roughness: 0.25, metalness: 0,
-          })
-
-          const mkEye = (sx: number) => {
-            const g = new THREE.Group()
-            const ball = new THREE.Mesh(new THREE.SphereGeometry(R, 20, 16), white)
-            const pup = new THREE.Mesh(new THREE.SphereGeometry(R * 0.55, 16, 12), black)
-            pup.position.z = R * 0.62
-            const glint = new THREE.Mesh(
-              new THREE.SphereGeometry(R * 0.2, 10, 8),
-              new THREE.MeshBasicMaterial({ color: 0xffffff }),
-            )
-            glint.position.set(-R * 0.24, R * 0.26, R * 0.86)
-            pup.add(glint)
-            g.add(ball); g.add(pup)
-            g.position.set(sx * unit * EYE.sep * inv, unit * EYE.up * inv, unit * EYE.fwd * inv)
-            ;(head as import('three').Object3D).add(g)
-            return { g, ball, pup }
-          }
-          const l = mkEye(-1), r = mkEye(1)
-          eyeL = l.ball; eyeR = r.ball; pupL = l.pup; pupR = r.pup
-        }
+        // No procedural eyes. The model ships with its own, and
+        // welding spheres onto a rig whose head geometry I cannot
+        // see was never going to land — the offsets were a guess
+        // dressed up as a calculation. Expression comes from head
+        // aim, posture and timing instead.
 
         // ---- clips ----
         const mixer = new THREE.AnimationMixer(dog)
@@ -365,8 +325,6 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
         let pointing = false
         let hopT = -1                      // >=0 while a hop is in flight
         let spinFrom = 0, spinTo = 0, spinT = -1
-        let blinkNext = 2 + Math.random() * 3
-        let blink = 0
         let mischiefAt = 5 + Math.random() * 4
 
         const api: DogApi = {
@@ -479,30 +437,8 @@ export default function Guide({ step, stageRef, chooseRef, analyseRef }: {
             dog.rotation.x += (0 - dog.rotation.x) * Math.min(1, dt * 5)
           }
 
-          // ---- eyes ----
-          if (pupL && pupR && eyeL && eyeR) {
-            const px = -gaze.x * 0.22, py = -gaze.y * 0.18
-            pupL.position.x = px * pupL.geometry.boundingSphere!.radius * 4
-            pupR.position.x = px * pupR.geometry.boundingSphere!.radius * 4
-            pupL.position.y = py * pupL.geometry.boundingSphere!.radius * 4
-            pupR.position.y = py * pupR.geometry.boundingSphere!.radius * 4
-
-            // Irregular blink: the next one is scheduled at a random
-            // interval, so it never resolves into a beat.
-            blinkNext -= dt
-            if (blinkNext <= 0 && blink <= 0) { blink = 0.16; blinkNext = 1.6 + Math.random() * 4.5 }
-            if (blink > 0) {
-              blink -= dt
-              const k = Math.max(0.06, Math.abs(Math.cos((blink / 0.16) * Math.PI)))
-              eyeL.scale.y = k; eyeR.scale.y = k
-            } else { eyeL.scale.y = 1; eyeR.scale.y = 1 }
-          }
-
           renderer.render(scene, camera)
         }
-        // bounding spheres are needed for the pupil offsets above
-        pupL?.geometry.computeBoundingSphere()
-        pupR?.geometry.computeBoundingSphere()
         tick()
 
         apiRef.current = api
