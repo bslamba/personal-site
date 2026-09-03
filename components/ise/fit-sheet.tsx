@@ -40,14 +40,22 @@ export const CANVAS = 1480
 // physically long but the type is full size, which is the trade a
 // large monitor exists to make. On a laptop the arithmetic rejects
 // those widths by itself and settles around the middle.
-const WIDTHS = [1180, 1320, 1480, 1640, 1800, 1980, 2180, 2400, 2650]
+//
+// It stops at 2180 on purpose. Wider than that and a full-width
+// table starts spreading its columns across the screen, which puts
+// a lot of empty space between a label and its value — the type
+// gets bigger but the table gets harder to read across.
+const WIDTHS = [1180, 1320, 1480, 1640, 1800, 1980, 2180]
 
 const HEAD = { fontFamily: 'var(--font-heading)' } as const
 
 export default function FitSheet({
   children,
   canvas,
-  maxScale = 1.9,
+  // The ceiling only ever binds on an expanded tile, where the
+  // content is a fraction of a full sheet and there is screen
+  // left over. A whole sheet never gets near it.
+  maxScale = 2.4,
   padding = 10,
 }: {
   children: React.ReactNode

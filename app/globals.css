@@ -985,3 +985,24 @@ body {
 
 @page { size: A3 landscape; margin: 10mm; }
 /* ===== ISE-CHEAT-SHEET END ===== */
+
+/* ===== ISE-TILE-EXPAND START ===== */
+/* A tile is clickable, so it should say so — but quietly. The
+   affordance appears on hover rather than sitting on the page
+   permanently, because twenty-six sheets of persistent icons
+   would be noise on a reference that is already dense. */
+.ise-tile { transition: border-color 120ms ease, box-shadow 120ms ease; }
+.ise-tile:hover { border-color: var(--color-signal-500); }
+.ise-tile-zoom { opacity: 0; transition: opacity 120ms ease; }
+.ise-tile:hover .ise-tile-zoom { opacity: 0.85; }
+
+/* Touch and keyboard users get no hover, so never hide it there. */
+@media (hover: none) {
+  .ise-tile-zoom { opacity: 0.5; }
+}
+.ise-tile:focus-within .ise-tile-zoom { opacity: 0.85; }
+
+@media print {
+  .ise-tile-zoom { display: none !important; }
+}
+/* ===== ISE-TILE-EXPAND END ===== */

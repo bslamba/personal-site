@@ -26,6 +26,7 @@ import CertsSheet from './certs'
 import TacacsSheet from './tacacs'
 
 import Dot1xSheet from './dot1x'
+import IbnsSheet from './ibns'
 import MabSheet from './mab'
 import RadiusCoaSheet from './radius-coa'
 import WirelessSheet from './wireless'
@@ -221,18 +222,34 @@ export const TOPICS: Topic[] = [
   // ================= ACCESS METHODS =================
   {
     id: 'dot1x',
-    title: '802.1X Wired Access & IBNS 2.0',
-    short: '802.1X & IBNS 2.0',
+    title: '802.1X Wired Access',
+    short: '802.1X Wired Access',
     family: 'access',
     blurb:
       'Monitor, Low-Impact and Closed mode with the full switchport configuration for each.',
     tags: [
-      '802.1X', 'dot1x', 'IBNS', 'C3PL', 'monitor mode', 'low impact',
-      'closed mode', 'host mode', 'multi-auth', 'multi-domain', 'critical auth',
-      'timers', 'supplicant', 'authenticator',
+      '802.1X', 'dot1x', 'monitor mode', 'low impact', 'closed mode',
+      'host mode', 'multi-auth', 'multi-domain', 'critical auth', 'timers',
+      'supplicant', 'authenticator', 'FlexAuth', 'open authentication',
     ],
     interactive: '3 modes',
     Sheet: Dot1xSheet,
+  },
+  {
+    id: 'ibns',
+    title: 'IBNS 2.0 & C3PL',
+    short: 'IBNS 2.0 & C3PL',
+    family: 'access',
+    blurb:
+      'The identity control policy event by event, and a complete working switch configuration.',
+    tags: [
+      'IBNS', 'IBNS 2.0', 'C3PL', 'identity control policy', 'policy-map',
+      'class-map', 'service template', 'subscriber', 'access-session',
+      'new-style', 'concurrent authentication', 'critical ACL',
+      'differentiated authentication', 'do-until-failure', 'automate-tester',
+    ],
+    interactive: '5 events',
+    Sheet: IbnsSheet,
   },
   {
     id: 'mab',

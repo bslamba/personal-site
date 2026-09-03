@@ -258,13 +258,13 @@ export default function NodesSheet() {
       {/* ---------------- THE LADDER ---------------- */}
       <Panel
         title="The join sequence, all 23 steps"
-        kicker="443 → DMP → 12001"
-        span={6}
+        kicker="443 → DMP → 12001 · click to enlarge"
+        span={12}
         tone="signal"
       >
         <Ladder
           actors={['DNS', 'Primary PAN', 'Joining node']}
-          rowHeight={28}
+          columns={3}
           steps={[
             { from: 1, to: 1, label: 'Register an ISE Node (GUI)' },
             { from: 1, to: 0, label: 'Who is the node?', tone: 'muted', dashed: true },
@@ -321,7 +321,7 @@ export default function NodesSheet() {
       </Panel>
 
       {/* ---------------- replication ---------------- */}
-      <Panel title="The replication model" kicker="Full once, incremental forever" span={3}>
+      <Panel title="The replication model" kicker="Full once, incremental forever" span={6}>
         <Stack gap={7}>
           <Prose>
             The join performs one <strong>full copy</strong>. After that the PAN
@@ -380,7 +380,7 @@ export default function NodesSheet() {
       {/* ---------------- troubleshooting ---------------- */}
       <Panel
         title="Troubleshooting a failed join"
-        span={3}
+        span={6}
         tone="ink"
         right={<span className="normal-case tracking-normal">Pick a log</span>}
       >

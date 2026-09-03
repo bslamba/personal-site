@@ -1,7 +1,10 @@
 'use client'
 
 // ============================================================
-// Topic — 802.1X Wired Access & IBNS 2.0
+// Topic — 802.1X Wired Access
+//
+// C3PL and the identity control policy have a sheet of their own
+// — this one stays on the mechanism and the rollout phases.
 //
 // The deployment-mode explorer is the heart of the sheet: pick
 // Monitor, Low-Impact or Closed and you get that mode's goals,
@@ -260,7 +263,7 @@ export default function Dot1xSheet() {
   return (
     <Sheet>
       {/* ---------------- the three roles ---------------- */}
-      <Panel title="802.1X on a switchport" kicker="Three roles, one port" span={3}>
+      <Panel title="802.1X on a switchport" kicker="Three roles, one port" span={4}>
         <Stack gap={6}>
           <KV
             items={[
@@ -315,7 +318,7 @@ export default function Dot1xSheet() {
       </Panel>
 
       {/* ---------------- flexauth ---------------- */}
-      <Panel title="Flexible Authentication" kicker="Order and priority" span={3} tone="signal">
+      <Panel title="Flexible Authentication" kicker="Order and priority" span={4} tone="signal">
         <Stack gap={6}>
           <Prose>
             FlexAuth is the set of features that lets you configure the{' '}
@@ -348,7 +351,7 @@ export default function Dot1xSheet() {
       </Panel>
 
       {/* ---------------- host modes ---------------- */}
-      <Panel title="Host modes — limiting sessions" span={3}>
+      <Panel title="Host modes — limiting sessions" span={4}>
         <Stack gap={6}>
           <Table
             head={['Host mode', 'Behaviour', 'Command']}
@@ -383,77 +386,6 @@ export default function Dot1xSheet() {
             <M>authentication violation restrict</M>, which denies and logs the
             offending MAC instead of err-disabling the port.
           </Note>
-        </Stack>
-      </Panel>
-
-      {/* ---------------- IBNS 2.0 ---------------- */}
-      <Panel title="IBNS 2.0 and C3PL" kicker="Why the commands changed" span={3} tone="quiet">
-        <Stack gap={6}>
-          <Prose>
-            Legacy <M>authentication</M> commands are a fixed, hard-coded state
-            machine: you set knobs, the switch decides what to do with them. IBNS
-            2.0 replaces them with <strong>C3PL</strong> — event, class, action —
-            so you write the state machine yourself.
-          </Prose>
-          <Split
-            cols={1}
-            parts={[
-              {
-                title: 'How a policy is built',
-                children: (
-                  <Bullets
-                    items={[
-                      <>
-                        <strong>Class-maps</strong>, <strong>parameter-maps</strong>{' '}
-                        and <strong>service-templates</strong> feed…
-                      </>,
-                      <>
-                        …a <strong>policy-map type control subscriber</strong> — the
-                        Identity Control Policy — which is applied through{' '}
-                        <strong>interface templates</strong>
-                      </>,
-                      <>
-                        The <strong>Access Session Manager</strong> runs it, and owns
-                        MAB, 802.1X, WebAuth, VLAN, dACL and SGT for the session
-                      </>,
-                    ]}
-                  />
-                ),
-              },
-            ]}
-          />
-          <Split
-            cols={1}
-            parts={[
-              {
-                title: 'What IBNS 2.0 introduced',
-                children: (
-                  <Bullets
-                    items={[
-                      <>
-                        <strong>Critical ACLs</strong> — assign an ACL even when ISE
-                        is down
-                      </>,
-                      <>
-                        <strong>Differentiated Authentication</strong> — different AAA
-                        servers per interface
-                      </>,
-                      <>
-                        <strong>Interface Templates</strong>,{' '}
-                        <strong>Service Templates</strong>, full{' '}
-                        <strong>IPv6</strong> web authentication
-                      </>,
-                      <>
-                        Also: Critical MAB, Concurrent Authentication, Enhanced CoA,
-                        Intelligent Aging, Common Session-ID, AuthZ templates,
-                        template-based NEAT
-                      </>,
-                    ]}
-                  />
-                ),
-              },
-            ]}
-          />
         </Stack>
       </Panel>
 

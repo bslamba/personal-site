@@ -17,10 +17,50 @@
 // for anything that needs to be found quickly.
 // ============================================================
 
-import React from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { Maximize2, X } from 'lucide-react'
 
 const HEAD = { fontFamily: 'var(--font-heading)' } as const
 const MONO = { fontFamily: 'var(--font-mono)' } as const
+
+// ------------------------------------------------------------
+// Expanding a tile
+//
+// Click a panel and it takes the whole sheet to itself. Nothing
+// is re-rendered somewhere else and nothing is duplicated: the
+// other panels are simply hidden, so any selector state inside
+// them survives, and this panel widens to all twelve columns.
+//
+// The sheet is then far shorter than it was, so the fit-to-screen
+// scaler — which is already watching the content — scales it up
+// on its own. That is where the larger type comes from. No second
+// type scale to keep in step with the first.
+// ------------------------------------------------------------
+interface ExpandState {
+  expanded: string | null
+  toggle: (id: string) => void
+  close: () => void
+}
+
+const ExpandContext = createContext<ExpandState>({
+  expanded: null,
+  toggle: () => {},
+  close: () => {},
+})
+
+/** True when this sheet has a panel expanded. Rarely needed. */
+export function useExpanded() {
+  return useContext(ExpandContext).expanded
+}
+
+// A click that lands on a control belongs to the control, not to
+// the tile — otherwise picking a probe would expand the panel.
+function isInteractive(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    !!target.closest('button, a, select, input, textarea, [role="button"]')
+  )
+}
 
 // ------------------------------------------------------------
 // Sheet — the master grid a topic lays its panels onto.
@@ -28,18 +68,46 @@ const MONO = { fontFamily: 'var(--font-mono)' } as const
 // ------------------------------------------------------------
 export function Sheet({
   children,
-  gap = 8,
+  gap = 7,
 }: {
   children: React.ReactNode
   gap?: number
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const toggle = useCallback(
+    (id: string) => setExpanded(current => (current === id ? null : id)),
+    []
+  )
+  const close = useCallback(() => setExpanded(null), [])
+
+  // Escape collapses the tile before it does anything else. The
+  // listener is on the capture phase so it runs ahead of the
+  // shell's own Escape handler, which would otherwise throw the
+  // reader back to the hub in the same keystroke.
+  React.useEffect(() => {
+    if (!expanded) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      e.preventDefault()
+      setExpanded(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [expanded])
+
+  const value = useMemo(
+    () => ({ expanded, toggle, close }),
+    [expanded, toggle, close]
+  )
+
   return (
-    <div
-      className="grid grid-cols-12 items-start"
-      style={{ gap, ...HEAD }}
-    >
-      {children}
-    </div>
+    <ExpandContext.Provider value={value}>
+      <div className="grid grid-cols-12 items-start" style={{ gap, ...HEAD }}>
+        {children}
+      </div>
+    </ExpandContext.Provider>
   )
 }
 
@@ -61,6 +129,15 @@ export function Panel({
   children: React.ReactNode
   right?: React.ReactNode
 }) {
+  const { expanded, toggle, close } = useContext(ExpandContext)
+
+  // The title is the id. Titles are unique within a sheet, and
+  // using one avoids threading an explicit key through every
+  // panel in twenty-seven files.
+  const id = title
+  const isExpanded = expanded === id
+  const isHidden = expanded !== null && !isExpanded
+
   const bar =
     tone === 'signal'
       ? 'bg-signal-500 text-white'
@@ -70,8 +147,21 @@ export function Panel({
 
   return (
     <section
-      className="border border-ink-200 bg-white"
-      style={{ gridColumn: `span ${span} / span ${span}` }}
+      hidden={isHidden}
+      onClick={e => {
+        // Expanded panels close from the button or Escape only, so
+        // that reading one does not collapse it by accident.
+        if (isExpanded || isInteractive(e.target)) return
+        toggle(id)
+      }}
+      className={`border bg-white ${
+        isExpanded
+          ? 'border-signal-500 shadow-[0_0_0_2px_rgba(211,0,45,0.12)]'
+          : 'ise-tile cursor-zoom-in border-ink-200'
+      }`}
+      style={{
+        gridColumn: isExpanded ? 'span 12 / span 12' : `span ${span} / span ${span}`,
+      }}
     >
       <header
         className={`flex items-baseline justify-between gap-3 px-2 py-[4px] ${bar}`}
@@ -82,18 +172,46 @@ export function Panel({
         >
           {title}
         </h3>
-        {(kicker || right) && (
-          <span
-            className={`shrink-0 text-[9px] font-semibold uppercase tracking-[0.12em] ${
-              tone === 'quiet' ? 'text-ink-400' : 'opacity-70'
-            }`}
-            style={HEAD}
-          >
-            {right ?? kicker}
-          </span>
-        )}
+
+        <span className="flex shrink-0 items-baseline gap-2">
+          {(kicker || right) && (
+            <span
+              className={`text-[9px] font-semibold uppercase tracking-[0.12em] ${
+                tone === 'quiet' ? 'text-ink-400' : 'opacity-70'
+              }`}
+              style={HEAD}
+            >
+              {right ?? kicker}
+            </span>
+          )}
+
+          {isExpanded ? (
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close"
+              title="Back to the whole sheet (Esc)"
+              className={`-my-[3px] inline-flex items-center gap-1 px-1 py-[2px] text-[9px] font-bold uppercase tracking-[0.12em] ${
+                tone === 'quiet'
+                  ? 'text-ink-500 hover:text-signal-500'
+                  : 'opacity-80 hover:opacity-100'
+              }`}
+              style={HEAD}
+            >
+              <X className="h-[11px] w-[11px]" aria-hidden="true" /> Close
+            </button>
+          ) : (
+            <Maximize2
+              className={`ise-tile-zoom h-[11px] w-[11px] ${
+                tone === 'quiet' ? 'text-ink-400' : 'opacity-60'
+              }`}
+              aria-hidden="true"
+            />
+          )}
+        </span>
       </header>
-      <div className="p-2">{children}</div>
+
+      <div className="px-2 py-1.5">{children}</div>
     </section>
   )
 }
@@ -103,7 +221,7 @@ export function Panel({
 // ------------------------------------------------------------
 export function Prose({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11.5px] leading-[1.5] text-ink-600" style={HEAD}>
+    <p className="text-[11.5px] leading-[1.42] text-ink-600" style={HEAD}>
       {children}
     </p>
   )
@@ -112,7 +230,7 @@ export function Prose({ children }: { children: React.ReactNode }) {
 // A run of prose blocks with breathing room between them.
 export function Stack({
   children,
-  gap = 8,
+  gap = 6,
 }: {
   children: React.ReactNode
   gap?: number
@@ -142,13 +260,13 @@ export function Table({
   align?: ('left' | 'right' | 'center')[]
 }) {
   return (
-    <table className="w-full border-collapse text-[10.5px] leading-[1.4]" style={HEAD}>
+    <table className="w-full border-collapse text-[11px] leading-[1.35]" style={HEAD}>
       <thead>
         <tr>
           {head.map((h, i) => (
             <th
               key={i}
-              className={`border-b border-ink-300 px-1.5 py-[3px] text-left align-bottom text-[9px] font-bold uppercase tracking-[0.1em] ${
+              className={`border-b border-ink-300 py-[2px] pl-0 pr-2 text-left align-bottom text-[9px] font-bold uppercase tracking-[0.08em] last:pr-0 ${
                 accentFirst && i === 0 ? 'text-signal-600' : 'text-ink-500'
               }`}
               style={{ width: widths?.[i], textAlign: align?.[i] ?? 'left' }}
@@ -164,7 +282,7 @@ export function Table({
             {r.map((c, ci) => (
               <td
                 key={ci}
-                className={`border-b border-ink-100 px-1.5 py-[3px] align-top ${
+                className={`border-b border-ink-100 py-[2px] pl-0 pr-2 align-top last:pr-0 ${
                   ci === 0
                     ? 'font-semibold text-ink-950'
                     : 'text-ink-600'
@@ -192,17 +310,17 @@ export function KV({
   labelWidth?: number
 }) {
   return (
-    <dl className="text-[10.5px] leading-[1.45]" style={HEAD}>
+    <dl className="text-[11px] leading-[1.38]" style={HEAD}>
       {items.map(([k, v], i) => (
         <div
           key={i}
-          className={`flex gap-2 border-b border-ink-100 py-[3px] ${
+          className={`flex gap-1.5 border-b border-ink-100 py-[2px] ${
             i === items.length - 1 ? 'border-b-0' : ''
           }`}
         >
           <dt
             className="shrink-0 font-bold uppercase tracking-[0.07em] text-signal-600"
-            style={{ width: labelWidth, fontSize: 9, paddingTop: 1 }}
+            style={{ width: labelWidth, fontSize: 9, paddingTop: 1.5 }}
           >
             {k}
           </dt>
@@ -225,19 +343,19 @@ export function Bullets({
 }) {
   return (
     <ul
-      className="text-[10.5px] leading-[1.45] text-ink-600"
+      className="text-[11px] leading-[1.38] text-ink-600"
       style={{
         ...HEAD,
         columnCount: cols,
-        columnGap: 14,
+        columnGap: 12,
       }}
     >
       {items.map((it, i) => (
         <li
           key={i}
-          className="relative mt-[3px] break-inside-avoid pl-[10px] first:mt-0"
+          className="relative mt-[2px] break-inside-avoid pl-[9px] first:mt-0"
         >
-          <span className="absolute left-0 top-[6px] h-[3px] w-[3px] bg-signal-500" />
+          <span className="absolute left-0 top-[5.5px] h-[3px] w-[3px] bg-signal-500" />
           {it}
         </li>
       ))}
@@ -262,14 +380,14 @@ export function Code({
     <figure className="border border-ink-800">
       {title && (
         <figcaption
-          className="border-b border-ink-800 bg-ink-900 px-2 py-[3px] text-[8.5px] font-bold uppercase tracking-[0.13em] text-ink-300"
+          className="border-b border-ink-800 bg-ink-900 px-1.5 py-[2px] text-[8.5px] font-bold uppercase tracking-[0.12em] text-ink-300"
           style={HEAD}
         >
           {title}
         </figcaption>
       )}
       <pre
-        className="overflow-hidden bg-ink-950 px-2 py-1.5 text-[9.5px] leading-[1.45] text-ink-100"
+        className="overflow-hidden bg-ink-950 px-1.5 py-1 text-[10px] leading-[1.4] text-ink-100"
         style={{ ...MONO, maxHeight }}
       >
         <code>{code}</code>
@@ -302,13 +420,13 @@ export function Steps({
 }) {
   return (
     <ol
-      className="text-[10.5px] leading-[1.42] text-ink-600"
-      style={{ ...HEAD, columnCount: cols, columnGap: 14 }}
+      className="text-[11px] leading-[1.38] text-ink-600"
+      style={{ ...HEAD, columnCount: cols, columnGap: 12 }}
     >
       {items.map((it, i) => (
         <li
           key={i}
-          className="relative mt-[4px] break-inside-avoid pl-[19px] first:mt-0"
+          className="relative mt-[3px] break-inside-avoid pl-[18px] first:mt-0"
         >
           <span
             className="absolute left-0 top-0 text-[9px] font-bold text-signal-500"
@@ -375,14 +493,14 @@ export function Note({
         ? 'text-[#085041]'
         : 'text-signal-700'
   return (
-    <div className={`border-l-[3px] px-2 py-[5px] ${edge}`}>
+    <div className={`border-l-[3px] px-1.5 py-[4px] text-[11px] leading-[1.38] ${edge}`}>
       <span
-        className={`mr-1.5 text-[8.5px] font-bold uppercase tracking-[0.13em] ${text}`}
+        className={`mr-1.5 align-[1px] text-[8.5px] font-bold uppercase tracking-[0.12em] ${text}`}
         style={HEAD}
       >
         {label}
       </span>
-      <span className="text-[10.5px] leading-[1.45] text-ink-700" style={HEAD}>
+      <span className="text-ink-700" style={HEAD}>
         {children}
       </span>
     </div>
@@ -460,11 +578,57 @@ export type LadderStep = {
 export function Ladder({
   actors,
   steps,
+  columns = 1,
 }: {
   actors: string[]
   steps: LadderStep[]
+  /**
+   * Break a long flow into side-by-side columns, numbering
+   * continuing across them. A twenty-three step exchange in one
+   * column is either unreadably tall or unreadably small; in
+   * three it is neither.
+   */
+  columns?: 1 | 2 | 3
   /** @deprecated rows now size themselves to their content */
   rowHeight?: number
+}) {
+  if (columns > 1) {
+    const perColumn = Math.ceil(steps.length / columns)
+    const chunks: { steps: LadderStep[]; offset: number }[] = []
+    for (let i = 0; i < steps.length; i += perColumn) {
+      chunks.push({ steps: steps.slice(i, i + perColumn), offset: i })
+    }
+    return (
+      <div
+        className="grid items-start"
+        style={{
+          gridTemplateColumns: `repeat(${chunks.length}, minmax(0,1fr))`,
+          columnGap: 14,
+        }}
+      >
+        {chunks.map((chunk, i) => (
+          <LadderColumn
+            key={i}
+            actors={actors}
+            steps={chunk.steps}
+            offset={chunk.offset}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return <LadderColumn actors={actors} steps={steps} offset={0} />
+}
+
+function LadderColumn({
+  actors,
+  steps,
+  offset,
+}: {
+  actors: string[]
+  steps: LadderStep[]
+  offset: number
 }) {
   const n = actors.length
 
@@ -483,7 +647,7 @@ export function Ladder({
         {actors.map((a, i) => (
           <div
             key={i}
-            className="truncate bg-ink-950 px-1 py-[3px] text-center text-[8.5px] font-bold uppercase tracking-[0.08em] text-paper"
+            className="truncate bg-ink-950 px-1 py-[3px] text-center text-[9.5px] font-bold uppercase tracking-[0.06em] text-paper"
             style={HEAD}
             title={a}
           >
@@ -512,7 +676,14 @@ export function Ladder({
             const rtl = s.to < s.from
             const self = s.from === s.to
             const spanCols = hi - lo + 1
-            const inset = `${50 / spanCols}%`
+
+            // Half a column of padding on each side pulls the ends
+            // of the arrow back to the two lifelines it runs
+            // between. A message an actor sends to itself has no
+            // second lifeline to reach, so that same padding would
+            // crush it to a slice a few pixels wide and wrap its
+            // label one word per line — it gets the whole column.
+            const inset = self ? '3%' : `${50 / spanCols}%`
             const color =
               s.tone === 'signal'
                 ? 'var(--color-signal-500)'
@@ -531,11 +702,11 @@ export function Ladder({
                 }}
               >
                 <div
-                  className="text-center text-[8.5px] font-semibold leading-[1.3]"
+                  className="text-center text-[9.5px] font-semibold leading-[1.25]"
                   style={{ ...HEAD, color }}
                 >
-                  <span className="mr-[3px] text-[8px] opacity-55">
-                    {String(i + 1).padStart(2, '0')}
+                  <span className="mr-[3px] text-[8.5px] opacity-55">
+                    {String(offset + i + 1).padStart(2, '0')}
                   </span>
                   {s.label}
                 </div>
@@ -545,14 +716,17 @@ export function Ladder({
                   <span
                     className="flex-1"
                     style={{
-                      borderTop: `${s.dashed ? '1px dashed' : '1.2px solid'} ${color}`,
+                      borderTop: `${
+                        s.dashed ? '1px dashed' : self ? '1px dotted' : '1.2px solid'
+                      } ${color}`,
                     }}
                   />
                   {!self && !rtl && <Head dir="right" color={color} />}
                   {self && (
                     <span
-                      className="absolute right-0 text-[9px] leading-none"
+                      className="ml-[2px] text-[9px] leading-none"
                       style={{ color }}
+                      aria-label="acts on itself"
                     >
                       ↻
                     </span>
@@ -561,7 +735,7 @@ export function Ladder({
 
                 {s.sub && (
                   <div
-                    className="mt-[1px] text-center text-[8px] leading-[1.3] text-ink-400"
+                    className="mt-[1px] text-center text-[8.5px] leading-[1.25] text-ink-400"
                     style={HEAD}
                   >
                     {s.sub}
@@ -662,13 +836,13 @@ export function Split({
 }) {
   return (
     <div
-      className="grid gap-x-3 gap-y-2"
+      className="grid gap-x-2.5 gap-y-1.5"
       style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}
     >
       {parts.map((p, i) => (
         <div key={i} className="min-w-0">
           <div
-            className="mb-1 border-b border-ink-300 pb-[2px] text-[9px] font-bold uppercase tracking-[0.11em] text-ink-950"
+            className="mb-[3px] border-b border-ink-300 pb-[1px] text-[9px] font-bold uppercase tracking-[0.1em] text-ink-950"
             style={HEAD}
           >
             {p.title}
@@ -739,7 +913,7 @@ export function Matrix({
     none: 'bg-white text-ink-300',
   } as const
   return (
-    <table className="w-full border-collapse text-[8.5px]" style={HEAD}>
+    <table className="w-full border-collapse text-[9px]" style={HEAD}>
       <thead>
         <tr>
           <th className="border border-ink-200 bg-ink-950 px-1 py-[2px] text-left text-[8px] uppercase tracking-[0.08em] text-paper">
