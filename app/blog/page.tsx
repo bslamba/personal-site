@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { ArrowUpRight, SlidersHorizontal } from 'lucide-react'
 import { getPostSummaries, getAllTags } from '@/lib/blog'
 import BlogDirectory from '@/components/blog-directory'
+import { REFERENCES } from '@/lib/references'
 import { TOPICS } from '@/components/ise/topics'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
@@ -33,6 +34,20 @@ export const metadata: Metadata = {
 export default function BlogIndex() {
   const posts = getPostSummaries()
   const tags = getAllTags()
+
+  // The reference's own metadata is static so the directory — a
+  // client component — never has to import the topic registry.
+  // The counts are the one thing worth keeping live, so they are
+  // injected here, on the server, where the registry is free.
+  const interactiveCount = TOPICS.filter(t => t.interactive).length
+  const references = REFERENCES.map(reference =>
+    reference.slug === 'cisco-ise-cheat-sheet'
+      ? {
+          ...reference,
+          meta: `${TOPICS.length} topics · ${interactiveCount} interactive · ISE 3.x`,
+        }
+      : reference
+  )
 
   return (
     <>
@@ -153,7 +168,7 @@ export default function BlogIndex() {
                 >
                   <li className="inline-flex items-center gap-1.5">
                     <SlidersHorizontal className="h-3 w-3 text-signal-500" />
-                    {TOPICS.filter(t => t.interactive).length} interactive sheets
+                    {interactiveCount} interactive sheets
                   </li>
                   <li>13 profiling probes</li>
                   <li>Full switch &amp; WLC configuration</li>
@@ -173,7 +188,7 @@ export default function BlogIndex() {
       <section className="py-12 sm:py-14">
         <div className="container-page">
           {posts.length > 0 ? (
-            <BlogDirectory posts={posts} tags={tags} />
+            <BlogDirectory posts={posts} tags={tags} references={references} />
           ) : (
             <p className="py-20 text-center text-ink-500">
               No articles published yet.

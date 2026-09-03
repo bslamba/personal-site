@@ -12,9 +12,10 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search, X, SlidersHorizontal, ArrowUpRight, Clock } from 'lucide-react'
+import { Search, X, SlidersHorizontal, ArrowUpRight, Clock, Layers } from 'lucide-react'
 import type { PostSummary } from '@/lib/blog'
 import { CATEGORIES, groupPosts, type Category } from '@/lib/blog-categories'
+import type { Reference } from '@/lib/references'
 
 const HEADING = { fontFamily: 'var(--font-heading)' } as const
 
@@ -70,13 +71,60 @@ function ArticleRow({ post, index }: { post: PostSummary; index: number }) {
 }
 
 // ------------------------------------------------------------
+// One reference row
+//
+// Sits at the top of its section, above the articles. Given a
+// heavier frame and the signal rule so it reads as a different
+// kind of thing — something you open and keep open, rather than
+// something you read once.
+// ------------------------------------------------------------
+function ReferenceRow({ reference }: { reference: Reference }) {
+  return (
+    <article className="group mb-5 border-l-2 border-signal-500 bg-paper-dim py-3 pl-4 pr-3 transition-colors hover:bg-signal-50">
+      <Link href={reference.href} className="block">
+        <div
+          className="flex items-center gap-2 text-[0.625rem] uppercase tracking-[0.16em] text-signal-500"
+          style={HEADING}
+        >
+          <Layers className="h-3 w-3" aria-hidden="true" />
+          Reference
+        </div>
+
+        <h3
+          className="mt-1.5 text-[0.9375rem] font-semibold leading-snug tracking-tight text-ink-950 transition-colors group-hover:text-signal-500"
+          style={HEADING}
+        >
+          {reference.title}
+          <ArrowUpRight
+            className="ml-1 inline h-3.5 w-3.5 text-signal-500"
+            aria-hidden="true"
+          />
+        </h3>
+
+        <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
+          {reference.excerpt}
+        </p>
+
+        <div
+          className="mt-2 text-[0.6875rem] uppercase tracking-[0.14em] text-ink-400"
+          style={HEADING}
+        >
+          {reference.meta}
+        </div>
+      </Link>
+    </article>
+  )
+}
+
+// ------------------------------------------------------------
 // One section column
 // ------------------------------------------------------------
 function SectionColumn({
-  category, posts, filtering,
+  category, posts, references, filtering,
 }: {
   category: Category
   posts: PostSummary[]
+  references: Reference[]
   filtering: boolean
 }) {
   const bar =
@@ -102,7 +150,7 @@ function SectionColumn({
             className="shrink-0 text-[0.6875rem] font-semibold tracking-[0.14em] text-ink-400"
             style={HEADING}
           >
-            {String(posts.length).padStart(2, '0')}
+            {String(posts.length + references.length).padStart(2, '0')}
           </span>
         </div>
 
@@ -118,15 +166,19 @@ function SectionColumn({
         </p>
       </header>
 
-      {/* ---- Articles ---- */}
+      {/* ---- References, then articles ---- */}
       <div className="mt-6 flex-1">
+        {references.map(reference => (
+          <ReferenceRow key={reference.slug} reference={reference} />
+        ))}
+
         {posts.length > 0 ? (
           <div>
             {posts.map((post, i) => (
               <ArticleRow key={post.slug} post={post} index={i} />
             ))}
           </div>
-        ) : (
+        ) : references.length > 0 ? null : (
           <div className="border border-dashed border-ink-300 px-5 py-10 text-center">
             <p className="text-sm text-ink-500">
               {filtering
@@ -150,17 +202,22 @@ function SectionColumn({
 // The directory
 // ------------------------------------------------------------
 export default function BlogDirectory({
-  posts, tags,
+  posts, tags, references = [],
 }: {
   posts: PostSummary[]
   tags: { tag: string; count: number }[]
+  references?: Reference[]
 }) {
   const [query, setQuery] = useState('')
   const [activeTags, setActiveTags] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
 
+  const terms = useMemo(
+    () => query.toLowerCase().split(/\s+/).filter(Boolean),
+    [query]
+  )
+
   const results = useMemo(() => {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
     return posts.filter(post => {
       const matchesTags =
         activeTags.length === 0 || activeTags.every(t => post.tags.includes(t))
@@ -168,10 +225,28 @@ export default function BlogDirectory({
         terms.length === 0 || terms.every(term => post.searchText.includes(term))
       return matchesTags && matchesQuery
     })
-  }, [posts, query, activeTags])
+  }, [posts, terms, activeTags])
+
+  // References answer to the same search box and the same tag
+  // filter as the articles, so a search for "profiling" surfaces
+  // the cheat sheet alongside the article on profiling probes.
+  const referenceResults = useMemo(() => {
+    return references.filter(reference => {
+      const matchesTags =
+        activeTags.length === 0 ||
+        activeTags.every(t => reference.tags.includes(t))
+      const matchesQuery =
+        terms.length === 0 ||
+        terms.every(term => reference.searchText.includes(term))
+      return matchesTags && matchesQuery
+    })
+  }, [references, terms, activeTags])
 
   const grouped = useMemo(() => groupPosts(results), [results])
   const filtering = query.length > 0 || activeTags.length > 0
+
+  const total = posts.length + references.length
+  const shown = results.length + referenceResults.length
 
   function toggleTag(tag: string) {
     setActiveTags(prev =>
@@ -271,8 +346,10 @@ export default function BlogDirectory({
           aria-live="polite"
         >
           {filtering
-            ? `${results.length} of ${posts.length} articles`
-            : `${posts.length} articles`}
+            ? `${shown} of ${total} entries`
+            : `${posts.length} articles · ${references.length} reference${
+                references.length === 1 ? '' : 's'
+              }`}
         </span>
         {filtering && (
           <button
@@ -293,13 +370,14 @@ export default function BlogDirectory({
             key={category.id}
             category={category}
             posts={grouped[category.id]}
+            references={referenceResults.filter(r => r.category === category.id)}
             filtering={filtering}
           />
         ))}
       </div>
 
       {/* ---- Nothing anywhere ---- */}
-      {filtering && results.length === 0 && (
+      {filtering && shown === 0 && (
         <div className="mt-12 border border-ink-200 py-20 text-center">
           <p className="text-lg text-ink-600">No articles match that search.</p>
           <button type="button" onClick={clearAll} className="btn-ghost mt-6">
