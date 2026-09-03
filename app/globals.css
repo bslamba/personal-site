@@ -923,3 +923,65 @@ body {
   .brand-logo:hover .brand-logo-plate { transform: none; }
 }
 /* ===== BRAND-BAR END ===== */
+
+/* ===== ISE-CHEAT-SHEET START ===== */
+/* ============================================================
+   The Cisco ISE cheat sheet.
+
+   Two jobs. On screen, pin the whole thing to exactly one
+   viewport so a topic never scrolls — the fixed 48px brand bar
+   is already reserved by the body padding, so the app takes
+   what is left. On paper, undo all of that: drop the chrome,
+   release the transform, and let the sheet flow across pages
+   at full size.
+   ============================================================ */
+
+.ise-root {
+  height: calc(100dvh - 3rem);
+  min-height: 30rem;
+}
+
+/* Fallback for browsers without dvh. */
+@supports not (height: 100dvh) {
+  .ise-root { height: calc(100vh - 3rem); }
+}
+
+.ise-fit-outer { scrollbar-width: thin; }
+.ise-fit-outer::-webkit-scrollbar { width: 8px; height: 8px; }
+.ise-fit-outer::-webkit-scrollbar-track { background: transparent; }
+.ise-fit-outer::-webkit-scrollbar-thumb {
+  background: var(--color-ink-200);
+  border: none;
+  border-radius: 99px;
+}
+
+/* The sheet is a dense reference, not reading matter: headings
+   inside it must not inherit the article's generous rhythm. */
+.ise-root :where(h1, h2, h3, h4) { margin: 0; }
+.ise-root :where(p, ul, ol, dl, table, figure) { margin: 0; }
+
+/* ---------- print / save as PDF ---------- */
+@media print {
+  body:has(.ise-root) { padding-top: 0; background: #fff; }
+  body:has(.ise-root) > header.brand-bar,
+  body:has(.ise-root) > footer,
+  body:has(.ise-root) .wa-float,
+  body:has(.ise-root) .ise-noprint,
+  body:has(.ise-root) .ise-hub-head { display: none !important; }
+
+  .ise-root { height: auto !important; min-height: 0 !important; display: block; }
+  .ise-fit-outer { overflow: visible !important; padding: 0 !important; height: auto !important; }
+  .ise-fit-scaler { width: auto !important; height: auto !important; margin: 0 !important; }
+  .ise-fit-content {
+    transform: none !important;
+    width: 100% !important;
+  }
+
+  /* Keep panels whole across a page break wherever possible. */
+  .ise-fit-content section { break-inside: avoid; }
+  .ise-fit-content table   { break-inside: auto; }
+  .ise-fit-content tr      { break-inside: avoid; }
+}
+
+@page { size: A3 landscape; margin: 10mm; }
+/* ===== ISE-CHEAT-SHEET END ===== */

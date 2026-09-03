@@ -6,8 +6,11 @@
 // ============================================================
 
 import type { Metadata } from 'next'
+import Link from 'next/link'
+import { ArrowUpRight, SlidersHorizontal } from 'lucide-react'
 import { getPostSummaries, getAllTags } from '@/lib/blog'
 import BlogDirectory from '@/components/blog-directory'
+import { TOPICS } from '@/components/ise/topics'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
@@ -98,6 +101,71 @@ export default function BlogIndex() {
             </ul>
 
           </div>
+        </div>
+      </section>
+
+      {/* ---------------- FEATURED: THE CHEAT SHEET ----------------
+          The cheat sheet is a route, not a markdown article, so it
+          cannot come through getPostSummaries(). It is given its own
+          band above the directory rather than being smuggled into
+          the article list, because it is a different kind of thing:
+          a reference you open, not a piece you read. */}
+      <section className="border-b border-ink-900/10 pt-10">
+        <div className="container-page">
+          <Link
+            href="/blog/cisco-ise-cheat-sheet"
+            className="group block border border-ink-200 bg-white transition-colors hover:border-signal-500"
+          >
+            <div className="flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="label bg-signal-500 px-2 py-1 text-paper">
+                    Reference
+                  </span>
+                  <span
+                    className="text-[0.6875rem] uppercase tracking-[0.16em] text-ink-400"
+                    style={{ fontFamily: 'var(--font-heading)' }}
+                  >
+                    {TOPICS.length} topics · Cisco ISE 3.x
+                  </span>
+                </div>
+
+                <h2 className="heading mt-4 text-[clamp(1.375rem,2.6vw,2rem)] transition-colors group-hover:text-signal-500">
+                  The Cisco ISE Cheat Sheet
+                  <ArrowUpRight
+                    className="ml-1.5 inline h-5 w-5 text-signal-500"
+                    aria-hidden="true"
+                  />
+                </h2>
+
+                <p className="measure-wide mt-3 leading-relaxed text-ink-600">
+                  Every Cisco ISE topic on a single screen each — architecture,
+                  licensing, policy, EAP, 802.1X, profiling, posture, guest,
+                  BYOD, TrustSec, pxGrid and operations. Concepts, the full
+                  configuration, and the packet flow, with a selector wherever a
+                  scenario has more than one option. No scrolling: pick a topic
+                  and the whole thing is in front of you.
+                </p>
+
+                <ul
+                  className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[0.6875rem] uppercase tracking-[0.14em] text-ink-500"
+                  style={{ fontFamily: 'var(--font-heading)' }}
+                >
+                  <li className="inline-flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3 w-3 text-signal-500" />
+                    {TOPICS.filter(t => t.interactive).length} interactive sheets
+                  </li>
+                  <li>13 profiling probes</li>
+                  <li>Full switch &amp; WLC configuration</li>
+                  <li>Print to PDF</li>
+                </ul>
+              </div>
+
+              <span className="btn-signal shrink-0 self-start lg:self-center">
+                Open the cheat sheet
+              </span>
+            </div>
+          </Link>
         </div>
       </section>
 
