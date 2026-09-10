@@ -231,22 +231,15 @@ export default function BirthdayPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [lightbox])
 
-  // Two rails drifting opposite ways. With a handful of pictures
-  // each rail shows all of them; past that the set is split so the
-  // two rails are never the same wall of photographs going by
-  // twice, and neither track carries the whole gallery.
-  const [railA, railB] = useMemo(() => {
-    if (PHOTOS.length < 6) return [PHOTOS, [...PHOTOS].reverse()]
-    const half = Math.ceil(PHOTOS.length / 2)
-    return [PHOTOS.slice(0, half), [...PHOTOS.slice(half)].reverse()]
-  }, [])
-
-  // A card is roughly 190px wide including its gap, and about
-  // 26 seconds per screenful reads as a drift rather than a
-  // conveyor belt. The marquee travels half the doubled track, so
-  // the duration is proportional to the number of cards in one
-  // copy of it.
-  const railDuration = (cards: number) => `${Math.max(34, cards * 5.2)}s`
+  // One rail, travelling left to right: a picture appears at the
+  // left edge, crosses the screen and leaves at the right. The list
+  // is rendered twice end to end so the loop has no seam.
+  //
+  // A card is roughly 190px wide including its gap, and about five
+  // seconds a card reads as a drift rather than a conveyor belt.
+  // The marquee travels half the doubled track, so the duration is
+  // proportional to the number of cards in one copy of it.
+  const railDuration = `${Math.max(34, PHOTOS.length * 5.2)}s`
 
   return (
     <div className="bday-root">
@@ -341,12 +334,12 @@ export default function BirthdayPage() {
             <em> is my favourite</em>
           </h2>
 
-          <div className="bday-rail" data-dir="left">
+          <div className="bday-rail" data-dir="right">
             <div
               className="bday-rail-track"
-              style={{ ['--rail-duration' as string]: railDuration(railA.length) }}
+              style={{ ['--rail-duration' as string]: railDuration }}
             >
-              {[...railA, ...railA].map((photo, i) => (
+              {[...PHOTOS, ...PHOTOS].map((photo, i) => (
                 <button
                   key={`a${i}`}
                   type="button"
@@ -356,28 +349,6 @@ export default function BirthdayPage() {
                   aria-label={photo.caption}
                 >
                   <SafeImage photo={photo} className="bday-card-img" small />
-                  <span className="bday-card-cap">{photo.caption}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bday-rail" data-dir="right">
-            <div
-              className="bday-rail-track"
-              style={{ ['--rail-duration' as string]: railDuration(railB.length) }}
-            >
-              {[...railB, ...railB].map((photo, i) => (
-                <button
-                  key={`b${i}`}
-                  type="button"
-                  className={`bday-card ${photo.portrait ? 'is-tall' : ''}`}
-                  onClick={() => setLightbox(photo)}
-                  style={{ ['--tilt' as string]: `${((i % 4) - 1.5) * -1.8}deg` }}
-                  aria-label={photo.caption}
-                >
-                  <SafeImage photo={photo} className="bday-card-img" small />
-                  <span className="bday-card-cap">{photo.caption}</span>
                 </button>
               ))}
             </div>
@@ -393,42 +364,82 @@ export default function BirthdayPage() {
             <p className="bday-letter-to">To my Nishi,</p>
 
             <p>
-              Thirty years ago the world got quietly, permanently better,
-              and it had no idea. I did not know it either — not for a long
-              time. Then I met you, and every ordinary thing since has had
-              you somewhere in it.
+              Happy birthday, my love. Happy, happy birthday.
             </p>
 
             <p>
-              I love the way you laugh before the funny part. I love that
-              you look at me like that in the middle of a food court, with
-              a paper cup between us and nothing special happening at all.
-              I love that the days I remember are almost never the big ones.
-              They&rsquo;re a shared drink, a bad photo, you mid-sentence
-              about something that mattered to you.
+              I still cannot explain how we found each other. Out of
+              everyone in the whole world, somehow it was you and
+              somehow it was me, and somehow the two of us ended up
+              in the same small corner of it at the same time. People
+              can call that luck if they want. I know what it was.
+            </p>
+
+            <p>
+              It started with one &ldquo;Hi.&rdquo; That was all. One
+              word, sent without knowing it was the most important
+              thing I would ever type. Then the first time I heard
+              your voice on the phone &mdash; and I remember not
+              wanting to hang up, and inventing reasons not to. Then
+              the video calls, one after another after another, till
+              late, till neither of us could keep our eyes open and
+              we stayed on anyway. Somewhere in all of that, without
+              either of us deciding it, you stopped being someone I
+              was talking to and became the person I talk to.
+            </p>
+
+            <p>
+              And now here we are, where a day without you in it feels
+              like something is missing from it. Not lonely exactly
+              &mdash; incomplete. I do things and they are only half
+              done until I have told you. Something funny happens and
+              it has not properly happened until you have laughed at
+              it too. That is what you have done to me, and I would
+              not undo a second of it.
             </p>
 
             <p className="bday-letter-big">
-              I love you so much. More than I know how to put down here,
-              and more than I manage to say out loud.
+              I love you so much. More than I know how to put down
+              here, and more than I manage to say out loud.
             </p>
 
             <p>
-              And I need you — badly, completely, on the good days and the
-              ones where I&rsquo;m no fun at all. You are the person I want
-              to tell first. You are the plan, not part of it.
+              And I need you. Badly, completely, on the good days and
+              on the ones where I am no fun at all. You are the person
+              I want to tell first. You are the plan, not part of it.
             </p>
 
             <p>
-              So: happy birthday, my love. Here&rsquo;s to your thirtieth,
-              and to every single one after it, all of them with me,
-              hopelessly and permanently yours.
+              I love the way you laugh before the funny part. I love
+              that you look at me like that when nothing special is
+              happening at all. I love that the days I remember are
+              almost never the big ones &mdash; they are a shared
+              drink, a bad photo, you mid-sentence about something
+              that mattered to you.
+            </p>
+
+            <p>
+              So thank you to your mummy and papa, for the 25th of
+              September 1996, and for her. They did not know what they
+              were doing for me that day, but I have been grateful for
+              it every day since. You were born for me, baby. I think
+              I loved you in our last life too &mdash; that is the only
+              thing that explains how easy it was, how quickly you felt
+              like somewhere I had already been.
+            </p>
+
+            <p>
+              Happy birthday, my whole heart. Here is to this one, and
+              to every single one after it, all of them with me. I am
+              hopelessly, permanently, entirely yours.
             </p>
 
             <p className="bday-letter-sign">
-              Always &amp; all ways,
+              Loving you always,
               <br />
-              <span>your Bhawneet</span>
+              <span>Loivee Bhawiee</span>
+              <br />
+              your better half
             </p>
           </div>
 
@@ -458,7 +469,6 @@ export default function BirthdayPage() {
           </button>
           <figure onClick={e => e.stopPropagation()}>
             <SafeImage photo={lightbox} className="bday-lightbox-img" priority />
-            <figcaption>{lightbox.caption}</figcaption>
           </figure>
         </div>
       )}

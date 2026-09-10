@@ -1399,8 +1399,9 @@ body:has(.bday-root) .wa-float { display: none !important; }
 .bday-card {
   position: relative;
   flex: 0 0 auto;
-  width: 44vw;
-  max-width: 15rem;
+  /* One row rather than two, so each picture can be larger. */
+  width: 56vw;
+  max-width: 17rem;
   aspect-ratio: 4 / 3;
   padding: 0;
   border: none;
@@ -1416,17 +1417,6 @@ body:has(.bday-root) .wa-float { display: none !important; }
 .bday-card.is-tall { aspect-ratio: 3 / 4; }
 .bday-card:hover, .bday-card:focus-visible { transform: rotate(0deg) scale(1.05); }
 .bday-card-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.bday-card-cap {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 1.6rem 0.7rem 0.6rem;
-  font-family: var(--font-heading);
-  font-size: 0.66rem;
-  line-height: 1.3;
-  text-align: left;
-  color: #fff;
-  background: linear-gradient(180deg, transparent, rgba(27, 6, 20, 0.9));
-}
 .bday-rail-hint {
   margin-top: 1.6rem;
   text-align: center;
@@ -1448,28 +1438,39 @@ body:has(.bday-root) .wa-float { display: none !important; }
   border: 1px solid rgba(255, 182, 201, 0.24);
   backdrop-filter: blur(10px);
   box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.85);
-  font-size: clamp(1rem, 4.1vw, 1.12rem);
-  line-height: 1.78;
+  /* Handwriting, so it reads as a letter rather than a web page.
+     Caveat runs small and tight for its point size, so it is set
+     larger and looser than the body type would be. */
+  font-family: var(--font-hand), 'Segoe Script', 'Bradley Hand', cursive;
+  font-weight: 500;
+  font-size: clamp(1.35rem, 5.6vw, 1.6rem);
+  line-height: 1.62;
+  letter-spacing: 0.004em;
   color: var(--blush);
 }
 .bday-letter-card p + p { margin-top: 1.15em; }
 .bday-letter-to {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: clamp(1.4rem, 6vw, 1.9rem);
+  font-family: var(--font-hand), 'Segoe Script', 'Bradley Hand', cursive;
+  font-weight: 700;
+  font-size: clamp(1.9rem, 8vw, 2.6rem);
+  line-height: 1.2;
   color: var(--gold);
   margin-bottom: 0.9rem;
 }
 .bday-letter-big {
-  font-style: italic;
-  font-size: 1.16em;
-  line-height: 1.6;
+  font-weight: 700;
+  font-size: 1.18em;
+  line-height: 1.5;
   color: #fff;
   text-shadow: 0 0 24px rgba(255, 127, 163, 0.35);
 }
-.bday-letter-sign { margin-top: 1.8rem; font-style: italic; color: var(--rose-soft); }
+.bday-letter-sign { margin-top: 1.9rem; color: var(--rose-soft); }
 .bday-letter-sign span {
-  font-size: 1.3em;
+  display: inline-block;
+  margin-top: 0.15em;
+  font-weight: 700;
+  font-size: 1.45em;
+  line-height: 1.25;
   color: var(--gold);
 }
 .bday-foot {
@@ -1502,12 +1503,6 @@ body:has(.bday-root) .wa-float { display: none !important; }
   object-fit: contain;
   border-radius: 0.9rem;
   box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.9);
-}
-.bday-lightbox figcaption {
-  margin-top: 1rem;
-  font-style: italic;
-  color: var(--blush);
-  font-size: 1rem;
 }
 .bday-lightbox-close {
   position: absolute;
@@ -1565,9 +1560,8 @@ body:has(.bday-root) .wa-float { display: none !important; }
 
 /* ---------------- bigger screens ---------------- */
 @media (min-width: 768px) {
-  .bday-card { width: 20rem; max-width: none; }
+  .bday-card { width: 22rem; max-width: none; }
   .bday-rails { padding: 6rem 0 5rem; }
-  .bday-card-cap { font-size: 0.76rem; }
   .bday-song-btn { font-size: 0.78rem; }
 
 /* While the track is rolling but muted, the pill is the invitation

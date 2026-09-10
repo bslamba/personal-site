@@ -12,7 +12,7 @@
 // ============================================================
 
 import type { Metadata } from 'next'
-import { Anton, Inter_Tight, Literata } from 'next/font/google'
+import { Anton, Caveat, Inter_Tight, Literata } from 'next/font/google'
 import Link from 'next/link'
 import IntroGate from '@/components/intro-gate'
 import WhatsAppFloat from '@/components/whatsapp-float'
@@ -30,6 +30,17 @@ const interTight = Inter_Tight({
   weight: ['500', '600', '700'],
   display: 'swap',
   variable: '--font-inter-tight',
+})
+
+// The letter is handwriting rather than type. Caveat is a real
+// hand — legible at a paragraph's length, which the loopier scripts
+// are not — and it only has to carry the letter, so one weight pair
+// is all that ships.
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['500', '700'],
+  display: 'swap',
+  variable: '--font-hand',
 })
 
 const literata = Literata({
@@ -271,7 +282,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${anton.variable} ${interTight.variable} ${literata.variable}`}
+      className={`${anton.variable} ${interTight.variable} ${literata.variable} ${caveat.variable}`}
     >
       <body className="flex min-h-screen flex-col">
 

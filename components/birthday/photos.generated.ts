@@ -373,13 +373,6 @@ export const GENERATED: Photo[] = [
     portrait: true,
   },
   {
-    src: 'p-50.jpg',
-    thumb: 'p-50-t.jpg',
-    focus: '50% 38%',
-    caption: 'You, unfairly beautiful, on a normal night',
-    portrait: true,
-  },
-  {
     src: 'p-51.jpg',
     thumb: 'p-51-t.jpg',
     focus: '66% 76%',
