@@ -7,7 +7,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/vault', '/vault/', '/api/'],
+      // /happy-birthday is a private surprise on a public URL:
+      // openable by anyone holding the link, and findable by no one.
+      // The page also sends noindex, so this is belt and braces.
+      disallow: ['/vault', '/vault/', '/api/', '/happy-birthday'],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

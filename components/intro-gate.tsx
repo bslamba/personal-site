@@ -18,6 +18,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
+
+// Routes that are not "the site" and must not be introduced by it.
+// /happy-birthday is opened from a link sent to one person; making
+// her click through a consultant's splash screen first would be a
+// strange way to say happy birthday.
+const NO_GATE = ['/happy-birthday']
 
 const NAME_LINE_1 = 'BHAWNEET'
 const NAME_LINE_2 = 'LAMBA'
@@ -57,16 +64,22 @@ function GateArtwork() {
 }
 
 export default function IntroGate() {
+  const pathname = usePathname()
+  const bare = NO_GATE.some(p => pathname === p || pathname?.startsWith(`${p}/`))
+
   const [open, setOpen] = useState(false)
   const [gone, setGone] = useState(false)
 
   const openGate = useCallback(() => setOpen(true), [])
 
-  // Lock page scrolling while the gate is closed.
+  // Lock page scrolling while the gate is closed. Hooks cannot be
+  // skipped, so the bare routes bail out inside the effect rather
+  // than before it.
   useEffect(() => {
+    if (bare) return
     document.body.classList.add('gate-locked')
     return () => document.body.classList.remove('gate-locked')
-  }, [])
+  }, [bare])
 
   // Unlock and eventually remove the gate from the DOM entirely,
   // so it can never intercept a click once it's out of the way.
@@ -79,7 +92,7 @@ export default function IntroGate() {
 
   // Any key, any scroll, any click opens it.
   useEffect(() => {
-    if (open) return
+    if (open || bare) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
         e.preventDefault()
@@ -94,9 +107,9 @@ export default function IntroGate() {
       window.removeEventListener('wheel', openGate)
       window.removeEventListener('touchmove', openGate)
     }
-  }, [open, openGate])
+  }, [open, openGate, bare])
 
-  if (gone) return null
+  if (bare || gone) return null
 
   return (
     <div
