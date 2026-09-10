@@ -89,6 +89,31 @@ const CAPTION_POOL = [
 const FOCUS_PORTRAIT = '50% 32%'
 const FOCUS_LANDSCAPE = '50% 42%'
 
+// ---- FaceTime call screenshots ----------------------------------
+//
+// A screenshot of a video call carries the call with it: the little
+// self-view window, the Dynamic Island, the caller's name along the
+// bottom and the home indicator. None of that belongs in a gallery.
+//
+// Measured across a set of these: the self-view is a 265x446 box
+// inset 26px from one side, sitting either at y 213-658 or at
+// y 1972-2418 — it depends which corner it was last dragged to, and
+// it moves between calls. Rather than guess which, both bands are
+// cut. What is left is the middle of the frame, which is where the
+// person is, at a shape close to 9:10.
+//
+// If a future iPhone changes the screenshot size this simply stops
+// matching, and those pictures pass through uncropped — visibly
+// wrong rather than silently mis-cropped.
+const CALL_SHOTS = {
+  // width x height -> the rows worth keeping
+  '1179x2556': { top: 665, bottom: 1965, left: 0, right: 1179 },
+  // The shorter variant, which also carries a control pill down
+  // the left edge.
+  '1178x2049': { top: 174, bottom: 1895, left: 153, right: 1178 },
+  '1178x2063': { top: 175, bottom: 1908, left: 153, right: 1178 },
+}
+
 // ------------------------------------------------------------
 
 function fail(message) {
@@ -301,7 +326,9 @@ function main() {
 
     const captions = existingCaptions()
     const entries = []
+    const scratch = []
     let bytes = 0
+    let cropped = 0
 
     originals.forEach((source, i) => {
       const stem = `p-${String(i + 1).padStart(2, '0')}`
@@ -310,13 +337,37 @@ function main() {
 
       // -d profile drops the colour profile and, with it, the rest
       // of the metadata sips carries over — including GPS.
+      // A call screenshot is cropped first, into a scratch file, so
+      // the original is never touched.
+      const { width: sw, height: sh } = dimensions(source)
+      const shot = CALL_SHOTS[`${sw}x${sh}`]
+      let input = source
+
+      if (shot) {
+        input = join(OUT_DIR, `.${stem}-cropped.jpg`)
+        scratch.push(input)
+        // sips crops around the centre, so the offset has to be
+        // given as the middle of the region we want to keep.
+        const cw = shot.right - shot.left
+        const cropH = shot.bottom - shot.top
+        sips([
+          '-s', 'format', 'jpeg',
+          '-s', 'formatOptions', '95',
+          '-c', String(cropH), String(cw),
+          '--cropOffset',
+          String(Math.round((shot.top + shot.bottom) / 2 - sh / 2)),
+          String(Math.round((shot.left + shot.right) / 2 - sw / 2)),
+          source, '--out', input,
+        ])
+      }
+
       const encode = (dest, edge, quality) =>
         sips([
           '-s', 'format', 'jpeg',
           '-s', 'formatOptions', String(quality),
           '-Z', String(edge),
           '-d', 'profile',
-          source, '--out', dest,
+          input, '--out', dest,
         ])
 
       encode(full, FULL_EDGE, 82)
@@ -338,14 +389,24 @@ function main() {
         hero: i < 6,
       })
 
+      if (shot) cropped++
       const kb = Math.round(readFileSync(full).length / 1024)
       process.stdout.write(
-        `   ${String(i + 1).padStart(3)}. ${basename(source).slice(0, 34).padEnd(34)} → ` +
-        `${stem}.jpg  ${width}×${height}  ${portrait ? 'portrait ' : 'landscape'}  ${String(kb).padStart(4)}KB\n`
+        `   ${String(i + 1).padStart(3)}. ${basename(source).slice(0, 30).padEnd(30)} → ` +
+        `${stem}.jpg  ${width}×${height}  ${portrait ? 'portrait ' : 'landscape'}` +
+        `  ${String(kb).padStart(4)}KB${shot ? '  call chrome removed' : ''}\n`
       )
     })
 
+    scratch.forEach(f => rmSync(f, { force: true }))
     writeManifest(entries)
+
+    if (cropped) {
+      console.log(
+        `\n  ${cropped} call screenshot${cropped === 1 ? '' : 's'} cropped — ` +
+        'self-view window, status bar and caller name removed.'
+      )
+    }
 
     console.log(
       `\n  ${entries.length} photograph${entries.length === 1 ? '' : 's'} ready — ` +
