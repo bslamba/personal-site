@@ -1384,7 +1384,10 @@ body:has(.bday-root) .wa-float { display: none !important; }
   display: flex;
   gap: 0.9rem;
   width: max-content;
-  animation: bday-marquee 46s linear infinite;
+  /* The duration is set per rail from the card count, so a set of
+     forty photographs drifts at the same speed as a set of six
+     instead of tearing past. */
+  animation: bday-marquee var(--rail-duration, 46s) linear infinite;
 }
 .bday-rail[data-dir='right'] .bday-rail-track { animation-direction: reverse; }
 .bday-rail:hover .bday-rail-track { animation-play-state: paused; }
@@ -1566,6 +1569,20 @@ body:has(.bday-root) .wa-float { display: none !important; }
   .bday-rails { padding: 6rem 0 5rem; }
   .bday-card-cap { font-size: 0.76rem; }
   .bday-song-btn { font-size: 0.78rem; }
+
+/* While the track is rolling but muted, the pill is the invitation
+   rather than a status line — it glows softly so it reads as
+   something to press. */
+.bday-song-btn.is-silent {
+  border-color: rgba(255, 140, 175, 0.65);
+  background: rgba(94, 18, 55, 0.9);
+  animation: bday-song-invite 2.4s ease-in-out infinite;
+}
+@keyframes bday-song-invite {
+  0%, 100% { box-shadow: 0 10px 30px -12px rgba(0,0,0,0.9), 0 0 0 0 rgba(255,127,163,0.42) }
+  50%      { box-shadow: 0 10px 30px -12px rgba(0,0,0,0.9), 0 0 0 9px rgba(255,127,163,0) }
+}
+
 }
 
 /* ---------------- anyone who asked for calm ---------------- */
@@ -1577,7 +1594,8 @@ body:has(.bday-root) .wa-float { display: none !important; }
   .bday-hero-slide:first-child { opacity: 1; }
   .bday-rail-track { animation: none; transform: none; }
   .bday-rail { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .bday-open, .bday-cover-glow, .bday-scroll-cue i, .bday-song-note { animation: none; }
+  .bday-open, .bday-cover-glow, .bday-scroll-cue i, .bday-song-note,
+  .bday-song-btn.is-silent { animation: none; }
   .bday-main { transition: none; }
 }
 /* ===== BIRTHDAY END ===== */

@@ -23,8 +23,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { PHOTOS, HERO_PHOTOS, type Photo } from './photos'
-import { SongControl, useBirthdaySong } from './music'
+import { PHOTOS, HERO_PHOTOS, HAS_PHOTOS, type Photo } from './photos'
+import { SongControl, SongHolder, useBirthdaySong } from './music'
 
 const HER = 'Nishu'
 const HER_FULL = 'Parteek Kaur'
@@ -94,18 +94,21 @@ function SafeImage({
   className,
   sizes,
   priority,
+  small,
 }: {
   photo: Photo
   className?: string
   sizes?: string
   priority?: boolean
+  /** Load the small copy — enough for a card, a fraction of the weight. */
+  small?: boolean
 }) {
   const [failed, setFailed] = useState(false)
   if (failed) return null
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/media/birthday/${photo.src}`}
+      src={`/media/birthday/${small ? photo.thumb : photo.src}`}
       alt={photo.caption}
       className={className}
       sizes={sizes}
@@ -203,9 +206,11 @@ export default function BirthdayPage() {
 
   // The one gesture that does everything: it satisfies the
   // browser's autoplay rule and opens the page in the same tap.
+  // The track is already rolling silently by now, so the sound
+  // arrives immediately rather than after a load.
   const open = useCallback(() => {
     setOpened(true)
-    void start()
+    start()
   }, [start])
 
   // Keep the page from scrolling behind the cover or the lightbox.
@@ -226,9 +231,22 @@ export default function BirthdayPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [lightbox])
 
-  // The rail is duplicated so the marquee can loop seamlessly.
-  const railA = PHOTOS
-  const railB = [...PHOTOS].reverse()
+  // Two rails drifting opposite ways. With a handful of pictures
+  // each rail shows all of them; past that the set is split so the
+  // two rails are never the same wall of photographs going by
+  // twice, and neither track carries the whole gallery.
+  const [railA, railB] = useMemo(() => {
+    if (PHOTOS.length < 6) return [PHOTOS, [...PHOTOS].reverse()]
+    const half = Math.ceil(PHOTOS.length / 2)
+    return [PHOTOS.slice(0, half), [...PHOTOS.slice(half)].reverse()]
+  }, [])
+
+  // A card is roughly 190px wide including its gap, and about
+  // 26 seconds per screenful reads as a drift rather than a
+  // conveyor belt. The marquee travels half the doubled track, so
+  // the duration is proportional to the number of cards in one
+  // copy of it.
+  const railDuration = (cards: number) => `${Math.max(34, cards * 5.2)}s`
 
   return (
     <div className="bday-root">
@@ -313,6 +331,10 @@ export default function BirthdayPage() {
         </section>
 
         {/* ---- the drifting photographs ---- */}
+        {/* Nothing to drift until the pictures are added, and an
+            empty rail with a heading over it looks like a fault
+            rather than a page waiting for its photographs. */}
+        {HAS_PHOTOS && (
         <section className="bday-rails" aria-label="Our photographs">
           <h2 className="bday-h2">
             Every one of these
@@ -320,7 +342,10 @@ export default function BirthdayPage() {
           </h2>
 
           <div className="bday-rail" data-dir="left">
-            <div className="bday-rail-track">
+            <div
+              className="bday-rail-track"
+              style={{ ['--rail-duration' as string]: railDuration(railA.length) }}
+            >
               {[...railA, ...railA].map((photo, i) => (
                 <button
                   key={`a${i}`}
@@ -330,7 +355,7 @@ export default function BirthdayPage() {
                   style={{ ['--tilt' as string]: `${((i % 5) - 2) * 1.6}deg` }}
                   aria-label={photo.caption}
                 >
-                  <SafeImage photo={photo} className="bday-card-img" />
+                  <SafeImage photo={photo} className="bday-card-img" small />
                   <span className="bday-card-cap">{photo.caption}</span>
                 </button>
               ))}
@@ -338,7 +363,10 @@ export default function BirthdayPage() {
           </div>
 
           <div className="bday-rail" data-dir="right">
-            <div className="bday-rail-track">
+            <div
+              className="bday-rail-track"
+              style={{ ['--rail-duration' as string]: railDuration(railB.length) }}
+            >
               {[...railB, ...railB].map((photo, i) => (
                 <button
                   key={`b${i}`}
@@ -348,7 +376,7 @@ export default function BirthdayPage() {
                   style={{ ['--tilt' as string]: `${((i % 4) - 1.5) * -1.8}deg` }}
                   aria-label={photo.caption}
                 >
-                  <SafeImage photo={photo} className="bday-card-img" />
+                  <SafeImage photo={photo} className="bday-card-img" small />
                   <span className="bday-card-cap">{photo.caption}</span>
                 </button>
               ))}
@@ -357,6 +385,7 @@ export default function BirthdayPage() {
 
           <p className="bday-rail-hint">tap any picture</p>
         </section>
+        )}
 
         {/* ---- the letter ---- */}
         <section className="bday-letter" aria-label="A letter for you">
@@ -435,9 +464,11 @@ export default function BirthdayPage() {
       )}
 
       {/* ================= THE SONG ================= */}
-      {opened && (
-        <SongControl state={state} onToggle={toggle} holderRef={holderRef} />
-      )}
+      {/* The player is built on mount so the track is buffered and
+          rolling before she taps anything; only the control waits
+          for the page to open. */}
+      <SongHolder holderRef={holderRef} />
+      {opened && <SongControl state={state} onToggle={toggle} />}
     </div>
   )
 }

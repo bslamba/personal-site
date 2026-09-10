@@ -12,15 +12,29 @@
 // embedded player leaves the song where it lives, counts the play
 // for the artist, and is the arrangement YouTube actually offers.
 //
-// Two: every current browser refuses to start audible playback
-// without a real user gesture, and iOS refuses hardest. So there
-// is no version of this that makes sound the instant the page
-// loads. The page turns that into the good part instead — one tap
-// on the cover opens the page and starts the song together.
+// Two: no browser will start *audible* playback on its own. Muted
+// autoplay is allowed everywhere; sound needs a user gesture, and
+// iOS enforces that absolutely. There is no code that gets round
+// it — anything claiming to autoplay music is playing it silently.
 //
-// The player is 1×1 and hidden. If a video is ever made
-// un-embeddable the API tells us, and we fall back to a plain
-// link out to YouTube rather than sitting there silently.
+// So the player does everything it is allowed to do, immediately:
+//
+//   · it loads and starts playing, muted, the moment the page
+//     opens, so the audio is already buffered and running
+//   · it tries to unmute straight away. On a desktop browser that
+//     already trusts this site, that works and the song simply
+//     plays with nothing touched at all
+//   · if that is refused, the very first thing she does anywhere
+//     on the page — a tap, a scroll, a key — unmutes it. Because
+//     the track is already rolling, sound is instant rather than
+//     waiting on YouTube to load
+//
+// In practice she taps the cover to open the page, and the song
+// starts on that. The rest is for every other way in.
+//
+// The player is 1×1 and off-screen. If a video is ever made
+// un-embeddable the API tells us, and we fall back to a plain link
+// out to YouTube rather than sitting there silently.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -33,20 +47,26 @@ export const SONG = {
   url: 'https://www.youtube.com/watch?v=qAu8llwNFGY',
 }
 
-type PlayerState = 'idle' | 'ready' | 'playing' | 'paused' | 'blocked'
+export type PlayerState =
+  | 'idle' // nothing yet
+  | 'silent' // rolling, but muted — needs a gesture for sound
+  | 'playing' // audible
+  | 'paused'
+  | 'blocked' // the video cannot be embedded here at all
 
 interface YTPlayer {
   playVideo: () => void
   pauseVideo: () => void
+  mute: () => void
+  unMute: () => void
+  isMuted: () => boolean
   setVolume: (v: number) => void
+  getPlayerState: () => number
   destroy: () => void
 }
 
 interface YTNamespace {
-  Player: new (
-    el: HTMLElement,
-    opts: Record<string, unknown>
-  ) => YTPlayer
+  Player: new (el: HTMLElement, opts: Record<string, unknown>) => YTPlayer
 }
 
 declare global {
@@ -55,6 +75,8 @@ declare global {
     onYouTubeIframeAPIReady?: () => void
   }
 }
+
+const VOLUME = 58
 
 let apiPromise: Promise<void> | null = null
 
@@ -92,149 +114,207 @@ export function useBirthdaySong() {
   const playerRef = useRef<YTPlayer | null>(null)
   const [state, setState] = useState<PlayerState>('idle')
 
-  // Build the player once, on the gesture that opens the page —
-  // creating it earlier buys nothing and costs a request.
-  const start = useCallback(async () => {
-    if (playerRef.current) {
-      playerRef.current.playVideo()
-      return
-    }
-    if (!holderRef.current) return
-
+  /**
+   * Ask for sound. Safe to call as often as you like — it is what
+   * every gesture on the page routes into.
+   */
+  const start = useCallback(() => {
+    const player = playerRef.current
+    if (!player) return
     try {
-      await loadYouTubeAPI()
-      if (!window.YT?.Player || !holderRef.current) throw new Error('no api')
-
-      playerRef.current = new window.YT.Player(holderRef.current, {
-        videoId: SONG.id,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          modestbranding: 1,
-          playsinline: 1,
-          rel: 0,
-          loop: 1,
-          playlist: SONG.id, // loop:1 needs the id repeated here
-        },
-        events: {
-          onReady: (e: { target: YTPlayer }) => {
-            e.target.setVolume(58)
-            e.target.playVideo()
-            setState('playing')
-          },
-          onStateChange: (e: { data: number }) => {
-            // 1 playing · 2 paused · 0 ended
-            if (e.data === 1) setState('playing')
-            else if (e.data === 2) setState('paused')
-          },
-          onError: () => setState('blocked'),
-        },
-      })
+      player.unMute()
+      player.setVolume(VOLUME)
+      player.playVideo()
+      // Trust the state change rather than assuming: if the browser
+      // refuses the unmute, onStateChange will not report audible
+      // playback and the pill keeps offering the tap.
+      setTimeout(() => {
+        if (!playerRef.current) return
+        setState(playerRef.current.isMuted() ? 'silent' : 'playing')
+      }, 120)
     } catch {
-      setState('blocked')
+      /* the player is not ready yet; the next gesture will do it */
     }
   }, [])
 
   const toggle = useCallback(() => {
     const player = playerRef.current
-    if (!player) {
-      void start()
-      return
-    }
+    if (!player) return
+
     if (state === 'playing') {
       player.pauseVideo()
       setState('paused')
-    } else {
-      player.playVideo()
-      setState('playing')
+      return
     }
+    // From silent or paused, the button is a real gesture, so this
+    // is the one call that is certain to be allowed.
+    start()
   }, [state, start])
 
+  // ---- build the player as soon as the page exists ----
   useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        await loadYouTubeAPI()
+        if (cancelled || !window.YT?.Player || !holderRef.current) return
+
+        playerRef.current = new window.YT.Player(holderRef.current, {
+          videoId: SONG.id,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            playsinline: 1,
+            rel: 0,
+            loop: 1,
+            playlist: SONG.id, // loop:1 needs the id repeated here
+            mute: 1, // muted autoplay is allowed everywhere
+          },
+          events: {
+            onReady: (e: { target: YTPlayer }) => {
+              if (cancelled) return
+              e.target.setVolume(VOLUME)
+              e.target.playVideo()
+              setState('silent')
+              // Try for sound with no gesture at all. Works on a
+              // browser that already trusts this site; harmless
+              // everywhere else.
+              e.target.unMute()
+              setTimeout(() => {
+                if (cancelled || !playerRef.current) return
+                setState(playerRef.current.isMuted() ? 'silent' : 'playing')
+              }, 250)
+            },
+            onStateChange: (e: { data: number }) => {
+              if (cancelled) return
+              // 1 playing · 2 paused · 0 ended
+              if (e.data === 1) {
+                setState(playerRef.current?.isMuted() ? 'silent' : 'playing')
+              } else if (e.data === 2) {
+                setState('paused')
+              }
+            },
+            onError: () => !cancelled && setState('blocked'),
+          },
+        })
+      } catch {
+        if (!cancelled) setState('blocked')
+      }
+    })()
+
     return () => {
+      cancelled = true
       playerRef.current?.destroy()
       playerRef.current = null
     }
   }, [])
 
+  // ---- the first thing she does anywhere turns the sound on ----
+  useEffect(() => {
+    if (state !== 'silent') return
+
+    const wake = () => start()
+    const events: (keyof DocumentEventMap)[] = [
+      'pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll',
+    ]
+    // Capture phase, so this runs even when something inside the
+    // page stops the event; passive, so it never delays a scroll.
+    const options = { capture: true, passive: true } as const
+    events.forEach(name => document.addEventListener(name, wake, options))
+
+    return () =>
+      events.forEach(name => document.removeEventListener(name, wake, options))
+  }, [state, start])
+
   return { holderRef, start, toggle, state }
 }
 
-/**
- * The hidden player, plus the little control that sits in the
- * corner. Kept in one component so the iframe and the button that
- * drives it can never drift apart.
- */
+/** The off-screen player. Rendered from the first paint, always. */
+export function SongHolder({
+  holderRef,
+}: {
+  holderRef: React.RefObject<HTMLDivElement | null>
+}) {
+  return (
+    // Off-screen rather than display:none — a hidden iframe is
+    // allowed to be throttled, and a throttled one stops playing.
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        width: 1,
+        height: 1,
+        left: -9999,
+        top: -9999,
+        pointerEvents: 'none',
+        opacity: 0,
+      }}
+    >
+      <div ref={holderRef} />
+    </div>
+  )
+}
+
+/** The little control in the corner. */
 export function SongControl({
   state,
   onToggle,
-  holderRef,
 }: {
   state: PlayerState
   onToggle: () => void
-  holderRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const blocked = state === 'blocked'
+  if (state === 'blocked') {
+    return (
+      <a
+        href={SONG.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bday-song-btn"
+        title="Open the song on YouTube"
+      >
+        <span className="bday-song-note" aria-hidden="true">
+          ♫
+        </span>
+        <span className="bday-song-text">
+          Play <em>{SONG.title}</em> on YouTube
+        </span>
+      </a>
+    )
+  }
+
   const playing = state === 'playing'
+  const silent = state === 'silent'
 
   return (
-    <>
-      {/* The player itself. Off-screen rather than display:none —
-          a hidden iframe is allowed to be throttled. */}
-      <div
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`bday-song-btn ${silent ? 'is-silent' : ''}`}
+      aria-pressed={playing}
+      title={playing ? 'Pause the song' : 'Play the song'}
+    >
+      <span
+        className={`bday-song-note ${playing ? 'is-playing' : ''}`}
         aria-hidden="true"
-        style={{
-          position: 'fixed',
-          width: 1,
-          height: 1,
-          left: -9999,
-          top: -9999,
-          pointerEvents: 'none',
-          opacity: 0,
-        }}
       >
-        <div ref={holderRef} />
-      </div>
-
-      {blocked ? (
-        <a
-          href={SONG.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bday-song-btn"
-          title="Open the song on YouTube"
-        >
-          <span className="bday-song-note" aria-hidden="true">
-            ♫
-          </span>
-          <span className="bday-song-text">
-            Play <em>{SONG.title}</em> on YouTube
-          </span>
-        </a>
-      ) : (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="bday-song-btn"
-          aria-pressed={playing}
-          title={playing ? 'Pause the song' : 'Play the song'}
-        >
-          <span
-            className={`bday-song-note ${playing ? 'is-playing' : ''}`}
-            aria-hidden="true"
-          >
-            ♫
-          </span>
-          <span className="bday-song-text">
+        ♫
+      </span>
+      <span className="bday-song-text">
+        {silent ? (
+          <>Tap for sound · <em>{SONG.title}</em></>
+        ) : (
+          <>
             <em>{SONG.title}</em> · {SONG.artist}
-          </span>
-          <span className="bday-song-state" aria-hidden="true">
-            {playing ? '❚❚' : '▶'}
-          </span>
-        </button>
-      )}
-    </>
+          </>
+        )}
+      </span>
+      <span className="bday-song-state" aria-hidden="true">
+        {playing ? '❚❚' : '▶'}
+      </span>
+    </button>
   )
 }
