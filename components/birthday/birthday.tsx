@@ -231,8 +231,8 @@ export default function BirthdayPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [lightbox])
 
-  // Three rails, all travelling left to right: a picture appears at
-  // the left edge, crosses the screen and leaves at the right. The
+  // Three rails, alternating direction: the first and third carry
+  // pictures left to right, the middle one runs against them. The
   // set is dealt across the three so no photograph is on screen
   // twice, and each rail's list is rendered twice end to end so the
   // loop has no seam.
@@ -347,7 +347,13 @@ export default function BirthdayPage() {
           </h2>
 
           {rails.map((rail, r) => (
-            <div className="bday-rail" data-dir="right" key={r}>
+            <div
+              className="bday-rail"
+              // Odd rails run the other way, so the three read as
+              // drift rather than as one belt.
+              data-dir={r % 2 === 0 ? 'right' : 'left'}
+              key={r}
+            >
               <div
                 className="bday-rail-track"
                 style={{
