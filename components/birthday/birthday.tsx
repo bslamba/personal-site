@@ -231,15 +231,27 @@ export default function BirthdayPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [lightbox])
 
-  // One rail, travelling left to right: a picture appears at the
-  // left edge, crosses the screen and leaves at the right. The list
-  // is rendered twice end to end so the loop has no seam.
-  //
-  // A card is roughly 190px wide including its gap, and about five
-  // seconds a card reads as a drift rather than a conveyor belt.
-  // The marquee travels half the doubled track, so the duration is
-  // proportional to the number of cards in one copy of it.
-  const railDuration = `${Math.max(34, PHOTOS.length * 5.2)}s`
+  // Three rails, all travelling left to right: a picture appears at
+  // the left edge, crosses the screen and leaves at the right. The
+  // set is dealt across the three so no photograph is on screen
+  // twice, and each rail's list is rendered twice end to end so the
+  // loop has no seam.
+  const rails = useMemo(() => {
+    const out: Photo[][] = [[], [], []]
+    // Dealt round-robin rather than sliced into thirds, so each rail
+    // gets a mix of the good photographs and the call frames instead
+    // of one rail taking all of one kind.
+    PHOTOS.forEach((photo, i) => out[i % 3].push(photo))
+    return out.filter(r => r.length > 0)
+  }, [])
+
+  // About five seconds a card reads as a drift rather than a
+  // conveyor belt. The marquee travels half the doubled track, so
+  // the duration is proportional to the number of cards in one copy
+  // of it. The rails are nudged apart by a few per cent each so the
+  // three do not march in step.
+  const railDuration = (cards: number, index: number) =>
+    `${Math.max(30, cards * 5.2) * (1 + index * 0.09)}s`
 
   return (
     <div className="bday-root">
@@ -334,25 +346,31 @@ export default function BirthdayPage() {
             <em> is my favourite</em>
           </h2>
 
-          <div className="bday-rail" data-dir="right">
-            <div
-              className="bday-rail-track"
-              style={{ ['--rail-duration' as string]: railDuration }}
-            >
-              {[...PHOTOS, ...PHOTOS].map((photo, i) => (
-                <button
-                  key={`a${i}`}
-                  type="button"
-                  className={`bday-card ${photo.portrait ? 'is-tall' : ''}`}
-                  onClick={() => setLightbox(photo)}
-                  style={{ ['--tilt' as string]: `${((i % 5) - 2) * 1.6}deg` }}
-                  aria-label={photo.caption}
-                >
-                  <SafeImage photo={photo} className="bday-card-img" small />
-                </button>
-              ))}
+          {rails.map((rail, r) => (
+            <div className="bday-rail" data-dir="right" key={r}>
+              <div
+                className="bday-rail-track"
+                style={{
+                  ['--rail-duration' as string]: railDuration(rail.length, r),
+                }}
+              >
+                {[...rail, ...rail].map((photo, i) => (
+                  <button
+                    key={`${r}-${i}`}
+                    type="button"
+                    className={`bday-card ${photo.portrait ? 'is-tall' : ''}`}
+                    onClick={() => setLightbox(photo)}
+                    style={{
+                      ['--tilt' as string]: `${(((i + r) % 5) - 2) * 1.6}deg`,
+                    }}
+                    aria-label={photo.caption}
+                  >
+                    <SafeImage photo={photo} className="bday-card-img" small />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ))}
 
           <p className="bday-rail-hint">tap any picture</p>
         </section>
@@ -363,39 +381,32 @@ export default function BirthdayPage() {
           <div className="bday-letter-card">
             <p className="bday-letter-to">To my Nishi,</p>
 
-            <p>
-              Happy birthday, my love. Happy, happy birthday.
-            </p>
+            <p>Happy birthday, my love. Happy, happy birthday.</p>
 
             <p>
-              I still cannot explain how we found each other. Out of
+              I still cannot believe how we found each other. Out of
               everyone in the whole world, somehow it was you and
-              somehow it was me, and somehow the two of us ended up
-              in the same small corner of it at the same time. People
-              can call that luck if they want. I know what it was.
+              somehow it was me, and somehow the two of us ended up in
+              the same small corner of it at the same time.
             </p>
 
             <p>
               It started with one &ldquo;Hi.&rdquo; That was all. One
               word, sent without knowing it was the most important
-              thing I would ever type. Then the first time I heard
-              your voice on the phone &mdash; and I remember not
-              wanting to hang up, and inventing reasons not to. Then
-              the video calls, one after another after another, till
-              late, till neither of us could keep our eyes open and
-              we stayed on anyway. Somewhere in all of that, without
-              either of us deciding it, you stopped being someone I
-              was talking to and became the person I talk to.
+              thing I would ever type. Then the first time I heard your
+              voice on the phone, then the video calls, one after
+              another after another, till late, till neither of us
+              could keep our eyes open and we stayed on anyway.
             </p>
 
             <p>
               And now here we are, where a day without you in it feels
               like something is missing from it. Not lonely exactly
-              &mdash; incomplete. I do things and they are only half
-              done until I have told you. Something funny happens and
-              it has not properly happened until you have laughed at
-              it too. That is what you have done to me, and I would
-              not undo a second of it.
+              &mdash; &ldquo;Incomplete&rdquo;. I do things and they are
+              only half done until I have told you. Something funny
+              happens and it has not properly happened until you have
+              laughed at it too. That is what you have done to me, and
+              I would not undo a second of it.
             </p>
 
             <p className="bday-letter-big">
@@ -410,28 +421,18 @@ export default function BirthdayPage() {
             </p>
 
             <p>
-              I love the way you laugh before the funny part. I love
-              that you look at me like that when nothing special is
-              happening at all. I love that the days I remember are
-              almost never the big ones &mdash; they are a shared
-              drink, a bad photo, you mid-sentence about something
-              that mattered to you.
-            </p>
-
-            <p>
-              So thank you to your mummy and papa, for the 25th of
-              September 1996, and for her. They did not know what they
-              were doing for me that day, but I have been grateful for
-              it every day since. You were born for me, baby. I think
-              I loved you in our last life too &mdash; that is the only
-              thing that explains how easy it was, how quickly you felt
-              like somewhere I had already been.
+              Thank you to your Mom and Dad, for the 25th of September
+              1996. They did not know what they were doing for me that
+              day, but I am grateful for it. You were born for me,
+              baby. I think I loved you in our last life too, that is
+              the only thing that explains how easy it was, how quickly
+              you felt like somewhere I had already been.
             </p>
 
             <p>
               Happy birthday, my whole heart. Here is to this one, and
               to every single one after it, all of them with me. I am
-              hopelessly, permanently, entirely yours.
+              permanently, entirely yours.
             </p>
 
             <p className="bday-letter-sign">

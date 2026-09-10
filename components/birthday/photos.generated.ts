@@ -101,12 +101,6 @@ export const GENERATED: Photo[] = [
     caption: 'Home is wherever this is',
   },
   {
-    src: 'p-11.jpg',
-    thumb: 'p-11-t.jpg',
-    focus: '50% 38%',
-    caption: 'Still my favourite person',
-  },
-  {
     src: 'p-12.jpg',
     thumb: 'p-12-t.jpg',
     focus: '50% 38%',
