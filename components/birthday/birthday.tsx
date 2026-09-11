@@ -25,6 +25,7 @@ import {
 } from 'react'
 import { PHOTOS, HERO_PHOTOS, HAS_PHOTOS, type Photo } from './photos'
 import { SongControl, SongHolder, useBirthdaySong } from './music'
+import { decryptLetter, Letter, type Block } from './letter-lock'
 
 const HER = 'Nishu'
 const HER_FULL = 'Parteek Kaur'
@@ -397,14 +398,49 @@ export default function BirthdayPage() {
   const { holderRef, start, toggle, state } = useBirthdaySong()
   const mainRef = useRef<HTMLElement>(null)
 
-  // The one gesture that does everything: it satisfies the
-  // browser's autoplay rule and opens the page in the same tap.
-  // The track is already rolling silently by now, so the sound
-  // arrives immediately rather than after a load.
-  const open = useCallback(() => {
-    setOpened(true)
-    start()
-  }, [start])
+  // The cover asks for a secret before it opens anything. `asking`
+  // switches the cover from the button to the code field; `letter`
+  // holds the decrypted blocks once the right code has opened it.
+  const [asking, setAsking] = useState(false)
+  const [code, setCode] = useState('')
+  const [codeError, setCodeError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [letter, setLetter] = useState<Block[] | null>(null)
+  const codeRef = useRef<HTMLInputElement>(null)
+
+  // Tapping the button reveals the code field rather than opening
+  // straight away.
+  const ask = useCallback(() => {
+    setAsking(true)
+    setTimeout(() => codeRef.current?.focus(), 0)
+  }, [])
+
+  // The secret does everything at once: it decrypts the letter, and
+  // only if that succeeds does the page open and the song start.
+  // A wrong code fails the decrypt and never gets past here — so
+  // there is no separate check, and the secret is never stored to
+  // compare against. The submit is a real user gesture, so starting
+  // the song here satisfies the browser's autoplay rule.
+  const open = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      if (!code || busy) return
+      setBusy(true)
+      setCodeError(false)
+      try {
+        const blocks = await decryptLetter(code)
+        setLetter(blocks)
+        setOpened(true)
+        start()
+      } catch {
+        setCodeError(true)
+        setCode('')
+        setBusy(false)
+        setTimeout(() => codeRef.current?.focus(), 0)
+      }
+    },
+    [code, busy, start]
+  )
 
   // Keep the page from scrolling behind the cover or the lightbox.
   useEffect(() => {
@@ -458,17 +494,57 @@ export default function BirthdayPage() {
               There&rsquo;s something here for you, {HER}.
             </p>
 
-            <button
-              type="button"
-              onClick={open}
-              className="bday-open"
-              autoFocus
-            >
-              <span className="bday-open-heart" aria-hidden="true">
-                ♥
-              </span>
-              Tap to open your surprise
-            </button>
+            {!asking ? (
+              <button
+                type="button"
+                onClick={ask}
+                className="bday-open"
+                autoFocus
+              >
+                <span className="bday-open-heart" aria-hidden="true">
+                  ♥
+                </span>
+                Tap to open your surprise
+              </button>
+            ) : (
+              <form className="bday-code" onSubmit={open}>
+                <label className="bday-code-label" htmlFor="bday-code">
+                  Enter our secret to open it
+                </label>
+                <div className="bday-code-row">
+                  <input
+                    id="bday-code"
+                    ref={codeRef}
+                    type="password"
+                    className={`bday-lock-input ${codeError ? 'is-wrong' : ''}`}
+                    value={code}
+                    onChange={e => {
+                      setCode(e.target.value)
+                      if (codeError) setCodeError(false)
+                    }}
+                    placeholder="our secret"
+                    aria-label="Enter the secret to open the surprise"
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="submit"
+                    className="bday-lock-btn"
+                    disabled={busy}
+                  >
+                    {busy ? 'Opening…' : 'Open'}
+                  </button>
+                </div>
+                {codeError && (
+                  <p className="bday-code-error" role="alert">
+                    That&rsquo;s not quite it. Try again — you know this
+                    one.
+                  </p>
+                )}
+              </form>
+            )}
 
             <p className="bday-cover-note">
               Turn the sound on — there&rsquo;s a song.
@@ -542,68 +618,7 @@ export default function BirthdayPage() {
 
         {/* ---- the letter ---- */}
         <section className="bday-letter" aria-label="A letter for you">
-          <div className="bday-letter-card">
-            <p className="bday-letter-to">To my Nishi,</p>
-
-            <p>Happy birthday, my love. Happy, happy birthday.</p>
-
-            <p>
-              I still cannot believe how we found each other. Out of
-              everyone in the whole world, somehow it was you and
-              somehow it was me, and somehow the two of us ended up in
-              the same small corner of it at the same time.
-            </p>
-
-            <p>
-              It started with one &ldquo;Hi.&rdquo; That was all. One
-              word, sent without knowing it was the most important
-              thing I would ever type. Then the first time I heard your
-              voice on the phone, then the video calls, one after
-              another after another, till late, till neither of us
-              could keep our eyes open and we stayed on anyway.
-            </p>
-
-            <p>
-              And now here we are, where a day without you in it feels
-              like something is missing from it. Not lonely exactly
-              &mdash; &ldquo;Incomplete&rdquo;. I do things and they are
-              only half done until I have told you. Something funny
-              happens and it has not properly happened until you have
-              laughed at it too. That is what you have done to me, and
-              I would not undo a second of it.
-            </p>
-
-            <p className="bday-letter-big">
-              I love you so much. More than I know how to put down
-              here, and more than I manage to say out loud.
-            </p>
-
-            <p>
-              And I need you. Badly, completely, on the good days and
-              on the ones where I am no fun at all. You are the person
-              I want to tell first. You are the plan, not part of it.
-            </p>
-
-            <p>
-              Thank you to your Mom and Dad, for the 25th of September
-              1996. They did not know what they were doing for me that
-              day, but I am grateful for it. You were born for me,
-              baby. I think I loved you in our last life too, that is
-              the only thing that explains how easy it was, how quickly
-              you felt like somewhere I had already been.
-            </p>
-
-            <p>
-              Happy birthday, my whole heart. Here is to this one, and
-              to every single one after it, all of them with me. I am
-              permanently, entirely yours.
-            </p>
-
-            <p className="bday-letter-sign">
-              <span className="bday-signature">Loviee Bhawiee</span>
-              <span className="bday-signature-role">your better half</span>
-            </p>
-          </div>
+          {letter && <Letter blocks={letter} />}
 
           <p className="bday-foot">
             <span aria-hidden="true">♥</span> 25 September 2026{' '}

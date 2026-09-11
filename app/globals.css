@@ -1748,4 +1748,120 @@ body:has(.bday-root) .wa-float { display: none !important; }
       0 0 0 10px rgba(255, 170, 40, 0);
   }
 }
+
+/* ---------------- the code on the cover ---------------- */
+.bday-code {
+  margin-top: 2.2rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  width: min(23rem, 100%);
+}
+.bday-code-label {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(74, 61, 114, 0.78);
+}
+.bday-code-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+.bday-code-row .bday-lock-input { flex: 1; min-width: 0; }
+.bday-code-error {
+  font-size: 0.9rem;
+  color: #C0102E;
+}
+
+/* ---------------- the sealed letter ---------------- */
+.bday-lock {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding-block: clamp(2.4rem, 9vw, 3.4rem);
+}
+.bday-lock-seal {
+  width: 3.4rem;
+  height: 3.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  color: #fff;
+  background: radial-gradient(circle at 50% 38%, #E23D57 0%, #B0011D 100%);
+  box-shadow:
+    0 10px 24px -10px rgba(176, 1, 29, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  margin-bottom: 0.4rem;
+}
+.bday-lock-title {
+  font-family: var(--font-hand), 'Segoe Script', 'Bradley Hand', cursive;
+  font-weight: 700;
+  font-size: clamp(1.7rem, 7vw, 2.3rem);
+  line-height: 1.1;
+  color: var(--gold);
+}
+.bday-lock-sub {
+  max-width: 22rem;
+  font-size: clamp(0.98rem, 4vw, 1.08rem);
+  line-height: 1.5;
+  color: var(--blush);
+}
+.bday-lock-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  width: min(22rem, 100%);
+}
+.bday-lock-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.8rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(138, 107, 200, 0.4);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.bday-lock-input::placeholder { color: rgba(74, 61, 114, 0.5); }
+.bday-lock-input:focus-visible {
+  outline: 2px solid rgba(124, 95, 186, 0.85);
+  outline-offset: 2px;
+}
+.bday-lock-input.is-wrong {
+  border-color: #E23D57;
+  animation: bday-shake 0.4s ease;
+}
+@keyframes bday-shake {
+  0%, 100% { transform: translateX(0) }
+  20%, 60% { transform: translateX(-6px) }
+  40%, 80% { transform: translateX(6px) }
+}
+.bday-lock-btn {
+  flex: 0 0 auto;
+  padding: 0 1.3rem;
+  border: none;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, #7C5FBA 0%, #9B7FD4 100%);
+  color: #fff;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -8px rgba(124, 95, 186, 0.6);
+}
+.bday-lock-btn:disabled { opacity: 0.6; cursor: default; }
+.bday-lock-error {
+  margin-top: 0.7rem;
+  font-size: 0.92rem;
+  color: #C0102E;
+}
+
 /* ===== BIRTHDAY END ===== */
