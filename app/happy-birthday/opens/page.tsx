@@ -11,6 +11,7 @@
 // ============================================================
 
 import type { Metadata } from 'next'
+import type { CSSProperties } from 'react'
 import { readOpens } from '@/lib/opens'
 
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,7 @@ export default async function OpensPage(props: {
   const { key } = await props.searchParams
   const authorised = !requiredKey || key === requiredKey
 
-  const wrap: React.CSSProperties = {
+  const wrap: CSSProperties = {
     minHeight: '100svh',
     display: 'grid',
     placeItems: 'center',
@@ -48,7 +49,7 @@ export default async function OpensPage(props: {
     fontFamily:
       'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   }
-  const card: React.CSSProperties = {
+  const card: CSSProperties = {
     width: 'min(30rem, 100%)',
     background: 'rgba(255,255,255,0.8)',
     border: '1px solid rgba(255,255,255,0.9)',
