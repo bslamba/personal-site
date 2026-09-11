@@ -196,6 +196,180 @@ function Countdown() {
 }
 
 // ------------------------------------------------------------
+// A drifting rail of photographs
+//
+// The motion used to be a CSS marquee paused on :hover. On a
+// touchscreen that is a trap: a tap counts as hover, the rail
+// stops, and it stays stopped until you tap somewhere else. So the
+// position is driven here instead, which also makes the rail
+// draggable.
+//
+// What a finger does:
+//   a tap            nothing — it keeps moving, and the tap opens
+//                    the picture as before
+//   press and hold   it stops, and stays stopped while held
+//   hold and drag    it follows the finger, left or right
+//   let go           it picks up again on its own
+//
+// Nothing latches. The rail only ever stops while a finger or a
+// mouse button is actually down on it.
+// ------------------------------------------------------------
+
+/** How long a press has to last before it counts as a hold, in ms. */
+const HOLD_MS = 180
+/** How far a finger has to travel before it counts as a drag, in px. */
+const DRAG_SLOP = 8
+/** Drift speed in px per second. */
+const RAIL_SPEED = 32
+
+function Rail({
+  photos,
+  index,
+  onPick,
+}: {
+  photos: Photo[]
+  index: number
+  onPick: (photo: Photo) => void
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+
+  // All of this is per-frame scratch, so it lives in a ref: putting
+  // it in state would re-render the rail sixty times a second.
+  const drag = useRef({
+    offset: 0,
+    down: false,
+    held: false,
+    dragging: false,
+    lastX: 0,
+    travelled: 0,
+    holdTimer: 0 as ReturnType<typeof setTimeout> | 0,
+  })
+
+  // Odd rails run against their neighbours.
+  const direction = index % 2 === 0 ? -1 : 1
+  // A few per cent apart, so the three do not march in step.
+  const speed = RAIL_SPEED * (1 + index * 0.07)
+
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (reduced.matches) return
+
+    let frame = 0
+    let last = performance.now()
+
+    const tick = (now: number) => {
+      const d = drag.current
+      // Clamp the delta: a backgrounded tab returns with a huge one,
+      // which would otherwise teleport the rail.
+      const dt = Math.min(64, now - last)
+      last = now
+
+      if (!d.down) d.offset += direction * speed * (dt / 1000)
+
+      // The list is rendered twice end to end, so wrapping at half
+      // the track width lands on an identical frame — no seam.
+      const half = track.scrollWidth / 2
+      if (half > 0) d.offset = ((d.offset % half) + half) % half
+
+      track.style.transform = `translate3d(${-d.offset}px, 0, 0)`
+      frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [direction, speed])
+
+  const clearHold = () => {
+    if (drag.current.holdTimer) clearTimeout(drag.current.holdTimer)
+    drag.current.holdTimer = 0
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Ignore anything but the primary button, so a right-click or a
+    // second finger does not take the rail over.
+    if (e.button !== 0) return
+    const d = drag.current
+    d.down = true
+    d.held = false
+    d.dragging = false
+    d.lastX = e.clientX
+    d.travelled = 0
+    clearHold()
+    d.holdTimer = setTimeout(() => {
+      d.held = true
+    }, HOLD_MS)
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d.down) return
+    const dx = e.clientX - d.lastX
+    d.lastX = e.clientX
+    d.travelled += Math.abs(dx)
+
+    if (!d.dragging && d.travelled > DRAG_SLOP) {
+      d.dragging = true
+      clearHold()
+      // Take the pointer so the drag survives leaving the rail.
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    if (d.dragging) d.offset -= dx
+  }
+
+  const release = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    clearHold()
+    if (d.dragging && e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+    d.down = false
+    d.held = false
+    // Leave `dragging` set until the click has come and gone, so a
+    // drag that finishes over a picture does not also open it.
+    setTimeout(() => {
+      d.dragging = false
+    }, 0)
+  }
+
+  return (
+    <div
+      className="bday-rail"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={release}
+      onPointerCancel={release}
+      // Vertical swipes still scroll the page; horizontal ones are
+      // ours, which is what stops a drag fighting the page scroll.
+      style={{ touchAction: 'pan-y' }}
+    >
+      <div className="bday-rail-track" ref={trackRef}>
+        {[...photos, ...photos].map((photo, i) => (
+          <button
+            key={`${index}-${i}`}
+            type="button"
+            className={`bday-card ${photo.portrait ? 'is-tall' : ''}`}
+            onClick={() => {
+              // A drag that ends on a card is not a tap on it.
+              if (drag.current.dragging) return
+              onPick(photo)
+            }}
+            style={{
+              ['--tilt' as string]: `${(((i + index) % 5) - 2) * 1.6}deg`,
+            }}
+            aria-label={photo.caption}
+          >
+            <SafeImage photo={photo} className="bday-card-img" small />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ------------------------------------------------------------
 // The page
 // ------------------------------------------------------------
 export default function BirthdayPage() {
@@ -245,13 +419,6 @@ export default function BirthdayPage() {
     return out.filter(r => r.length > 0)
   }, [])
 
-  // About five seconds a card reads as a drift rather than a
-  // conveyor belt. The marquee travels half the doubled track, so
-  // the duration is proportional to the number of cards in one copy
-  // of it. The rails are nudged apart by a few per cent each so the
-  // three do not march in step.
-  const railDuration = (cards: number, index: number) =>
-    `${Math.max(30, cards * 5.2) * (1 + index * 0.09)}s`
 
   return (
     <div className="bday-root">
@@ -316,7 +483,7 @@ export default function BirthdayPage() {
           </div>
 
           <div className="bday-hero-copy">
-            <p className="bday-eyebrow">Happy birthday</p>
+            <p className="bday-eyebrow">Happy Birthday</p>
             <h1 className="bday-name">{HER}</h1>
             <p className="bday-fullname">{HER_FULL}</p>
 
@@ -347,35 +514,7 @@ export default function BirthdayPage() {
           </h2>
 
           {rails.map((rail, r) => (
-            <div
-              className="bday-rail"
-              // Odd rails run the other way, so the three read as
-              // drift rather than as one belt.
-              data-dir={r % 2 === 0 ? 'right' : 'left'}
-              key={r}
-            >
-              <div
-                className="bday-rail-track"
-                style={{
-                  ['--rail-duration' as string]: railDuration(rail.length, r),
-                }}
-              >
-                {[...rail, ...rail].map((photo, i) => (
-                  <button
-                    key={`${r}-${i}`}
-                    type="button"
-                    className={`bday-card ${photo.portrait ? 'is-tall' : ''}`}
-                    onClick={() => setLightbox(photo)}
-                    style={{
-                      ['--tilt' as string]: `${(((i + r) % 5) - 2) * 1.6}deg`,
-                    }}
-                    aria-label={photo.caption}
-                  >
-                    <SafeImage photo={photo} className="bday-card-img" small />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Rail key={r} photos={rail} index={r} onPick={setLightbox} />
           ))}
 
           <p className="bday-rail-hint">tap any picture</p>
@@ -442,11 +581,8 @@ export default function BirthdayPage() {
             </p>
 
             <p className="bday-letter-sign">
-              Loving you always,
-              <br />
-              <span>Loivee Bhawiee</span>
-              <br />
-              your better half
+              <span className="bday-signature">Loviee Bhawiee</span>
+              <span className="bday-signature-role">your better half</span>
             </p>
           </div>
 

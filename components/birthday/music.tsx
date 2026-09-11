@@ -259,7 +259,13 @@ export function SongHolder({
   )
 }
 
-/** The little control in the corner. */
+/**
+ * The song, as a record on a turntable.
+ *
+ * It turns while the music is playing and sits still when it is
+ * not, so what it is doing is legible at a glance without a word of
+ * label. Touching it is the play/pause.
+ */
 export function SongControl({
   state,
   onToggle,
@@ -269,20 +275,21 @@ export function SongControl({
 }) {
   if (state === 'blocked') {
     return (
-      <a
-        href={SONG.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="bday-song-btn"
-        title="Open the song on YouTube"
-      >
-        <span className="bday-song-note" aria-hidden="true">
-          ♫
-        </span>
-        <span className="bday-song-text">
-          Play <em>{SONG.title}</em> on YouTube
-        </span>
-      </a>
+      <div className="bday-song">
+        <a
+          href={SONG.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bday-disk"
+          aria-label={`Play ${SONG.title} by ${SONG.artist} on YouTube`}
+          title={`${SONG.title} · ${SONG.artist}`}
+        >
+          <span className="bday-disk-label" aria-hidden="true">
+            ♫
+          </span>
+        </a>
+        <span className="bday-disk-hint">open on YouTube</span>
+      </div>
     )
   }
 
@@ -290,31 +297,26 @@ export function SongControl({
   const silent = state === 'silent'
 
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`bday-song-btn ${silent ? 'is-silent' : ''}`}
-      aria-pressed={playing}
-      title={playing ? 'Pause the song' : 'Play the song'}
-    >
-      <span
-        className={`bday-song-note ${playing ? 'is-playing' : ''}`}
-        aria-hidden="true"
+    <div className="bday-song">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`bday-disk ${playing ? 'is-spinning' : ''} ${
+          silent ? 'is-silent' : ''
+        }`}
+        aria-pressed={playing}
+        aria-label={
+          playing
+            ? `Pause ${SONG.title} by ${SONG.artist}`
+            : `Play ${SONG.title} by ${SONG.artist}`
+        }
+        title={`${SONG.title} · ${SONG.artist}`}
       >
-        ♫
-      </span>
-      <span className="bday-song-text">
-        {silent ? (
-          <>Tap for sound · <em>{SONG.title}</em></>
-        ) : (
-          <>
-            <em>{SONG.title}</em> · {SONG.artist}
-          </>
-        )}
-      </span>
-      <span className="bday-song-state" aria-hidden="true">
-        {playing ? '❚❚' : '▶'}
-      </span>
-    </button>
+        <span className="bday-disk-label" aria-hidden="true">
+          ♫
+        </span>
+      </button>
+      {silent && <span className="bday-disk-hint">tap for sound</span>}
+    </div>
   )
 }
