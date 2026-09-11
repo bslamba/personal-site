@@ -18,11 +18,25 @@ const KEY_LAST = 'hb:last'
 const dayKey = (iso: string) => `hb:day:${iso.slice(0, 10)}`
 
 // Vercel injects KV_REST_API_* when you connect a KV store; a plain
-// Upstash integration uses UPSTASH_REDIS_REST_*. Accept either.
+// Upstash integration uses UPSTASH_REDIS_REST_*. And Vercel's storage
+// integration often adds a prefix (e.g. bhawneetlamba_KV_REST_API_URL),
+// which changes the names again. So we match the known suffix no matter
+// what prefix sits in front of it — connecting the store then "just
+// works" however Vercel chooses to name the keys.
+function envBySuffix(suffix: string): string | undefined {
+  const direct = process.env[suffix]
+  if (direct) return direct
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value && key.endsWith(suffix)) return value
+  }
+  return undefined
+}
+
 function creds(): { url: string; token: string } | null {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL
+  const url =
+    envBySuffix('KV_REST_API_URL') ?? envBySuffix('UPSTASH_REDIS_REST_URL')
   const token =
-    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN
+    envBySuffix('KV_REST_API_TOKEN') ?? envBySuffix('UPSTASH_REDIS_REST_TOKEN')
   if (!url || !token) return null
   return { url: url.replace(/\/$/, ''), token }
 }
