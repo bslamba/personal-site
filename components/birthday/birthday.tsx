@@ -432,6 +432,11 @@ export default function BirthdayPage() {
         setLetter(blocks)
         setOpened(true)
         start()
+        // Count this open — anonymous, fire-and-forget, and never
+        // allowed to affect the page if it fails.
+        void fetch('/api/hb-open', { method: 'POST', keepalive: true }).catch(
+          () => {}
+        )
       } catch {
         setCodeError(true)
         setCode('')
