@@ -59,27 +59,46 @@ const HEARTS = [
   [88, 22.9, 21.0, 0.7, 0.4], [99, 27.6, 14.0, 1.15, 0.55],
 ] as const
 
+// The hearts are not one colour but four, mixed: lavender, red,
+// light yellow, pink. The colour and its matching glow are chosen
+// by the heart's index — deterministic, so the server and the
+// browser paint the identical thing and there is no hydration
+// mismatch.
+const HEART_COLORS = [
+  { c: '#A98FD8', glow: 'rgba(169, 143, 216, 0.55)' }, // lavender
+  { c: '#E23D57', glow: 'rgba(226, 61, 87, 0.5)' },    // red
+  { c: '#FBD972', glow: 'rgba(251, 217, 114, 0.55)' }, // light yellow
+  { c: '#FF8FB0', glow: 'rgba(255, 143, 176, 0.5)' },  // pink
+] as const
+
 function Hearts() {
   return (
     <div className="bday-hearts" aria-hidden="true">
-      {HEARTS.map(([left, delay, duration, scale, opacity], i) => (
-        <span
-          key={i}
-          className="bday-heart"
-          style={{
-            left: `${left}%`,
-            animationDelay: `${delay}s`,
-            animationDuration: `${duration}s`,
-            // Two custom properties the keyframes read, so each
-            // heart drifts its own way rather than marching.
-            ['--s' as string]: scale,
-            ['--o' as string]: opacity,
-            ['--drift' as string]: `${(i % 5) * 14 - 28}px`,
-          }}
-        >
-          ♥
-        </span>
-      ))}
+      {HEARTS.map(([left, delay, duration, scale, opacity], i) => {
+        // A 4-3 step round the palette rather than i % 4, so the
+        // colours never fall into a repeating stripe up the screen.
+        const tone = HEART_COLORS[(i * 3) % HEART_COLORS.length]
+        return (
+          <span
+            key={i}
+            className="bday-heart"
+            style={{
+              left: `${left}%`,
+              animationDelay: `${delay}s`,
+              animationDuration: `${duration}s`,
+              color: tone.c,
+              textShadow: `0 0 10px ${tone.glow}`,
+              // Two custom properties the keyframes read, so each
+              // heart drifts its own way rather than marching.
+              ['--s' as string]: scale,
+              ['--o' as string]: opacity,
+              ['--drift' as string]: `${(i % 5) * 14 - 28}px`,
+            }}
+          >
+            ♥
+          </span>
+        )
+      })}
     </div>
   )
 }

@@ -1070,9 +1070,10 @@ body:has(.bday-root) .wa-float { display: none !important; }
      rather than as characters sitting on top of it. */
   font-size: 11px;
   line-height: 1;
+  /* colour and glow are set per heart inline — see the Hearts
+     component; these are only the fallback. */
   color: var(--rose-soft);
   opacity: 0;
-  text-shadow: 0 0 10px rgba(169, 143, 216, 0.5);
   animation-name: bday-rise;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
