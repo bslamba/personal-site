@@ -1,18 +1,11 @@
 // ============================================================
 // app/happy-birthday/opens/page.tsx
-//
-// The private tally — how many times the surprise has been opened,
-// and when. Yours to look at; nothing about who opened it, because
-// nothing about who is ever collected.
-//
-// Not indexed, and if you set an HB_STATS_KEY environment variable
-// the page will only show with ?key=<that value> on the URL, so a
-// stray guess of the path shows nothing.
 // ============================================================
 
 import type { Metadata } from 'next'
 import type { CSSProperties } from 'react'
 import { readOpens } from '@/lib/opens'
+import { Redis } from '@upstash/redis'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +66,19 @@ export default async function OpensPage(props: {
 
   const { configured, total, last, days } = await readOpens()
 
+  // Fetch the locations from our new database list
+  let visits: any[] = [];
+  try {
+    const redis = new Redis({
+      url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "",
+      token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "",
+    });
+    // Get the most recent 50 visits
+    visits = await redis.lrange('page-visits', 0, 49);
+  } catch (error) {
+    console.error("Could not load location visits", error);
+  }
+
   return (
     <main style={wrap}>
       <div style={card}>
@@ -95,10 +101,6 @@ export default async function OpensPage(props: {
               dashboard: <b>Storage → Create → Upstash Redis (KV)</b>,
               connect it to this project, and redeploy. Nothing else to
               change — it starts counting on its own.
-            </p>
-            <p style={{ marginBottom: 0, color: '#6E58A8' }}>
-              It only ever stores a number and a time. No names, no
-              location, nothing about anyone.
             </p>
           </div>
         ) : (
@@ -183,17 +185,48 @@ export default async function OpensPage(props: {
               </div>
             )}
 
-            <p
-              style={{
-                marginTop: '1.75rem',
-                marginBottom: 0,
-                fontSize: '0.85rem',
-                color: '#9A8AC0',
-                lineHeight: 1.5,
-              }}
-            >
-              A count only — no names, no location, nothing about who.
-            </p>
+            {/* NEW LOCATIONS TABLE */}
+            {visits.length > 0 && (
+              <div style={{ marginTop: '2rem' }}>
+                <p
+                  style={{
+                    margin: '0 0 0.5rem',
+                    fontSize: '0.72rem',
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    color: '#8A6BC8',
+                  }}
+                >
+                  Visit Locations
+                </p>
+                <div style={{ 
+                  maxHeight: '250px', 
+                  overflowY: 'auto',
+                  borderTop: '1px solid rgba(138,107,200,0.15)'
+                }}>
+                  <table style={{ width: '100%', fontSize: '0.85rem', textAlign: 'left', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ color: '#6E58A8' }}>
+                        <th style={{ padding: '0.5rem 0', fontWeight: 'normal' }}>Time</th>
+                        <th style={{ padding: '0.5rem 0', fontWeight: 'normal' }}>Lat</th>
+                        <th style={{ padding: '0.5rem 0', fontWeight: 'normal' }}>Lng</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visits.map((v: any, i: number) => (
+                        <tr key={i} style={{ borderTop: '1px solid rgba(138,107,200,0.15)', color: '#4A3D72' }}>
+                          <td style={{ padding: '0.5rem 0' }}>
+                            {new Date(v.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td style={{ padding: '0.5rem 0' }}>{v.lat ? v.lat.toFixed(4) : 'Denied'}</td>
+                          <td style={{ padding: '0.5rem 0' }}>{v.lng ? v.lng.toFixed(4) : 'Denied'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

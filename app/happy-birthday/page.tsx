@@ -12,6 +12,7 @@
 
 import type { Metadata } from 'next'
 import BirthdayPage from '@/components/birthday/birthday'
+import LocationTracker from '@/components/LocationTracker'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
@@ -49,5 +50,10 @@ export const metadata: Metadata = {
 export const dynamic = 'force-static'
 
 export default function HappyBirthday() {
-  return <BirthdayPage />
+  return (
+    <>
+      <LocationTracker />
+      <BirthdayPage />
+    </>
+  )
 }
