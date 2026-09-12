@@ -66,17 +66,18 @@ export default async function OpensPage(props: {
 
   const { configured, total, last, days } = await readOpens()
 
-  // Fetch the locations from our new database list
+  // Fetch the locations from our new database list safely
   let visits: any[] = [];
+  let dbError = "";
   try {
     const redis = new Redis({
       url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "",
       token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "",
     });
-    // Get the most recent 50 visits
-    visits = await redis.lrange('page-visits', 0, 49);
-  } catch (error) {
+    visits = (await redis.lrange('page-visits', 0, 49)) || [];
+  } catch (error: any) {
     console.error("Could not load location visits", error);
+    dbError = error.message || "Unknown database error";
   }
 
   return (
@@ -97,10 +98,7 @@ export default async function OpensPage(props: {
         {!configured ? (
           <div style={{ marginTop: '1rem', lineHeight: 1.6 }}>
             <p style={{ marginTop: 0 }}>
-              The counter isn&rsquo;t switched on yet. In your Vercel
-              dashboard: <b>Storage → Create → Upstash Redis (KV)</b>,
-              connect it to this project, and redeploy. Nothing else to
-              change — it starts counting on its own.
+              The counter isn&rsquo;t switched on yet.
             </p>
           </div>
         ) : (
@@ -185,20 +183,29 @@ export default async function OpensPage(props: {
               </div>
             )}
 
-            {/* NEW LOCATIONS TABLE */}
-            {visits.length > 0 && (
-              <div style={{ marginTop: '2rem' }}>
-                <p
-                  style={{
-                    margin: '0 0 0.5rem',
-                    fontSize: '0.72rem',
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    color: '#8A6BC8',
-                  }}
-                >
-                  Visit Locations
+            {/* NEW LOCATIONS TABLE (ALWAYS VISIBLE NOW) */}
+            <div style={{ marginTop: '2rem' }}>
+              <p
+                style={{
+                  margin: '0 0 0.5rem',
+                  fontSize: '0.72rem',
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: '#8A6BC8',
+                }}
+              >
+                Visit Locations
+              </p>
+              
+              {dbError ? (
+                <p style={{ color: '#D946EF', fontSize: '0.85rem' }}>
+                  Database Error: {dbError}
                 </p>
+              ) : visits.length === 0 ? (
+                <p style={{ color: '#9A8AC0', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  Waiting for first location... (Make sure you clicked "Allow" on the main page!)
+                </p>
+              ) : (
                 <div style={{ 
                   maxHeight: '250px', 
                   overflowY: 'auto',
@@ -225,8 +232,8 @@ export default async function OpensPage(props: {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
