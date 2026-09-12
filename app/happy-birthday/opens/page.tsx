@@ -195,7 +195,7 @@ export default async function OpensPage(props: {
               </div>
             )}
 
-            {/* NEW LOCATIONS TABLE */}
+            {/* UPGRADED LOCATIONS TABLE */}
             <div style={{ marginTop: '2rem' }}>
               <p
                 style={{
@@ -215,7 +215,7 @@ export default async function OpensPage(props: {
                 </p>
               ) : visits.length === 0 ? (
                 <p style={{ color: '#9A8AC0', fontSize: '0.85rem', fontStyle: 'italic' }}>
-                  Waiting for first location... (Make sure you clicked "Allow" on the main page!)
+                  Waiting for first location... 
                 </p>
               ) : (
                 <div style={{ 
@@ -226,19 +226,23 @@ export default async function OpensPage(props: {
                   <table style={{ width: '100%', fontSize: '0.85rem', textAlign: 'left', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ color: '#6E58A8' }}>
-                        <th style={{ padding: '0.5rem 0', fontWeight: 'normal' }}>Time</th>
-                        <th style={{ padding: '0.5rem 0', fontWeight: 'normal' }}>Lat</th>
-                        <th style={{ padding: '0.5rem 0', fontWeight: 'normal' }}>Lng</th>
+                        <th style={{ padding: '0.5rem 0.25rem', fontWeight: 'normal' }}>Time</th>
+                        <th style={{ padding: '0.5rem 0.25rem', fontWeight: 'normal' }}>City</th>
+                        <th style={{ padding: '0.5rem 0.25rem', fontWeight: 'normal' }}>Coords</th>
                       </tr>
                     </thead>
                     <tbody>
                       {visits.map((v: any, i: number) => (
                         <tr key={i} style={{ borderTop: '1px solid rgba(138,107,200,0.15)', color: '#4A3D72' }}>
-                          <td style={{ padding: '0.5rem 0' }}>
+                          <td style={{ padding: '0.5rem 0.25rem' }}>
                             {new Date(v.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </td>
-                          <td style={{ padding: '0.5rem 0' }}>{v.lat ? v.lat.toFixed(4) : 'Denied'}</td>
-                          <td style={{ padding: '0.5rem 0' }}>{v.lng ? v.lng.toFixed(4) : 'Denied'}</td>
+                          <td style={{ padding: '0.5rem 0.25rem', fontWeight: '600' }}>
+                            {v.locationName ? v.locationName : (v.lat ? "Unknown (Old Data)" : "Denied")}
+                          </td>
+                          <td style={{ padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: '#9A8AC0' }}>
+                            {v.lat ? `${v.lat.toFixed(3)}, ${v.lng.toFixed(3)}` : '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

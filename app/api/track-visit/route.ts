@@ -19,10 +19,35 @@ export async function POST(req: Request) {
 
     const { lat, lng } = await req.json();
     
+    // NEW: Figure out the city name using a free mapping service
+    let locationName = "Unknown Location";
+    if (lat && lng) {
+      try {
+        const mapUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
+        // The map service requires us to identify ourselves politely, so we use a custom User-Agent
+        const res = await fetch(mapUrl, { headers: { 'User-Agent': 'NishuBirthdayApp/1.0' } });
+        const data = await res.json();
+        
+        if (data && data.address) {
+          const addr = data.address;
+          // Look for the most accurate city/town name available
+          const cityOrTown = addr.city || addr.town || addr.village || addr.suburb || addr.county || "Unknown";
+          const state = addr.state || "";
+          locationName = state ? `${cityOrTown}, ${state}` : cityOrTown;
+        }
+      } catch (mapError) {
+        console.error("Could not find city name:", mapError);
+      }
+    } else {
+      locationName = "Location Denied";
+    }
+    
+    // Save the new locationName along with the coordinates
     const visit = {
       timestamp: Date.now(),
       lat: lat,
       lng: lng,
+      locationName: locationName
     };
     
     await redis.lpush('page-visits', visit);
