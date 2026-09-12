@@ -25,6 +25,15 @@ function timeAgo(iso: string): string {
   return `${d} day${d === 1 ? '' : 's'} ago`
 }
 
+function envBySuffix(suffix: string): string {
+  const direct = process.env[suffix];
+  if (direct) return direct;
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value && key.endsWith(suffix)) return value;
+  }
+  return "";
+}
+
 export default async function OpensPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
@@ -66,15 +75,18 @@ export default async function OpensPage(props: {
 
   const { configured, total, last, days } = await readOpens()
 
-  // Fetch the locations from our new database list safely
   let visits: any[] = [];
   let dbError = "";
   try {
-    const redis = new Redis({
-      url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "",
-      token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "",
-    });
-    visits = (await redis.lrange('page-visits', 0, 49)) || [];
+    const redisUrl = envBySuffix('KV_REST_API_URL') || envBySuffix('UPSTASH_REDIS_REST_URL');
+    const redisToken = envBySuffix('KV_REST_API_TOKEN') || envBySuffix('UPSTASH_REDIS_REST_TOKEN');
+    
+    if (redisUrl && redisToken) {
+      const redis = new Redis({ url: redisUrl, token: redisToken });
+      visits = (await redis.lrange('page-visits', 0, 49)) || [];
+    } else {
+       dbError = "Could not find database credentials";
+    }
   } catch (error: any) {
     console.error("Could not load location visits", error);
     dbError = error.message || "Unknown database error";
@@ -183,7 +195,7 @@ export default async function OpensPage(props: {
               </div>
             )}
 
-            {/* NEW LOCATIONS TABLE (ALWAYS VISIBLE NOW) */}
+            {/* NEW LOCATIONS TABLE */}
             <div style={{ marginTop: '2rem' }}>
               <p
                 style={{
