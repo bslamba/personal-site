@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic'
 const TILES = [
   {
     href: '/vault/finance',
-    title: 'Money',
+    title: 'Finance',
     desc: 'Month-by-month and year-by-year expenses, income, EMIs and the Bhawneet · Gurneet split — with analysis.',
     icon: Wallet,
     grad: 'linear-gradient(135deg,#7b5be0,#a06be0)',

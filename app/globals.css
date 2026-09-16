@@ -2038,3 +2038,10 @@ body:has(.bday-root) .wa-float { display: none !important; }
 .vg-muted { color: var(--vg-ink-faint); }
 .vg-spin { animation: vg-spin 0.8s linear infinite; }
 @keyframes vg-spin { to { transform: rotate(360deg); } }
+
+/* Vault — form label used in the expense editor */
+.vg .vg-lbl { display: block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--vg-ink-faint); margin-bottom: 0.25rem; }
+.vg .vg-subtabs { display: inline-flex; gap: 0.2rem; padding: 0.22rem; border-radius: 12px; background: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.65); }
+.vg .vg-subtab { border: 0; background: transparent; color: var(--vg-ink-soft); font: inherit; font-weight: 600; font-size: 0.82rem; padding: 0.4rem 0.8rem; border-radius: 9px; cursor: pointer; }
+.vg .vg-subtab[data-on="true"] { background: #fff; color: var(--vg-accent); box-shadow: 0 4px 12px -6px rgba(109,75,216,0.5); }
+.vg .vg-count { font-size: 0.7rem; opacity: 0.7; margin-left: 0.3rem; }

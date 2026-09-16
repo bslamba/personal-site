@@ -12,7 +12,7 @@ import { verifySession, VAULT_COOKIE } from '@/lib/vault-auth'
 import FinanceDashboard from '@/components/vault/finance-dashboard'
 
 export const metadata: Metadata = {
-  title: 'Money · Vault',
+  title: 'Finance · Vault',
   robots: { index: false, follow: false, nocache: true },
 }
 

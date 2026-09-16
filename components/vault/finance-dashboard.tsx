@@ -1,57 +1,44 @@
 'use client'
 
 // ============================================================
-// components/vault/finance-dashboard.tsx
+// components/vault/finance-dashboard.tsx  (v2)
 //
-// The household money dashboard. Loads one JSON doc from
-// /api/vault/finance, lets you edit the current month, the whole
-// year, and the recurring template, and saves back automatically
-// (debounced). Charts are hand-drawn SVG so there are no extra
-// dependencies. Frosted-glass theme.
+// Finance dashboard: entities, flexible splits, month sub-tabs
+// (Common / EMI / Personal), a who-owes-whom settlement, savings,
+// an entities manager, and receipt capture. Loads/saves one JSON
+// doc via /api/vault/finance (debounced autosave). Charts are
+// hand-drawn SVG — no chart dependency.
 // ============================================================
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2,
-  Check, RefreshCw, CalendarDays,
+  ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
+  CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
+  Equal,
 } from 'lucide-react'
 import {
-  type FinanceDoc, type MonthData, type Item, type IncomeItem, type Account,
-  seedDoc, monthKey, materialise, monthView, totals, byCategory, emiActive,
-  INR, monthLabel, clamp01,
+  type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
+  type SavingItem, type Alloc, type Bucket,
+  seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares,
+  classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
 } from '@/lib/finance-data'
 
-const ACCOUNTS: Account[] = [
-  'Common Bank Account', "Bhawneet's Bank Account", "Gurneet's Bank Account", "Papa's Bank Account",
-]
 const CAT_COLORS: Record<string, string> = {
-  'Loans & EMIs': '#6d4bd8',
-  'Home & Utilities': '#4b7bec',
-  'Food & Groceries': '#1f9d6b',
-  'Vehicles & Travel': '#e8963a',
-  'Insurance & Taxes': '#b0479a',
-  'Subscriptions': '#5bc0d0',
-  'Other': '#9b93b8',
+  'Loans & EMIs': '#6d4bd8', 'Home & Utilities': '#4b7bec', 'Food & Groceries': '#1f9d6b',
+  'Vehicles & Travel': '#e8963a', 'Insurance & Taxes': '#b0479a', 'Subscriptions': '#5bc0d0', 'Other': '#9b93b8',
 }
 const PALETTE = ['#6d4bd8', '#4b7bec', '#1f9d6b', '#e8963a', '#b0479a', '#5bc0d0', '#9b93b8', '#e2445c']
+const num = (v: string) => { const n = parseFloat(v.replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0 }
 
-const uid = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-
-function num(v: string): number {
-  const n = parseFloat(v.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
-}
-
-// ---------- tiny SVG charts ------------------------------------
+// ---------- charts ----------------------------------------------
 function Donut({ data, size = 168 }: { data: { name: string; value: number; color: string }[]; size?: number }) {
   const total = data.reduce((s, d) => s + d.value, 0)
   const r = size / 2, cx = r, cy = r, stroke = size * 0.16, rad = r - stroke / 2
   let a = -Math.PI / 2
   const arcs = data.map(d => {
     const frac = total > 0 ? d.value / total : 0
-    const a2 = a + frac * Math.PI * 2
-    const large = frac > 0.5 ? 1 : 0
+    const a2 = a + frac * Math.PI * 2, large = frac > 0.5 ? 1 : 0
     const x1 = cx + rad * Math.cos(a), y1 = cy + rad * Math.sin(a)
     const x2 = cx + rad * Math.cos(a2), y2 = cy + rad * Math.sin(a2)
     a = a2
@@ -60,94 +47,189 @@ function Donut({ data, size = 168 }: { data: { name: string; value: number; colo
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img">
       <circle cx={cx} cy={cy} r={rad} fill="none" stroke="rgba(120,99,190,0.12)" strokeWidth={stroke} />
-      {arcs.map((arc, i) =>
-        arc.frac > 0 ? (
-          <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={stroke} strokeLinecap="round" />
-        ) : null
-      )}
-      <text x={cx} y={cy - 2} textAnchor="middle" fontSize={size * 0.11} fontWeight={800} fill="#241b40">
-        {INR(total).replace('₹', '₹')}
-      </text>
+      {arcs.map((arc, i) => arc.frac > 0 ? <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={stroke} strokeLinecap="round" /> : null)}
+      <text x={cx} y={cy - 2} textAnchor="middle" fontSize={size * 0.1} fontWeight={800} fill="#241b40">{INR(total)}</text>
       <text x={cx} y={cy + size * 0.11} textAnchor="middle" fontSize={size * 0.07} fill="#8b81ad">total</text>
     </svg>
   )
 }
-
-function Bars({ data, height = 150 }: { data: { label: string; value: number; color?: string }[]; height?: number }) {
-  const max = Math.max(1, ...data.map(d => Math.abs(d.value)))
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height, paddingTop: 8 }}>
-      {data.map((d, i) => (
-        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: '#5b5080', fontVariantNumeric: 'tabular-nums' }}>{Math.round(d.value / 1000)}k</div>
-          <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: height - 34 }}>
-            <div style={{
-              width: '100%', height: `${(Math.abs(d.value) / max) * 100}%`, minHeight: 3,
-              background: d.color ?? 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '6px 6px 3px 3px',
-            }} />
-          </div>
-          <div style={{ fontSize: 10, color: '#8b81ad', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{d.label}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function SplitBar({ b, g }: { b: number; g: number }) {
-  const t = b + g || 1
-  return (
-    <div>
-      <div style={{ display: 'flex', height: 26, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.6)' }}>
-        <div style={{ width: `${(b / t) * 100}%`, background: 'var(--vg-b)' }} />
-        <div style={{ width: `${(g / t) * 100}%`, background: 'var(--vg-g)' }} />
-      </div>
-      <div className="vg-legend">
-        <span><i className="vg-dot" style={{ background: 'var(--vg-b)' }} /> Bhawneet {INR(b)}</span>
-        <span><i className="vg-dot" style={{ background: 'var(--vg-g)' }} /> Gurneet {INR(g)}</span>
-      </div>
-    </div>
-  )
-}
-
 function Legend({ items }: { items: { name: string; color: string; value: number }[] }) {
   return (
     <div className="vg-legend" style={{ flexDirection: 'column', gap: '0.4rem' }}>
       {items.map(it => (
         <span key={it.name} style={{ justifyContent: 'space-between', width: '100%' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <i className="vg-dot" style={{ background: it.color }} /> {it.name}
-          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><i className="vg-dot" style={{ background: it.color }} /> {it.name}</span>
           <b style={{ fontVariantNumeric: 'tabular-nums', color: '#241b40' }}>{INR(it.value)}</b>
         </span>
       ))}
     </div>
   )
 }
+function StackBar({ parts }: { parts: { label: string; value: number; color: string }[] }) {
+  const t = parts.reduce((s, p) => s + p.value, 0) || 1
+  return (
+    <div>
+      <div style={{ display: 'flex', height: 26, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.6)' }}>
+        {parts.map((p, i) => <div key={i} style={{ width: `${(p.value / t) * 100}%`, background: p.color }} />)}
+      </div>
+      <div className="vg-legend">
+        {parts.map((p, i) => <span key={i}><i className="vg-dot" style={{ background: p.color }} /> {p.label} {INR(p.value)}</span>)}
+      </div>
+    </div>
+  )
+}
+
+// ---------- expense editor modal --------------------------------
+function shareSummary(it: Item, entities: Entity[]): string {
+  if (it.alloc.mode === 'single') return `100% ${entName(entities, it.alloc.who)}`
+  const parts = Object.entries(shares(it)).filter(([, f]) => f > 0.001).map(([id, f]) => `${entName(entities, id)} ${Math.round(f * 100)}%`)
+  return parts.join(' · ') || '—'
+}
+
+function ExpenseEditor({ item, entities, onSave, onClose, onDelete }: {
+  item: Item; entities: Entity[]; onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void
+}) {
+  const [d, setD] = useState<Item>(() => structuredClone(item))
+  const isEmi = d.kind === 'emi'
+  const isAnnual = d.kind === 'annual'
+  const payers = entities.filter(e => e.canPay)
+  const persons = entities.filter(e => e.kind === 'person')
+
+  const set = (patch: Partial<Item>) => setD(x => ({ ...x, ...patch }))
+  const splitShares: Record<string, number> = d.alloc.mode === 'split' ? d.alloc.shares : {}
+  const setMode = (mode: 'split' | 'single') => {
+    if (mode === 'single') set({ alloc: { mode: 'single', who: d.paidBy } })
+    else set({ alloc: { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / persons.length])) } })
+  }
+  const setShare = (id: string, pct: number) => {
+    const shares2 = { ...splitShares, [id]: pct / 100 }
+    set({ alloc: { mode: 'split', shares: shares2 } })
+  }
+  const equalPersons = () => set({ alloc: { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / persons.length])) } })
+
+  return (
+    <div className="vg-lb" onClick={onClose}>
+      <div className="vg-card vg-pad" style={{ width: 'min(460px, 96vw)', maxHeight: '92vh', overflowY: 'auto', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>{isEmi ? 'EMI / Loan' : isAnnual ? 'Yearly item' : 'Expense'}</p>
+          <button className="vg-icobtn" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        <label className="vg-lbl">What is it</label>
+        <input className="vg-input" value={d.name} onChange={e => set({ name: e.target.value })} placeholder="e.g. Zomato dinner" />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+          <div>
+            <label className="vg-lbl">{isAnnual ? 'Amount / year' : isEmi ? 'Monthly EMI' : 'Amount'}</label>
+            <input className="vg-input vg-num" inputMode="numeric" value={String(d.amount)} onChange={e => set({ amount: num(e.target.value) })} />
+          </div>
+          <div>
+            <label className="vg-lbl">Who paid</label>
+            <select className="vg-select" value={d.paidBy} onChange={e => set({ paidBy: e.target.value })}>
+              {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {isEmi && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+            <div><label className="vg-lbl">Start</label><input type="date" className="vg-input" value={d.startDate ?? ''} onChange={e => set({ startDate: e.target.value || null })} /></div>
+            <div><label className="vg-lbl">End</label><input type="date" className="vg-input" value={d.endDate ?? ''} onChange={e => set({ endDate: e.target.value || null })} /></div>
+          </div>
+        )}
+        {isAnnual && (
+          <div style={{ marginTop: '0.6rem' }}><label className="vg-lbl">Due date</label><input type="date" className="vg-input" value={d.dueDate ?? ''} onChange={e => set({ dueDate: e.target.value || null })} /></div>
+        )}
+
+        <div style={{ marginTop: '0.9rem' }}>
+          <label className="vg-lbl">How is it shared?</label>
+          <div className="vg-tabs" style={{ marginTop: '0.3rem' }}>
+            <button className="vg-tab" data-on={d.alloc.mode === 'split'} onClick={() => setMode('split')}>Split</button>
+            <button className="vg-tab" data-on={d.alloc.mode === 'single'} onClick={() => setMode('single')}>One person pays 100%</button>
+          </div>
+        </div>
+
+        {d.alloc.mode === 'single' ? (
+          <div style={{ marginTop: '0.6rem' }}>
+            <label className="vg-lbl">Borne fully by</label>
+            <select className="vg-select" value={d.alloc.who} onChange={e => set({ alloc: { mode: 'single', who: e.target.value } })}>
+              {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+            </select>
+            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.3rem' }}>Not split with anyone — sits under Personal.</p>
+          </div>
+        ) : (
+          <div style={{ marginTop: '0.6rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="vg-lbl">Share (%)</label>
+              <button className="vg-btn" onClick={equalPersons}><Equal className="h-3.5 w-3.5" /> Equal</button>
+            </div>
+            {entities.map(en => (
+              <div key={en.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+                <span className="vg-dot" style={{ background: en.color }} />
+                <span style={{ flex: 1, fontSize: '0.9rem' }}>{en.name}</span>
+                <input className="vg-input vg-num" style={{ width: 76 }} inputMode="numeric"
+                  value={Math.round((splitShares[en.id] ?? 0) * 100)} onChange={e => setShare(en.id, num(e.target.value))} />
+              </div>
+            ))}
+            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>Percentages are normalised, so they need not add to exactly 100.</p>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', gap: '0.5rem' }}>
+          {onDelete ? <button className="vg-btn" style={{ color: 'var(--vg-neg)' }} onClick={onDelete}><Trash2 className="h-4 w-4" /> Delete</button> : <span />}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="vg-btn" onClick={onClose}>Cancel</button>
+            <button className="vg-btn vg-btn-primary" onClick={() => onSave(d)}><Check className="h-4 w-4" /> Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------- helpers for creating / reading ----------------------
+function firstPerson(entities: Entity[]): string {
+  return (entities.find(e => e.kind === 'person') ?? entities[0])?.id ?? 'bhawneet'
+}
+function newItem(bucket: Bucket, entities: Entity[]): Item {
+  const persons = entities.filter(e => e.kind === 'person')
+  const equal: Alloc = { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / (persons.length || 1)])) }
+  if (bucket === 'emi') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null }
+  if (bucket === 'personal') { const p = firstPerson(entities); return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: p, alloc: { mode: 'single', who: p } } }
+  return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: entities.find(e => e.kind === 'common')?.id ?? 'common', alloc: equal }
+}
+function fileToB64(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(String(r.result).split(',')[1] ?? '')
+    r.onerror = rej
+    r.readAsDataURL(file)
+  })
+}
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'year' | 'setup'
+type Tab = 'month' | 'year' | 'savings' | 'entities' | 'setup'
+interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard() {
   const [doc, setDoc] = useState<FinanceDoc | null>(null)
-  const [err, setErr] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('month')
   const [key, setKey] = useState<string>(monthKey())
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [editing, setEditing] = useState<Editing | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // load
   useEffect(() => {
     let live = true
     fetch('/api/vault/finance')
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error('Could not load'))))
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('load'))))
       .then(d => { if (live) setDoc(d.doc as FinanceDoc) })
-      .catch(() => { if (live) { setErr('Could not load your data. It will still work — starting a fresh copy.'); setDoc(seedDoc()) } })
+      .catch(() => { if (live) setDoc(seedDoc()) })
     return () => { live = false }
   }, [])
 
-  // debounced autosave
   useEffect(() => {
     if (!doc) return
     if (firstLoad.current) { firstLoad.current = false; return }
@@ -155,62 +237,52 @@ export default function FinanceDashboard() {
     setSaveState('saving')
     saveTimer.current = setTimeout(async () => {
       try {
-        await fetch('/api/vault/finance', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ doc }),
-        })
-        setSaveState('saved')
-        setTimeout(() => setSaveState('idle'), 1400)
+        await fetch('/api/vault/finance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ doc }) })
+        setSaveState('saved'); setTimeout(() => setSaveState('idle'), 1400)
       } catch { setSaveState('idle') }
     }, 700)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [doc])
 
+  const patchDoc = useCallback((fn: (d: FinanceDoc) => FinanceDoc) => setDoc(d => (d ? fn(structuredClone(d) as FinanceDoc) : d)), [])
   const patchMonth = useCallback((k: string, fn: (m: MonthData) => MonthData) => {
-    setDoc(d => {
-      if (!d) return d
-      const nd = structuredClone(d) as FinanceDoc
-      nd.months[k] = fn(nd.months[k] ?? materialise(nd.template, k))
-      return nd
-    })
+    setDoc(d => { if (!d) return d; const nd = structuredClone(d) as FinanceDoc; nd.months[k] = fn(nd.months[k] ?? materialise(nd.template, k)); return nd })
   }, [])
 
-  const patchTemplate = useCallback((fn: (t: FinanceDoc['template']) => FinanceDoc['template']) => {
-    setDoc(d => {
-      if (!d) return d
-      const nd = structuredClone(d) as FinanceDoc
-      nd.template = fn(nd.template)
-      return nd
-    })
-  }, [])
+  if (!doc) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
 
-  if (err && !doc) {
-    return <Shell><p className="vg-empty">{err}</p></Shell>
-  }
-  if (!doc) {
-    return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
-  }
+  const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
+    { id: 'month', label: 'This month', icon: CalendarDays },
+    { id: 'year', label: 'Year', icon: Wallet },
+    { id: 'savings', label: 'Savings', icon: PiggyBank },
+    { id: 'entities', label: 'Entities', icon: Users },
+    { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
+  ]
 
   return (
     <Shell saveState={saveState}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+      <div style={{ overflowX: 'auto', marginBottom: '1.1rem' }}>
         <div className="vg-tabs">
-          {(['month', 'year', 'setup'] as Tab[]).map(t => (
-            <button key={t} className="vg-tab" data-on={tab === t} onClick={() => setTab(t)}>
-              {t === 'month' ? 'This month' : t === 'year' ? 'Year' : 'Setup'}
-            </button>
-          ))}
+          {TABS.map(t => { const I = t.icon; return (
+            <button key={t.id} className="vg-tab" data-on={tab === t.id} onClick={() => setTab(t.id)}>
+              <I className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 4, verticalAlign: '-2px' }} />{t.label}
+            </button>) })}
         </div>
       </div>
 
-      {tab === 'month' && (
-        <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} />
-      )}
-      {tab === 'year' && (
-        <YearTab doc={doc} year={year} setYear={setYear} openMonth={(k) => { setKey(k); setTab('month') }} />
-      )}
-      {tab === 'setup' && (
-        <SetupTab doc={doc} patchTemplate={patchTemplate} />
+      {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} />}
+      {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
+      {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
+      {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
+      {tab === 'setup' && <SetupTab doc={doc} patchDoc={patchDoc} openEditor={setEditing} />}
+
+      {editing && (
+        <ExpenseEditor
+          item={editing.item} entities={doc.entities}
+          onSave={it => { editing.commit(it); setEditing(null) }}
+          onClose={() => setEditing(null)}
+          onDelete={editing.remove ? () => { editing.remove!(); setEditing(null) } : undefined}
+        />
       )}
     </Shell>
   )
@@ -223,7 +295,7 @@ function Shell({ children, saveState }: { children: React.ReactNode; saveState?:
         <div className="vg-top">
           <div>
             <Link href="/vault" className="vg-back"><ArrowLeft className="h-4 w-4" /> Vault</Link>
-            <h1 className="vg-h1">Money</h1>
+            <h1 className="vg-h1">Finance</h1>
           </div>
           <div style={{ minWidth: 90, textAlign: 'right' }}>
             {saveState === 'saving' && <span className="vg-muted" style={{ fontSize: '0.8rem' }}><Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline' }} /> Saving…</span>}
@@ -237,49 +309,68 @@ function Shell({ children, saveState }: { children: React.ReactNode; saveState?:
 }
 
 // ---------- Month tab -------------------------------------------
-function MonthTab({ doc, k, setKey, patchMonth }: {
+function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
   doc: FinanceDoc; k: string; setKey: (k: string) => void
   patchMonth: (k: string, fn: (m: MonthData) => MonthData) => void
+  openEditor: (e: Editing) => void
 }) {
-  // Make sure this month is real (materialised) before anyone edits a row.
-  useEffect(() => {
-    if (!doc.months[k]) patchMonth(k, m => m)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [k])
+  const [bucket, setBucket] = useState<Bucket>('common')
+  const [reading, setReading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const entities = doc.entities
+
+  useEffect(() => { if (!doc.months[k]) patchMonth(k, m => m) /* eslint-disable-next-line */ }, [k])
 
   const m = doc.months[k] ?? materialise(doc.template, k)
-  const t = totals(m)
+  const t = totals(m, entities)
+  const step = (delta: number) => { const [y, mo] = k.split('-').map(Number); setKey(monthKey(new Date(y, mo - 1 + delta, 1))) }
 
-  const step = (delta: number) => {
-    const [y, mo] = k.split('-').map(Number)
-    const d = new Date(y, mo - 1 + delta, 1)
-    setKey(monthKey(d))
+  const addToMonth = (it: Item) => patchMonth(k, mm => ({ ...mm, items: [...mm.items, it] }))
+  const updItem = (it: Item) => patchMonth(k, mm => ({ ...mm, items: mm.items.map(x => x.id === it.id ? it : x) }))
+  const delItem = (id: string) => patchMonth(k, mm => ({ ...mm, items: mm.items.filter(x => x.id !== id) }))
+  const togglePaid = (id: string, v: boolean) => patchMonth(k, mm => ({ ...mm, items: mm.items.map(x => x.id === id ? { ...x, paid: v } : x) }))
+
+  const openNew = (b: Bucket) => openEditor({ item: newItem(b, entities), commit: addToMonth })
+  const openEdit = (it: Item) => openEditor({ item: it, commit: updItem, remove: () => delItem(it.id) })
+
+  async function onReceipt(files: FileList | null) {
+    if (!files || !files[0]) return
+    const file = files[0]
+    setReading(true)
+    const it = newItem('common', entities)
+    try {
+      const b64 = await fileToB64(file)
+      const res = await fetch('/api/vault/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: b64, mediaType: file.type }) })
+      const info = await res.json().catch(() => ({}))
+      if (info.amount) it.amount = Number(info.amount) || 0
+      if (info.merchant) it.name = String(info.merchant)
+      if (info.note && !it.name) it.name = String(info.note)
+      // keep a copy of the receipt image (best-effort)
+      try {
+        const safe = file.name.replace(/[^\w.\-]+/g, '_'); const rkey = `receipts/${Date.now()}-${safe}`
+        const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: rkey, contentType: file.type }) })
+        const { url } = await u.json()
+        if (url) { await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file }); it.receiptKey = rkey }
+      } catch { /* ignore */ }
+    } catch { /* ignore — open blank */ }
+    setReading(false)
+    openEditor({ item: it, commit: addToMonth })
   }
 
-  const setItem = (id: string, patch: Partial<Item>) =>
-    patchMonth(k, mm => ({ ...mm, items: mm.items.map(it => (it.id === id ? { ...it, ...patch } : it)) }))
-  const delItem = (id: string) =>
-    patchMonth(k, mm => ({ ...mm, items: mm.items.filter(it => it.id !== id) }))
-  const addItem = () =>
-    patchMonth(k, mm => ({ ...mm, items: [...mm.items, { id: uid('one'), name: 'New expense', owner: 'Bhawneet', account: 'Common Bank Account', amount: 0, shareB: 0.5, kind: 'monthly' }] }))
+  const rows = m.items.filter(it => classify(it, entities) === bucket)
+  const counts = { common: 0, emi: 0, personal: 0 } as Record<Bucket, number>
+  m.items.forEach(it => { counts[classify(it, entities)]++ })
 
-  const setInc = (id: string, patch: Partial<IncomeItem>) =>
-    patchMonth(k, mm => ({ ...mm, income: mm.income.map(i => (i.id === id ? { ...i, ...patch } : i)) }))
-  const delInc = (id: string) =>
-    patchMonth(k, mm => ({ ...mm, income: mm.income.filter(i => i.id !== id) }))
-  const addInc = () =>
-    patchMonth(k, mm => ({ ...mm, income: [...mm.income, { id: uid('inc'), source: 'Income', person: 'Bhawneet', amount: 0 }] }))
+  const setInc = (id: string, patch: Partial<IncomeItem>) => patchMonth(k, mm => ({ ...mm, income: mm.income.map(i => i.id === id ? { ...i, ...patch } : i) }))
+  const delInc = (id: string) => patchMonth(k, mm => ({ ...mm, income: mm.income.filter(i => i.id !== id) }))
+  const addInc = () => patchMonth(k, mm => ({ ...mm, income: [...mm.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0 }] }))
 
   const cats = byCategory(m).map((c, i) => ({ ...c, color: CAT_COLORS[c.name] ?? PALETTE[i % PALETTE.length] }))
-  const settleTxt = t.settle > 0
-    ? `Gurneet owes Bhawneet ${INR(t.settle)}`
-    : t.settle < 0
-      ? `Bhawneet owes Gurneet ${INR(-t.settle)}`
-      : 'All square'
+  const bears = entities.map(e => ({ label: e.name, value: t.byEntity[e.id] ?? 0, color: e.color })).filter(p => p.value > 0)
+  const settleTxt = t.transfers.length === 0 ? 'All settled — nobody owes anyone.' : ''
 
   return (
     <>
-      {/* month nav */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
         <div className="vg-nav">
           <button className="vg-icobtn" onClick={() => step(-1)} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
@@ -289,62 +380,54 @@ function MonthTab({ doc, k, setKey, patchMonth }: {
         <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
       </div>
 
-      {/* KPIs */}
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
         <div className="vg-kpi"><div className="k">Income</div><div className="v vg-pos">{INR(t.income)}</div></div>
         <div className="vg-kpi"><div className="k">Expenses</div><div className="v">{INR(t.expense)}</div></div>
         <div className="vg-kpi"><div className="k">{t.net >= 0 ? 'Saved' : 'Overspent'}</div><div className={`v ${t.net >= 0 ? 'vg-pos' : 'vg-neg'}`}>{INR(Math.abs(t.net))}</div></div>
-        <div className="vg-kpi"><div className="k">Settle up</div><div className="v" style={{ fontSize: '1rem', lineHeight: 1.3 }}>{settleTxt}</div></div>
+        <div className="vg-kpi"><div className="k">Settle up</div><div className="v" style={{ fontSize: '0.95rem', lineHeight: 1.3 }}>{t.transfers.length ? `${t.transfers.length} transfer${t.transfers.length > 1 ? 's' : ''}` : 'All square'}</div></div>
+      </div>
+
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+          <div className="vg-subtabs">
+            <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
+            <button className="vg-subtab" data-on={bucket === 'emi'} onClick={() => setBucket('emi')}>EMI<span className="vg-count">{counts.emi}</span></button>
+            <button className="vg-subtab" data-on={bucket === 'personal'} onClick={() => setBucket('personal')}>Personal<span className="vg-count">{counts.personal}</span></button>
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
+            <button className="vg-btn vg-btn-primary" onClick={() => openNew(bucket)}><Plus className="h-4 w-4" /> Add</button>
+          </div>
+        </div>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 560 }}>
+            <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">Amount</th><th style={{ width: 42 }}>Paid</th><th style={{ width: 76 }}></th></tr></thead>
+            <tbody>
+              {rows.map(it => (
+                <tr key={it.id} className={it.paid ? 'vg-row-paid' : ''}>
+                  <td><span className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</span>{it.receiptKey && <span className="vg-chip" style={{ marginLeft: 6 }}>receipt</span>}</td>
+                  <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
+                  <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, entities)}</td>
+                  <td className="num">{INR(it.amount)}</td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.paid} onChange={e => togglePaid(it.id, e.target.checked)} /></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="vg-icobtn" onClick={() => openEdit(it)} aria-label="Edit"><Pencil className="h-4 w-4" /></button>
+                      <button className="vg-icobtn" onClick={() => delItem(it.id)} aria-label="Delete"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing in {bucket} this month. Use <b>Add</b> or snap a <b>Receipt</b>.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="vg-grid2">
-        {/* Expenses */}
-        <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-            <p className="vg-sec" style={{ margin: 0 }}>Expenses</p>
-            <button className="vg-btn vg-btn-primary" onClick={addItem}><Plus className="h-4 w-4" /> Add</button>
-          </div>
-          <div className="vg-tablewrap">
-            <table className="vg-table">
-              <thead>
-                <tr>
-                  <th>Item</th><th>Pays from</th><th className="num">Amount</th>
-                  <th style={{ width: 92 }}>B share %</th><th style={{ width: 46 }}>Paid</th><th style={{ width: 40 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.items.map(it => (
-                  <tr key={it.id} className={it.paid ? 'vg-row-paid' : ''}>
-                    <td>
-                      <input className="vg-input vg-nm" value={it.name} onChange={e => setItem(it.id, { name: e.target.value })} />
-                      <span className="vg-chip" style={{ marginTop: 4 }}>{it.kind === 'emi' ? 'EMI' : it.kind === 'annual' ? 'Yearly' : 'Monthly'}</span>
-                    </td>
-                    <td>
-                      <select className="vg-select" value={it.account} onChange={e => setItem(it.id, { account: e.target.value as Account })}>
-                        {ACCOUNTS.map(a => <option key={a} value={a}>{a.replace(' Bank Account', '')}</option>)}
-                      </select>
-                    </td>
-                    <td className="num">
-                      <input className="vg-input vg-num" inputMode="numeric" value={String(it.amount)} onChange={e => setItem(it.id, { amount: num(e.target.value) })} />
-                    </td>
-                    <td>
-                      <input className="vg-input vg-num" inputMode="numeric" value={Math.round(clamp01(it.shareB) * 100)} onChange={e => setItem(it.id, { shareB: clamp01(num(e.target.value) / 100) })} />
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <input type="checkbox" checked={!!it.paid} onChange={e => setItem(it.id, { paid: e.target.checked })} />
-                    </td>
-                    <td><button className="vg-icobtn" onClick={() => delItem(it.id)} aria-label="Delete"><Trash2 className="h-4 w-4" /></button></td>
-                  </tr>
-                ))}
-                {m.items.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No expenses yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Income */}
         <div className="vg-card vg-pad">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <p className="vg-sec" style={{ margin: 0 }}>Income</p>
             <button className="vg-btn vg-btn-primary" onClick={addInc}><Plus className="h-4 w-4" /> Add</button>
           </div>
@@ -355,13 +438,9 @@ function MonthTab({ doc, k, setKey, patchMonth }: {
                 {m.income.map(i => (
                   <tr key={i.id}>
                     <td><input className="vg-input" value={i.source} onChange={e => setInc(i.id, { source: e.target.value })} /></td>
-                    <td>
-                      <select className="vg-select" value={i.person} onChange={e => setInc(i.id, { person: e.target.value as IncomeItem['person'] })}>
-                        <option value="Common">Common</option><option value="Bhawneet">Bhawneet</option><option value="Gurneet">Gurneet</option>
-                      </select>
-                    </td>
+                    <td><select className="vg-select" value={i.entity} onChange={e => setInc(i.id, { entity: e.target.value })}>{entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}</select></td>
                     <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(i.amount)} onChange={e => setInc(i.id, { amount: num(e.target.value) })} /></td>
-                    <td><button className="vg-icobtn" onClick={() => delInc(i.id)} aria-label="Delete"><Trash2 className="h-4 w-4" /></button></td>
+                    <td><button className="vg-icobtn" onClick={() => delInc(i.id)}><Trash2 className="h-4 w-4" /></button></td>
                   </tr>
                 ))}
                 {m.income.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No income yet.</td></tr>}
@@ -370,32 +449,34 @@ function MonthTab({ doc, k, setKey, patchMonth }: {
           </div>
         </div>
 
-        {/* Where it goes */}
         <div className="vg-card vg-pad">
           <p className="vg-sec">Where it goes</p>
-          {cats.length ? (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <Donut data={cats} />
-              <div style={{ flex: 1, minWidth: 170 }}><Legend items={cats} /></div>
-            </div>
-          ) : <p className="vg-muted">Add expenses to see the breakdown.</p>}
+          {cats.length ? <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><Donut data={cats} /><div style={{ flex: 1, minWidth: 160 }}><Legend items={cats} /></div></div> : <p className="vg-muted">Add expenses to see the breakdown.</p>}
         </div>
 
-        {/* Split */}
         <div className="vg-card vg-pad">
-          <p className="vg-sec">The split this month</p>
-          <SplitBar b={t.bShare} g={t.gShare} />
-          <p style={{ marginTop: '1rem', fontSize: '0.92rem', color: '#241b40' }}>
-            <b>{settleTxt}.</b>{' '}
-            <span className="vg-muted">Only money moving through a personal account creates a debt; anything from the common account is already shared.</span>
-          </p>
+          <p className="vg-sec">Who bears what</p>
+          {bears.length ? <StackBar parts={bears} /> : <p className="vg-muted">No shares yet.</p>}
         </div>
 
-        {/* Note */}
+        <div className="vg-card vg-pad">
+          <p className="vg-sec">Settle up</p>
+          {t.transfers.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {t.transfers.map((tr, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: 12, background: 'rgba(255,255,255,0.55)' }}>
+                  <span><b style={{ color: entColor(entities, tr.from) }}>{entName(entities, tr.from)}</b> <span className="vg-muted">pays</span> <b style={{ color: entColor(entities, tr.to) }}>{entName(entities, tr.to)}</b></span>
+                  <b style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(tr.amount)}</b>
+                </div>
+              ))}
+            </div>
+          ) : <p className="vg-muted">{settleTxt}</p>}
+          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Only money a person paid from their own account creates a debt; anything paid from Common is already shared.</p>
+        </div>
+
         <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
           <p className="vg-sec">Note</p>
-          <textarea className="vg-input" rows={2} placeholder="Anything to remember about this month…"
-            value={m.note ?? ''} onChange={e => patchMonth(k, mm => ({ ...mm, note: e.target.value }))} />
+          <textarea className="vg-input" rows={2} placeholder="Anything to remember about this month…" value={m.note ?? ''} onChange={e => patchMonth(k, mm => ({ ...mm, note: e.target.value }))} />
         </div>
       </div>
     </>
@@ -407,38 +488,30 @@ function YearTab({ doc, year, setYear, openMonth }: {
   doc: FinanceDoc; year: number; setYear: (y: number) => void; openMonth: (k: string) => void
 }) {
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
-  const per = months.map(k => ({ k, t: totals(monthView(doc, k)) }))
+  const per = months.map(k => ({ k, t: totals(monthView(doc, k), doc.entities) }))
   const totInc = per.reduce((s, p) => s + p.t.income, 0)
   const totExp = per.reduce((s, p) => s + p.t.expense, 0)
   const active = per.filter(p => p.t.expense > 0).length || 1
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
   const catMap = new Map<string, number>()
   months.forEach(k => byCategory(monthView(doc, k)).forEach(c => catMap.set(c.name, (catMap.get(c.name) ?? 0) + c.value)))
   const cats = [...catMap.entries()].map(([name, value], i) => ({ name, value, color: CAT_COLORS[name] ?? PALETTE[i % PALETTE.length] })).sort((a, b) => b.value - a.value)
 
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-  // EMI payoff outlook (rough: monthly × months remaining from this month)
   const now = monthKey()
-  const emiRows = doc.template.emis
-    .filter(e => !e.endDate || e.endDate >= `${now}-01`)
-    .map(e => {
-      let remaining = 0
-      if (e.endDate) {
-        const [ey, em] = e.endDate.slice(0, 7).split('-').map(Number)
-        const [ny, nm] = now.split('-').map(Number)
-        remaining = Math.max(0, (ey - ny) * 12 + (em - nm) + 1)
-      }
-      return { name: e.name, monthly: e.amount, remaining, outstanding: e.endDate ? e.amount * remaining : null, end: e.endDate }
-    })
+  const emiRows = doc.template.emis.filter(e => !e.endDate || e.endDate >= `${now}-01`).map(e => {
+    let remaining = 0
+    if (e.endDate) { const [ey, em] = e.endDate.slice(0, 7).split('-').map(Number); const [ny, nm] = now.split('-').map(Number); remaining = Math.max(0, (ey - ny) * 12 + (em - nm) + 1) }
+    return { name: e.name, monthly: e.amount, remaining, outstanding: e.endDate ? e.amount * remaining : null, end: e.endDate }
+  })
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
         <div className="vg-nav">
-          <button className="vg-icobtn" onClick={() => setYear(year - 1)} aria-label="Previous year"><ChevronLeft className="h-4 w-4" /></button>
+          <button className="vg-icobtn" onClick={() => setYear(year - 1)}><ChevronLeft className="h-4 w-4" /></button>
           <span className="lbl">{year}</span>
-          <button className="vg-icobtn" onClick={() => setYear(year + 1)} aria-label="Next year"><ChevronRight className="h-4 w-4" /></button>
+          <button className="vg-icobtn" onClick={() => setYear(year + 1)}><ChevronRight className="h-4 w-4" /></button>
         </div>
       </div>
 
@@ -456,8 +529,7 @@ function YearTab({ doc, year, setYear, openMonth }: {
             {per.map((p, i) => {
               const max = Math.max(1, ...per.map(x => x.t.expense))
               return (
-                <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · ${INR(p.t.expense)}`}
-                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
+                <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · ${INR(p.t.expense)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
                   <span style={{ fontSize: 9, color: '#5b5080', fontVariantNumeric: 'tabular-nums' }}>{p.t.expense ? Math.round(p.t.expense / 1000) + 'k' : ''}</span>
                   <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 130 }}>
                     <span style={{ width: '100%', height: `${(p.t.expense / max) * 100}%`, minHeight: p.t.expense ? 3 : 0, background: p.k === now ? 'linear-gradient(180deg,#e0708f,#b0479a)' : 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '6px 6px 3px 3px' }} />
@@ -471,12 +543,7 @@ function YearTab({ doc, year, setYear, openMonth }: {
 
         <div className="vg-card vg-pad">
           <p className="vg-sec">Year by category</p>
-          {cats.length ? (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <Donut data={cats} />
-              <div style={{ flex: 1, minWidth: 170 }}><Legend items={cats} /></div>
-            </div>
-          ) : <p className="vg-muted">No expenses recorded this year yet.</p>}
+          {cats.length ? <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><Donut data={cats} /><div style={{ flex: 1, minWidth: 160 }}><Legend items={cats} /></div></div> : <p className="vg-muted">No expenses recorded this year yet.</p>}
         </div>
 
         <div className="vg-card vg-pad">
@@ -486,140 +553,196 @@ function YearTab({ doc, year, setYear, openMonth }: {
               <thead><tr><th>Loan</th><th className="num">Monthly</th><th className="num">Months left</th><th className="num">Left to pay</th></tr></thead>
               <tbody>
                 {emiRows.map(r => (
-                  <tr key={r.name}>
-                    <td className="vg-nm">{r.name}<span className="vg-muted" style={{ display: 'block', fontSize: '0.72rem' }}>{r.end ? `ends ${r.end}` : 'open-ended'}</span></td>
-                    <td className="num">{INR(r.monthly)}</td>
-                    <td className="num">{r.end ? r.remaining : '—'}</td>
-                    <td className="num">{r.outstanding != null ? INR(r.outstanding) : '—'}</td>
-                  </tr>
+                  <tr key={r.name}><td className="vg-nm">{r.name}<span className="vg-muted" style={{ display: 'block', fontSize: '0.72rem' }}>{r.end ? `ends ${r.end}` : 'open-ended'}</span></td><td className="num">{INR(r.monthly)}</td><td className="num">{r.end ? r.remaining : '—'}</td><td className="num">{r.outstanding != null ? INR(r.outstanding) : '—'}</td></tr>
                 ))}
                 {emiRows.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No active EMIs.</td></tr>}
               </tbody>
             </table>
           </div>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>“Left to pay” is monthly × months remaining — a simple runway, not an amortised balance.</p>
+          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>“Left to pay” is monthly × months remaining — a runway, not an amortised balance.</p>
         </div>
       </div>
     </>
   )
 }
 
-// ---------- Setup tab -------------------------------------------
-function SetupTab({ doc, patchTemplate }: {
-  doc: FinanceDoc; patchTemplate: (fn: (t: FinanceDoc['template']) => FinanceDoc['template']) => void
-}) {
-  const T = doc.template
+// ---------- Savings tab -----------------------------------------
+function SavingsTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
+  const entities = doc.entities
+  const savings = doc.savings
+  const total = savings.reduce((s, x) => s + (x.balance || 0), 0)
+  const byEnt = entities.map(e => ({ label: e.name, value: savings.filter(s => s.entity === e.id).reduce((a, b) => a + (b.balance || 0), 0), color: e.color })).filter(p => p.value > 0)
 
-  const upd = <K extends 'monthly' | 'emis' | 'annual'>(bucket: K, id: string, patch: Partial<Item>) =>
-    patchTemplate(t => ({ ...t, [bucket]: t[bucket].map(x => (x.id === id ? { ...x, ...patch } : x)) }))
-  const del = (bucket: 'monthly' | 'emis' | 'annual', id: string) =>
-    patchTemplate(t => ({ ...t, [bucket]: t[bucket].filter(x => x.id !== id) }))
-  const add = (bucket: 'monthly' | 'emis' | 'annual') =>
-    patchTemplate(t => {
-      const item: Item =
-        bucket === 'emis'
-          ? { id: uid('emi'), name: 'New EMI', owner: 'Bhawneet', account: "Bhawneet's Bank Account", amount: 0, shareB: 0.5, kind: 'emi', startDate: monthKey() + '-01', endDate: null }
-          : bucket === 'annual'
-            ? { id: uid('yr'), name: 'New yearly item', owner: 'Bhawneet', account: 'Common Bank Account', amount: 0, shareB: 0.5, kind: 'annual', dueDate: monthKey() + '-01' }
-            : { id: uid('mon'), name: 'New monthly item', owner: 'Bhawneet', account: 'Common Bank Account', amount: 0, shareB: 0.5, kind: 'monthly' }
-      return { ...t, [bucket]: [...t[bucket], item] }
-    })
-
-  const setInc = (id: string, patch: Partial<IncomeItem>) =>
-    patchTemplate(t => ({ ...t, income: t.income.map(i => (i.id === id ? { ...i, ...patch } : i)) }))
-  const delInc = (id: string) => patchTemplate(t => ({ ...t, income: t.income.filter(i => i.id !== id) }))
-  const addInc = () => patchTemplate(t => ({ ...t, income: [...t.income, { id: uid('inc'), source: 'Income', person: 'Bhawneet', amount: 0 }] }))
+  const upd = (id: string, patch: Partial<SavingItem>) => patchDoc(d => ({ ...d, savings: d.savings.map(s => s.id === id ? { ...s, ...patch } : s) }))
+  const del = (id: string) => patchDoc(d => ({ ...d, savings: d.savings.filter(s => s.id !== id) }))
+  const add = () => patchDoc(d => ({ ...d, savings: [...d.savings, { id: uid('sav'), label: 'New savings', entity: firstPerson(entities), balance: 0, kind: 'FD' }] }))
 
   return (
     <>
-      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: '#241b40' }}><RefreshCw className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)' }} /> These are your <b>recurring</b> items. Changes here flow into <b>future</b> months — months you’ve already opened keep what they had, so your history stays put.</p>
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <div className="vg-kpi"><div className="k">Total savings</div><div className="v vg-pos">{INR(total)}</div></div>
+        <div className="vg-kpi"><div className="k">Pots</div><div className="v">{savings.length}</div></div>
       </div>
 
-      <div className="vg-grid2">
-        <TemplateCard title="Monthly recurring" onAdd={() => add('monthly')} minW={520}
-          head={<><th>Item</th><th>Pays from</th><th className="num">Amount</th><th style={{ width: 90 }}>B %</th><th style={{ width: 40 }}></th></>}>
-          {T.monthly.map(it => (
-            <tr key={it.id}>
-              <td><input className="vg-input" value={it.name} onChange={e => upd('monthly', it.id, { name: e.target.value })} /></td>
-              <td><AccSelect v={it.account} on={a => upd('monthly', it.id, { account: a })} /></td>
-              <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(it.amount)} onChange={e => upd('monthly', it.id, { amount: num(e.target.value) })} /></td>
-              <td><input className="vg-input vg-num" inputMode="numeric" value={Math.round(clamp01(it.shareB) * 100)} onChange={e => upd('monthly', it.id, { shareB: clamp01(num(e.target.value) / 100) })} /></td>
-              <td><button className="vg-icobtn" onClick={() => del('monthly', it.id)}><Trash2 className="h-4 w-4" /></button></td>
-            </tr>
-          ))}
-        </TemplateCard>
+      {byEnt.length > 0 && <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}><p className="vg-sec">By person</p><StackBar parts={byEnt} /></div>}
 
-        <TemplateCard title="EMIs & loans" onAdd={() => add('emis')} minW={640}
-          head={<><th>Loan</th><th>Pays from</th><th className="num">Monthly</th><th style={{ width: 130 }}>Start</th><th style={{ width: 130 }}>End</th><th style={{ width: 40 }}></th></>}>
-          {T.emis.map(it => (
-            <tr key={it.id}>
-              <td><input className="vg-input" value={it.name} onChange={e => upd('emis', it.id, { name: e.target.value })} /></td>
-              <td><AccSelect v={it.account} on={a => upd('emis', it.id, { account: a })} /></td>
-              <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(it.amount)} onChange={e => upd('emis', it.id, { amount: num(e.target.value) })} /></td>
-              <td><input className="vg-input" type="date" value={it.startDate ?? ''} onChange={e => upd('emis', it.id, { startDate: e.target.value || null })} /></td>
-              <td><input className="vg-input" type="date" value={it.endDate ?? ''} onChange={e => upd('emis', it.id, { endDate: e.target.value || null })} /></td>
-              <td><button className="vg-icobtn" onClick={() => del('emis', it.id)}><Trash2 className="h-4 w-4" /></button></td>
-            </tr>
-          ))}
-        </TemplateCard>
-
-        <TemplateCard title="Yearly items" onAdd={() => add('annual')} minW={560}
-          head={<><th>Item</th><th>Pays from</th><th className="num">Amount / yr</th><th style={{ width: 140 }}>Due</th><th style={{ width: 40 }}></th></>}>
-          {T.annual.map(it => (
-            <tr key={it.id}>
-              <td><input className="vg-input" value={it.name} onChange={e => upd('annual', it.id, { name: e.target.value })} /></td>
-              <td><AccSelect v={it.account} on={a => upd('annual', it.id, { account: a })} /></td>
-              <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(it.amount)} onChange={e => upd('annual', it.id, { amount: num(e.target.value) })} /></td>
-              <td><input className="vg-input" type="date" value={it.dueDate ?? ''} onChange={e => upd('annual', it.id, { dueDate: e.target.value || null })} /></td>
-              <td><button className="vg-icobtn" onClick={() => del('annual', it.id)}><Trash2 className="h-4 w-4" /></button></td>
-            </tr>
-          ))}
-        </TemplateCard>
-
-        <TemplateCard title="Recurring income" onAdd={addInc} minW={360}
-          head={<><th>Source</th><th>Who</th><th className="num">Amount</th><th style={{ width: 40 }}></th></>}>
-          {T.income.map(i => (
-            <tr key={i.id}>
-              <td><input className="vg-input" value={i.source} onChange={e => setInc(i.id, { source: e.target.value })} /></td>
-              <td>
-                <select className="vg-select" value={i.person} onChange={e => setInc(i.id, { person: e.target.value as IncomeItem['person'] })}>
-                  <option value="Common">Common</option><option value="Bhawneet">Bhawneet</option><option value="Gurneet">Gurneet</option>
-                </select>
-              </td>
-              <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(i.amount)} onChange={e => setInc(i.id, { amount: num(e.target.value) })} /></td>
-              <td><button className="vg-icobtn" onClick={() => delInc(i.id)}><Trash2 className="h-4 w-4" /></button></td>
-            </tr>
-          ))}
-        </TemplateCard>
+      <div className="vg-card vg-pad">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>Savings & investments</p>
+          <button className="vg-btn vg-btn-primary" onClick={add}><Plus className="h-4 w-4" /> Add</button>
+        </div>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 620 }}>
+            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th>Whose</th><th className="num">Balance</th><th>Note</th><th style={{ width: 40 }}></th></tr></thead>
+            <tbody>
+              {savings.map(s => (
+                <tr key={s.id}>
+                  <td><input className="vg-input" value={s.label} onChange={e => upd(s.id, { label: e.target.value })} /></td>
+                  <td><input className="vg-input" value={s.kind ?? ''} placeholder="FD / MF / RD…" onChange={e => upd(s.id, { kind: e.target.value })} /></td>
+                  <td><select className="vg-select" value={s.entity} onChange={e => upd(s.id, { entity: e.target.value })}>{entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}</select></td>
+                  <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(s.balance)} onChange={e => upd(s.id, { balance: num(e.target.value) })} /></td>
+                  <td><input className="vg-input" value={s.note ?? ''} onChange={e => upd(s.id, { note: e.target.value })} /></td>
+                  <td><button className="vg-icobtn" onClick={() => del(s.id)}><Trash2 className="h-4 w-4" /></button></td>
+                </tr>
+              ))}
+              {savings.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   )
 }
 
-function TemplateCard({ title, onAdd, head, children, minW }: {
-  title: string; onAdd: () => void; head: React.ReactNode; children: React.ReactNode; minW: number
-}) {
+// ---------- Entities tab ----------------------------------------
+function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
+  const upd = (id: string, patch: Partial<Entity>) => patchDoc(d => ({ ...d, entities: d.entities.map(e => e.id === id ? { ...e, ...patch } : e) }))
+  const del = (id: string) => patchDoc(d => ({ ...d, entities: d.entities.filter(e => e.id !== id) }))
+  const add = () => patchDoc(d => ({ ...d, entities: [...d.entities, { id: uid('ent'), name: 'New member', kind: 'person', canPay: false, earning: false, isLiability: true, color: ENTITY_COLORS[d.entities.length % ENTITY_COLORS.length] }] }))
+
   return (
+    <>
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <p style={{ margin: 0, color: '#241b40' }}><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> These are the people (and the shared <b>Common</b> pool) you split and tag money against. Onboard a family member here — mark whether they <b>earn</b>, are a <b>dependant</b>, and whether they can <b>pay</b> (have an account money comes from).</p>
+      </div>
+
+      <div className="vg-card vg-pad">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>Entities</p>
+          <button className="vg-btn vg-btn-primary" onClick={add}><Plus className="h-4 w-4" /> Add member</button>
+        </div>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 720 }}>
+            <thead><tr><th style={{ width: 34 }}></th><th>Name</th><th style={{ width: 110 }}>Type</th><th style={{ width: 70 }}>Can pay</th><th style={{ width: 70 }}>Earns</th><th style={{ width: 90 }}>Dependant</th><th style={{ width: 40 }}></th></tr></thead>
+            <tbody>
+              {doc.entities.map(e => (
+                <tr key={e.id}>
+                  <td><input type="color" value={e.color} onChange={ev => upd(e.id, { color: ev.target.value })} style={{ width: 26, height: 26, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} /></td>
+                  <td><input className="vg-input" value={e.name} onChange={ev => upd(e.id, { name: ev.target.value })} /></td>
+                  <td><select className="vg-select" value={e.kind} onChange={ev => upd(e.id, { kind: ev.target.value as EntityKind })}><option value="person">Person</option><option value="common">Common pool</option></select></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.canPay} onChange={ev => upd(e.id, { canPay: ev.target.checked })} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.earning} onChange={ev => upd(e.id, { earning: ev.target.checked })} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.isLiability} onChange={ev => upd(e.id, { isLiability: ev.target.checked })} /></td>
+                  <td>{doc.entities.length > 1 && <button className="vg-icobtn" onClick={() => del(e.id)} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Removing a member leaves any past expense tagged to them intact. “Common” is the shared pool — money paid from it is never counted as a debt between people.</p>
+      </div>
+    </>
+  )
+}
+
+// need EntityKind type at runtime-less usage
+type EntityKind = Entity['kind']
+
+// ---------- Setup tab -------------------------------------------
+type Sec = 'monthly' | 'emis' | 'annual'
+function SetupTab({ doc, patchDoc, openEditor }: {
+  doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void; openEditor: (e: Editing) => void
+}) {
+  const entities = doc.entities
+  const addT = (sec: Sec, it: Item) => patchDoc(d => ({ ...d, template: { ...d.template, [sec]: [...d.template[sec], it] } }))
+  const updT = (sec: Sec, it: Item) => patchDoc(d => ({ ...d, template: { ...d.template, [sec]: d.template[sec].map(x => x.id === it.id ? it : x) } }))
+  const delT = (sec: Sec, id: string) => patchDoc(d => ({ ...d, template: { ...d.template, [sec]: d.template[sec].filter(x => x.id !== id) } }))
+
+  const templateNew = (sec: Sec): Item => {
+    const persons = entities.filter(e => e.kind === 'person')
+    const equal: Alloc = { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / (persons.length || 1)])) }
+    const common = entities.find(e => e.kind === 'common')?.id ?? 'common'
+    if (sec === 'emis') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null }
+    if (sec === 'annual') return { id: uid('yr'), name: '', amount: 0, kind: 'annual', paidBy: common, alloc: equal, dueDate: monthKey() + '-01' }
+    return { id: uid('mon'), name: '', amount: 0, kind: 'monthly', paidBy: common, alloc: equal }
+  }
+
+  const setInc = (id: string, patch: Partial<IncomeItem>) => patchDoc(d => ({ ...d, template: { ...d.template, income: d.template.income.map(i => i.id === id ? { ...i, ...patch } : i) } }))
+  const delInc = (id: string) => patchDoc(d => ({ ...d, template: { ...d.template, income: d.template.income.filter(i => i.id !== id) } }))
+  const addInc = () => patchDoc(d => ({ ...d, template: { ...d.template, income: [...d.template.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0 }] } }))
+
+  const Section = ({ title, sec }: { title: string; sec: Sec }) => (
     <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
         <p className="vg-sec" style={{ margin: 0 }}>{title}</p>
-        <button className="vg-btn vg-btn-primary" onClick={onAdd}><Plus className="h-4 w-4" /> Add</button>
+        <button className="vg-btn vg-btn-primary" onClick={() => openEditor({ item: templateNew(sec), commit: it => addT(sec, it) })}><Plus className="h-4 w-4" /> Add</button>
       </div>
       <div className="vg-tablewrap">
-        <table className="vg-table" style={{ minWidth: minW }}>
-          <thead><tr>{head}</tr></thead>
-          <tbody>{children}</tbody>
+        <table className="vg-table" style={{ minWidth: 560 }}>
+          <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">{sec === 'annual' ? 'Amount/yr' : 'Amount'}</th>{sec !== 'monthly' && <th style={{ width: 120 }}>{sec === 'emis' ? 'Ends' : 'Due'}</th>}<th style={{ width: 76 }}></th></tr></thead>
+          <tbody>
+            {doc.template[sec].map(it => (
+              <tr key={it.id}>
+                <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</td>
+                <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
+                <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, entities)}</td>
+                <td className="num">{INR(it.amount)}</td>
+                {sec !== 'monthly' && <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{sec === 'emis' ? (it.endDate ?? 'open') : (it.dueDate ?? '—')}</td>}
+                <td><div style={{ display: 'flex', gap: 4 }}>
+                  <button className="vg-icobtn" onClick={() => openEditor({ item: it, commit: x => updT(sec, x), remove: () => delT(sec, it.id) })}><Pencil className="h-4 w-4" /></button>
+                  <button className="vg-icobtn" onClick={() => delT(sec, it.id)}><Trash2 className="h-4 w-4" /></button>
+                </div></td>
+              </tr>
+            ))}
+            {doc.template[sec].length === 0 && <tr><td colSpan={sec === 'monthly' ? 5 : 6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
+          </tbody>
         </table>
       </div>
     </div>
   )
-}
 
-function AccSelect({ v, on }: { v: Account; on: (a: Account) => void }) {
   return (
-    <select className="vg-select" value={v} onChange={e => on(e.target.value as Account)}>
-      {ACCOUNTS.map(a => <option key={a} value={a}>{a.replace(' Bank Account', '')}</option>)}
-    </select>
+    <>
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <p style={{ margin: 0, color: '#241b40' }}><SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your <b>recurring</b> items. Changes flow into <b>future</b> months; months you’ve already opened keep what they had.</p>
+      </div>
+      <div className="vg-grid2">
+        <Section title="Monthly recurring" sec="monthly" />
+        <Section title="EMIs & loans" sec="emis" />
+        <Section title="Yearly items" sec="annual" />
+        <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+            <p className="vg-sec" style={{ margin: 0 }}>Recurring income</p>
+            <button className="vg-btn vg-btn-primary" onClick={addInc}><Plus className="h-4 w-4" /> Add</button>
+          </div>
+          <div className="vg-tablewrap">
+            <table className="vg-table" style={{ minWidth: 360 }}>
+              <thead><tr><th>Source</th><th>Who</th><th className="num">Amount</th><th style={{ width: 40 }}></th></tr></thead>
+              <tbody>
+                {doc.template.income.map(i => (
+                  <tr key={i.id}>
+                    <td><input className="vg-input" value={i.source} onChange={e => setInc(i.id, { source: e.target.value })} /></td>
+                    <td><select className="vg-select" value={i.entity} onChange={e => setInc(i.id, { entity: e.target.value })}>{entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}</select></td>
+                    <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(i.amount)} onChange={e => setInc(i.id, { amount: num(e.target.value) })} /></td>
+                    <td><button className="vg-icobtn" onClick={() => delInc(i.id)}><Trash2 className="h-4 w-4" /></button></td>
+                  </tr>
+                ))}
+                {doc.template.income.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No recurring income.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
