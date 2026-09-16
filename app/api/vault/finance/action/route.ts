@@ -161,6 +161,36 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, added, skipped, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
+      case 'proposeMonthEdit': {
+        const bt = body as unknown as { item?: Item; monthKey?: string; op?: 'update' | 'delete' }
+        const item = bt.item, monthKey2 = bt.monthKey, op = bt.op
+        if (!item || !monthKey2 || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
+        const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
+        if (isSuper || personal) {
+          const m = doc.months[monthKey2] ?? materialise(doc.template, monthKey2)
+          m.items = op === 'delete' ? m.items.filter(x => x.id !== item.id) : m.items.map(x => (x.id === item.id ? item : x))
+          doc.months[monthKey2] = m
+          await writeDoc(doc)
+          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        }
+        if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
+        const ap = approversFor(item, actor, doc.entities)
+        if (ap.approvers.length === 0) {
+          const m = doc.months[monthKey2] ?? materialise(doc.template, monthKey2)
+          m.items = op === 'delete' ? m.items.filter(x => x.id !== item.id) : m.items.map(x => (x.id === item.id ? item : x))
+          doc.months[monthKey2] = m
+          await writeDoc(doc)
+          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        }
+        const pr2: Proposal = {
+          id: uid('prop'), item, monthKey: monthKey2, proposedBy: actor, proposedByName: entName(doc, actor),
+          approvers: ap.approvers, approved: [], mode: ap.mode, status: 'pending', createdAt: new Date().toISOString(), monthEdit: { op },
+        }
+        doc.proposals = [...(doc.proposals ?? []), pr2]
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
       case 'proposeTemplate': {
         const bt = body as unknown as { item?: Item; section?: 'monthly' | 'emis' | 'annual'; op?: 'add' | 'update' | 'delete' }
         const item = bt.item, section = bt.section, op = bt.op

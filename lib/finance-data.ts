@@ -437,6 +437,7 @@ export interface Proposal {
   createdAt: string
   note?: string
   template?: { section: 'monthly' | 'emis' | 'annual'; op: 'add' | 'update' | 'delete' }
+  monthEdit?: { op: 'update' | 'delete' }
 }
 
 /** Everyone touched by an expense: the payer plus anyone who bears a share. */
@@ -500,7 +501,12 @@ export function applyTemplateOp(doc: FinanceDoc, section: 'monthly' | 'emis' | '
 export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
   if (pr.template) { applyTemplateOp(doc, pr.template.section, pr.template.op, pr.item); return }
   const m = doc.months[pr.monthKey] ?? materialise(doc.template, pr.monthKey)
-  m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
+  if (pr.monthEdit) {
+    if (pr.monthEdit.op === 'delete') m.items = m.items.filter(x => x.id !== pr.item.id)
+    else m.items = m.items.map(x => (x.id === pr.item.id ? pr.item : x))
+  } else {
+    m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
+  }
   doc.months[pr.monthKey] = m
 }
 

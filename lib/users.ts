@@ -29,11 +29,12 @@ export interface User {
   salt: string
   hash: string
   mustReset?: boolean
+  email?: string
 }
 
 // Public shape (no secrets) for admin listings.
-export interface UserPublic { username: string; name: string; role: Role; entityId: string | null; mustReset?: boolean }
-export const publicUser = (u: User): UserPublic => ({ username: u.username, name: u.name, role: u.role, entityId: u.entityId, mustReset: u.mustReset })
+export interface UserPublic { username: string; name: string; role: Role; entityId: string | null; mustReset?: boolean; email?: string }
+export const publicUser = (u: User): UserPublic => ({ username: u.username, name: u.name, role: u.role, entityId: u.entityId, mustReset: u.mustReset, email: u.email })
 
 function rand(bytes = 16): string {
   const a = new Uint8Array(bytes)
@@ -65,10 +66,10 @@ export async function writeUsers(users: User[]): Promise<void> {
 
 // The people the household starts with (matches the seeded entities).
 const SEED = [
-  { id: 'blamba', name: 'Garry', role: 'super' as Role, entityId: null },
-  { id: 'bhawneet', name: 'Bhawneet', role: 'member' as Role, entityId: 'bhawneet' },
-  { id: 'gurneet', name: 'Gurneet', role: 'member' as Role, entityId: 'gurneet' },
-  { id: 'papa', name: 'Papa', role: 'member' as Role, entityId: 'papa' },
+  { id: 'blamba', name: 'Garry', role: 'super' as Role, entityId: null, email: 'bhawneetlamba@outlook.com' },
+  { id: 'bhawneet', name: 'Bhawneet', role: 'member' as Role, entityId: 'bhawneet', email: 'bhawneetlamba@outlook.com' },
+  { id: 'gurneet', name: 'Gurneet', role: 'member' as Role, entityId: 'gurneet', email: '' },
+  { id: 'papa', name: 'Papa', role: 'member' as Role, entityId: 'papa', email: '' },
 ]
 
 export async function ensureSeed(): Promise<User[]> {
@@ -77,14 +78,23 @@ export async function ensureSeed(): Promise<User[]> {
   const users: User[] = []
   for (const s of SEED) {
     const { salt, hash } = await hashPassword(DEFAULT_PASSWORD)
-    users.push({ id: s.id, username: s.id, name: s.name, role: s.role, entityId: s.entityId, salt, hash, mustReset: true })
+    users.push({ id: s.id, username: s.id, name: s.name, role: s.role, entityId: s.entityId, salt, hash, mustReset: true, email: s.email || undefined })
   }
   await writeUsers(users)
   return users
 }
 
 export async function getUsers(): Promise<User[]> {
-  return (await readUsers()) ?? (await ensureSeed())
+  const users = (await readUsers()) ?? (await ensureSeed())
+  // Backfill any known default emails onto existing accounts (one-time).
+  let changed = false
+  for (const seed of SEED) {
+    if (!seed.email) continue
+    const u = users.find(x => x.username === seed.id)
+    if (u && !u.email) { u.email = seed.email; changed = true }
+  }
+  if (changed) await writeUsers(users)
+  return users
 }
 
 export async function verifyLogin(username: string, password: string): Promise<User | null> {
@@ -96,12 +106,12 @@ export async function verifyLogin(username: string, password: string): Promise<U
 }
 
 /** Super-only: create or reset a member login. Returns the public record. */
-export async function upsertUser(input: { username: string; name: string; role: Role; entityId: string | null; password?: string }): Promise<UserPublic> {
+export async function upsertUser(input: { username: string; name: string; role: Role; entityId: string | null; password?: string; email?: string }): Promise<UserPublic> {
   const users = await getUsers()
   const uname = input.username.trim().toLowerCase()
   const { salt, hash } = await hashPassword(input.password || DEFAULT_PASSWORD)
   const idx = users.findIndex(u => u.username.toLowerCase() === uname)
-  const rec: User = { id: uname, username: uname, name: input.name, role: input.role, entityId: input.entityId, salt, hash, mustReset: true }
+  const rec: User = { id: uname, username: uname, name: input.name, role: input.role, entityId: input.entityId, salt, hash, mustReset: true, email: input.email || undefined }
   if (idx >= 0) users[idx] = { ...users[idx], ...rec }
   else users.push(rec)
   await writeUsers(users)
@@ -116,6 +126,20 @@ export async function setPassword(username: string, password: string): Promise<b
   u.salt = salt; u.hash = hash; u.mustReset = false
   await writeUsers(users)
   return true
+}
+
+export async function setEmail(username: string, email: string): Promise<boolean> {
+  const users = await getUsers()
+  const u = users.find(x => x.username.toLowerCase() === username.trim().toLowerCase())
+  if (!u) return false
+  u.email = email.trim()
+  await writeUsers(users)
+  return true
+}
+
+export async function findUser(username: string): Promise<User | null> {
+  const users = await getUsers()
+  return users.find(x => x.username.toLowerCase() === (username || '').trim().toLowerCase()) ?? null
 }
 
 export async function removeUser(username: string): Promise<void> {
