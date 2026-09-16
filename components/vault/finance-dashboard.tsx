@@ -26,6 +26,7 @@ import {
   commitProposalItem, emptyBudget, categoryOf, detectCategory,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
+import VaultLogout from '@/components/vault/logout-button'
 
 const CAT_COLORS: Record<string, string> = {
   'Loans & EMIs': '#6d4bd8', 'Home & Utilities': '#4b7bec', 'Food & Groceries': '#1f9d6b',
@@ -357,9 +358,12 @@ function Shell({ children, saveState }: { children: React.ReactNode; saveState?:
             <Link href="/vault" className="vg-back"><ArrowLeft className="h-4 w-4" /> Vault</Link>
             <h1 className="vg-h1">Finance</h1>
           </div>
-          <div style={{ minWidth: 90, textAlign: 'right' }}>
-            {saveState === 'saving' && <span className="vg-muted" style={{ fontSize: '0.8rem' }}><Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline' }} /> Saving…</span>}
-            {saveState === 'saved' && <span className="vg-pos" style={{ fontSize: '0.8rem' }}><Check className="h-3.5 w-3.5" style={{ display: 'inline' }} /> Saved</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ minWidth: 62, textAlign: 'right' }}>
+              {saveState === 'saving' && <span className="vg-muted" style={{ fontSize: '0.8rem' }}><Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline' }} /> Saving…</span>}
+              {saveState === 'saved' && <span className="vg-pos" style={{ fontSize: '0.8rem' }}><Check className="h-3.5 w-3.5" style={{ display: 'inline' }} /> Saved</span>}
+            </span>
+            <VaultLogout />
           </div>
         </div>
         {children}
@@ -678,15 +682,47 @@ function SavingsTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fin
 }
 
 // ---------- Entities tab ----------------------------------------
+interface PUser { username: string; name: string; role: 'super' | 'member'; entityId: string | null }
+
 function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
   const upd = (id: string, patch: Partial<Entity>) => patchDoc(d => ({ ...d, entities: d.entities.map(e => e.id === id ? { ...e, ...patch } : e) }))
   const del = (id: string) => patchDoc(d => ({ ...d, entities: d.entities.filter(e => e.id !== id) }))
   const add = () => patchDoc(d => ({ ...d, entities: [...d.entities, { id: uid('ent'), name: 'New member', kind: 'person', canPay: false, earning: false, isLiability: true, color: ENTITY_COLORS[d.entities.length % ENTITY_COLORS.length] }] }))
 
+  const [users, setUsers] = useState<PUser[]>([])
+  const [flash, setFlash] = useState<{ username: string; password: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const loadUsers = () => fetch('/api/vault/users').then(r => (r.ok ? r.json() : { users: [] })).then(d => setUsers(d.users ?? [])).catch(() => {})
+  useEffect(() => { loadUsers() }, [])
+  const loginFor = (eid: string) => users.find(u => u.entityId === eid)
+  const slug = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'user'
+
+  async function createLogin(e: Entity) {
+    setBusy(true)
+    const username = slug(e.name)
+    try {
+      const r = await fetch('/api/vault/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'create', username, name: e.name, role: 'member', entityId: e.id }) })
+      const d = await r.json().catch(() => ({}))
+      if (d.ok) { setFlash({ username, password: d.password }); await loadUsers() }
+    } catch { /* ignore */ }
+    setBusy(false)
+  }
+  async function resetLogin(username: string) {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/vault/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'reset', username }) })
+      const d = await r.json().catch(() => ({}))
+      if (d.ok) setFlash({ username, password: d.password })
+    } catch { /* ignore */ }
+    setBusy(false)
+  }
+
+  const persons = doc.entities.filter(e => e.kind === 'person')
+
   return (
     <>
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: '#241b40' }}><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> These are the people (and the shared <b>Common</b> pool) you split and tag money against. Onboard a family member here — mark whether they <b>earn</b>, are a <b>dependant</b>, and whether they can <b>pay</b> (have an account money comes from).</p>
+        <p style={{ margin: 0, color: '#241b40' }}><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> These are the people (and the shared <b>Common</b> pool) you split and tag money against. Onboard a family member here — mark whether they <b>earn</b>, are a <b>dependant</b>, and whether they can <b>pay</b> (have an account money comes from). Then give them a login below.</p>
       </div>
 
       <div className="vg-card vg-pad">
@@ -712,7 +748,41 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Removing a member leaves any past expense tagged to them intact. “Common” is the shared pool — money paid from it is never counted as a debt between people.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Removing a member leaves any past expense tagged to them intact. &ldquo;Common&rdquo; is the shared pool — money paid from it is never counted as a debt between people.</p>
+      </div>
+
+      <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
+        <p className="vg-sec"><ShieldCheck className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Profiles &amp; logins</p>
+        {flash && (
+          <p className="vg-pos" style={{ marginTop: 0 }}>
+            <Check className="h-4 w-4" style={{ display: 'inline' }} /> Login <b>{flash.username}</b> · password <b>{flash.password}</b> — share it with them; they can change it after signing in.
+          </p>
+        )}
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 440 }}>
+            <thead><tr><th>Member</th><th>Username</th><th style={{ width: 190 }}></th></tr></thead>
+            <tbody>
+              {persons.map(e => {
+                const lg = loginFor(e.id)
+                return (
+                  <tr key={e.id}>
+                    <td><span className="vg-dot" style={{ background: e.color, marginRight: 6 }} />{e.name}</td>
+                    <td>{lg ? <b>{lg.username}</b> : <span className="vg-muted">no login yet</span>}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        {lg
+                          ? <button className="vg-btn" disabled={busy} onClick={() => resetLogin(lg.username)}>Reset password</button>
+                          : <button className="vg-btn vg-btn-primary" disabled={busy} onClick={() => createLogin(e)}><Plus className="h-4 w-4" /> Create login</button>}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {persons.length === 0 && <tr><td colSpan={3} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Add a person above, then create their login here.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>New logins get the default password <b>Qwerty@123</b>. Only you (super) can create or reset logins.</p>
       </div>
     </>
   )
