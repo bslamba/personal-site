@@ -762,6 +762,17 @@ function YearTab({ doc, year, setYear, openMonth }: {
   const now = monthKey()
   const emiRows = doc.template.emis.filter(e => !e.endDate || e.endDate >= `${now}-01`).map(e => ({ ...emiProgress(e), name: e.name, monthly: e.amount, end: e.endDate }))
 
+  // Extra analysis
+  const netYear = totInc - totExp
+  const savingsRate = totInc > 0 ? Math.round((netYear / totInc) * 100) : 0
+  const perEntYear = doc.entities.map((e, i) => ({ label: e.name, value: per.reduce((s, p) => s + (p.t.byEntity[e.id] ?? 0), 0), color: e.color || catColor(e.name, doc.categories, i) })).filter(p => p.value > 0).sort((a, b) => b.value - a.value)
+  const withExp = per.filter(p => p.t.expense > 0)
+  const hi = withExp.length ? withExp.reduce((a, b) => (b.t.expense > a.t.expense ? b : a)) : null
+  const lo = withExp.length ? withExp.reduce((a, b) => (b.t.expense < a.t.expense ? b : a)) : null
+  const totEmi = emiRows.reduce((s, r) => s + r.monthly, 0)
+  const maxBar = Math.max(1, ...per.map(x => Math.max(x.t.expense, x.t.income)))
+  const idxOf = (k: string) => months.indexOf(k)
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
@@ -775,23 +786,30 @@ function YearTab({ doc, year, setYear, openMonth }: {
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
         <Kpi label="Income (year)" value={INR(totInc)} cls="vg-pos" info="Total income across all 12 months of this year." />
         <Kpi label="Expenses (year)" value={INR(totExp)} info="Total spent across the whole year." />
-        <Kpi label={totInc - totExp >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(totInc - totExp))} cls={totInc - totExp >= 0 ? 'vg-pos' : 'vg-neg'} info="Year income minus year expenses." />
-        <Kpi label="Avg / active month" value={INR(totExp / active)} info="Average monthly spend, counting only the months that actually had expenses." />
+        <Kpi label={netYear >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(netYear))} cls={netYear >= 0 ? 'vg-pos' : 'vg-neg'} info="Year income minus year expenses." />
+        <Kpi label="Savings rate" value={`${savingsRate}%`} cls={savingsRate >= 0 ? 'vg-pos' : 'vg-neg'} info="Share of income kept after expenses — (income − expenses) ÷ income." />
       </div>
 
       <div className="vg-grid2">
         <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
-          <p className="vg-sec">Expenses by month — tap a bar to open it</p>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 190, paddingTop: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+            <p className="vg-sec" style={{ margin: 0 }}>Income vs spend by month — tap a bar to open it</p>
+            <span style={{ fontSize: '0.75rem', color: '#8b81ad', display: 'inline-flex', gap: 14 }}>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(180deg,#4bd88f,#1f9d6b)', verticalAlign: '-1px', marginRight: 4 }} />Income</span>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(180deg,#a06be0,#6d4bd8)', verticalAlign: '-1px', marginRight: 4 }} />Spend</span>
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 200, paddingTop: 8, marginTop: 6 }}>
             {per.map((p, i) => {
-              const max = Math.max(1, ...per.map(x => x.t.expense))
+              const surplus = p.t.income - p.t.expense
               return (
-                <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · ${INR(p.t.expense)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
-                  <span style={{ fontSize: 9, color: '#5b5080', fontVariantNumeric: 'tabular-nums' }}>{p.t.expense ? Math.round(p.t.expense / 1000) + 'k' : ''}</span>
-                  <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 130 }}>
-                    <span style={{ width: '100%', height: `${(p.t.expense / max) * 100}%`, minHeight: p.t.expense ? 3 : 0, background: p.k === now ? 'linear-gradient(180deg,#e0708f,#b0479a)' : 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '6px 6px 3px 3px' }} />
+                <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · in ${INR(p.t.income)} · out ${INR(p.t.expense)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
+                  <span style={{ fontSize: 9, color: surplus >= 0 ? '#1f9d6b' : '#c0398b', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{p.t.expense || p.t.income ? (surplus >= 0 ? '+' : '−') + Math.abs(Math.round(surplus / 1000)) + 'k' : ''}</span>
+                  <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2, height: 140 }}>
+                    <span style={{ width: '42%', height: `${(p.t.income / maxBar) * 100}%`, minHeight: p.t.income ? 3 : 0, background: 'linear-gradient(180deg,#4bd88f,#1f9d6b)', borderRadius: '4px 4px 2px 2px' }} />
+                    <span style={{ width: '42%', height: `${(p.t.expense / maxBar) * 100}%`, minHeight: p.t.expense ? 3 : 0, background: p.k === now ? 'linear-gradient(180deg,#e0708f,#b0479a)' : 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '4px 4px 2px 2px' }} />
                   </span>
-                  <span style={{ fontSize: 10, color: '#8b81ad' }}>{MON[i]}</span>
+                  <span style={{ fontSize: 10, color: p.k === now ? 'var(--vg-accent)' : '#8b81ad', fontWeight: p.k === now ? 700 : 400 }}>{MON[i]}</span>
                 </button>
               )
             })}
@@ -801,6 +819,34 @@ function YearTab({ doc, year, setYear, openMonth }: {
         <div className="vg-card vg-pad">
           <p className="vg-sec">Year by category</p>
           {cats.length ? <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><Donut data={cats} /><div style={{ flex: 1, minWidth: 160 }}><Legend items={cats} /></div></div> : <p className="vg-muted">No expenses recorded this year yet.</p>}
+        </div>
+
+        <div className="vg-card vg-pad">
+          <p className="vg-sec">Who bore the year</p>
+          {perEntYear.length ? (
+            <>
+              <StackBar parts={perEntYear} />
+              <div style={{ marginTop: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {perEntYear.map(p => (
+                  <div key={p.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                    <span><span className="vg-dot" style={{ background: p.color, marginRight: 6 }} />{p.label}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}><b>{INR(p.value)}</b> <span className="vg-muted">· {Math.round((p.value / (totExp || 1)) * 100)}%</span></span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : <p className="vg-muted">No expenses to attribute yet.</p>}
+        </div>
+
+        <div className="vg-card vg-pad">
+          <p className="vg-sec">Highlights</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Busiest month</span><span>{hi ? <button className="vg-linklike" onClick={() => openMonth(hi.k)} style={{ border: 0, background: 'none', color: 'var(--vg-accent)', cursor: 'pointer', fontWeight: 700 }}>{MON[idxOf(hi.k)]} · {INR(hi.t.expense)}</button> : '—'}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Lightest active month</span><span>{lo ? <b>{MON[idxOf(lo.k)]} · {INR(lo.t.expense)}</b> : '—'}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Avg / active month</span><b>{INR(totExp / active)}</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">EMIs / month (active)</span><b>{INR(totEmi)}</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Top category</span><span>{cats[0] ? <b>{cats[0].name} · {INR(cats[0].value)}</b> : '—'}</span></div>
+          </div>
         </div>
 
         <div className="vg-card vg-pad">
@@ -1081,7 +1127,13 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, current
       </div>
       <div className="vg-tablewrap">
         <table className="vg-table" style={{ minWidth: 560 }}>
-          <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">{sec === 'annual' ? 'Amount/yr' : 'Amount'}</th>{sec !== 'monthly' && <th style={{ width: 120 }}>{sec === 'emis' ? 'Ends' : 'Due'}</th>}<th style={{ width: 76 }}></th></tr></thead>
+          <thead><tr>
+            <th>Item</th><th>Paid by</th><th>Shared</th>
+            <th className="num">{sec === 'annual' ? 'Amount/yr' : 'Amount'}</th>
+            {sec === 'emis' && <><th style={{ width: 100 }}>Starts</th><th style={{ width: 100 }}>Ends</th></>}
+            {sec === 'annual' && <th style={{ width: 140 }}>Appears in month</th>}
+            <th style={{ width: 76 }}></th>
+          </tr></thead>
           <tbody>
             {draft[sec].map(it => (
               <tr key={it.id}>
@@ -1089,14 +1141,18 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, current
                 <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
                 <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, entities)}</td>
                 <td className="num">{INR(it.amount)}</td>
-                {sec !== 'monthly' && <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{sec === 'emis' ? (it.endDate ?? 'open') : (it.dueDate ?? '—')}</td>}
+                {sec === 'emis' && <>
+                  <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(it.startDate)}</td>
+                  <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{it.endDate ? fmtMon(it.endDate) : 'Open'}</td>
+                </>}
+                {sec === 'annual' && <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(it.dueDate)}</td>}
                 <td><div style={{ display: 'flex', gap: 4 }}>
                   <button className="vg-icobtn" onClick={() => openEditor({ item: it, commit: x => updT(sec, x), remove: () => delT(sec, it.id) })}><Pencil className="h-4 w-4" /></button>
                   <button className="vg-icobtn" onClick={() => delT(sec, it.id)}><Trash2 className="h-4 w-4" /></button>
                 </div></td>
               </tr>
             ))}
-            {draft[sec].length === 0 && <tr><td colSpan={sec === 'monthly' ? 5 : 6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
+            {draft[sec].length === 0 && <tr><td colSpan={sec === 'emis' ? 7 : sec === 'annual' ? 6 : 5} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1212,8 +1268,10 @@ function catColor(name: string, cats: Category[], i = 0): string {
   return cats.find(c => c.name === name)?.color ?? CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
 }
 
-function fmtMon(iso: string): string {
+function fmtMon(iso?: string | null): string {
+  if (!iso) return '—'
   const [y, m] = iso.slice(0, 7).split('-').map(Number)
+  if (!y || !m) return '—'
   return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
 }
 
@@ -1836,7 +1894,13 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
       </div>
       <div className="vg-tablewrap">
         <table className="vg-table" style={{ minWidth: 560 }}>
-          <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">{section === 'annual' ? 'Amount/yr' : 'Amount'}</th><th style={{ width: 80 }}></th></tr></thead>
+          <thead><tr>
+            <th>Item</th><th>Paid by</th><th>Shared</th>
+            <th className="num">{section === 'annual' ? 'Amount/yr' : 'Amount'}</th>
+            {section === 'emis' && <><th style={{ width: 100 }}>Starts</th><th style={{ width: 100 }}>Ends</th></>}
+            {section === 'annual' && <th style={{ width: 140 }}>Appears in month</th>}
+            <th style={{ width: 80 }}></th>
+          </tr></thead>
           <tbody>
             {doc.template[section].map(it => {
               const mine = isPersonalTo(it, entityId, doc.entities)
@@ -1846,6 +1910,11 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
                   <td><span className="vg-chip" style={{ background: entColor(doc.entities, it.paidBy) + '22', color: entColor(doc.entities, it.paidBy) }}>{entName(doc.entities, it.paidBy)}</span></td>
                   <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, doc.entities)}</td>
                   <td className="num">{INR(it.amount)}</td>
+                  {section === 'emis' && <>
+                    <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(it.startDate)}</td>
+                    <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{it.endDate ? fmtMon(it.endDate) : 'Open'}</td>
+                  </>}
+                  {section === 'annual' && <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(it.dueDate)}</td>}
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="vg-icobtn" title={mine ? 'Edit' : 'Propose a change (needs approval)'} onClick={() => openTemplate(it, section, 'update')}><Pencil className="h-4 w-4" /></button>
@@ -1855,7 +1924,7 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
                 </tr>
               )
             })}
-            {doc.template[section].length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
+            {doc.template[section].length === 0 && <tr><td colSpan={section === 'emis' ? 7 : section === 'annual' ? 6 : 5} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
           </tbody>
         </table>
       </div>
