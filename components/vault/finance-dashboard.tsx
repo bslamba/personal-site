@@ -15,7 +15,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet,
+  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -244,7 +244,7 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup'
+type Tab = 'month' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard() {
@@ -255,7 +255,7 @@ export default function FinanceDashboard() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [editing, setEditing] = useState<Editing | null>(null)
   const [setupDraft, setSetupDraft] = useState<Template | null>(null)
-  const [me, setMe] = useState<{ role: 'super' | 'member'; entityId: string | null } | null>(null)
+  const [me, setMe] = useState<{ role: 'super' | 'member'; entityId: string | null; username?: string; name?: string; firstName?: string; lastName?: string; email?: string; avatar?: string } | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -294,12 +294,11 @@ export default function FinanceDashboard() {
 
   if (!doc || !me) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
 
-  if (me.role === 'member') return <MemberDashboard initialDoc={doc} entityId={me.entityId ?? ''} />
+  if (me.role === 'member') return <MemberDashboard initialDoc={doc} entityId={me.entityId ?? ''} profile={me} />
 
   const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
     { id: 'month', label: 'This month', icon: CalendarDays },
     { id: 'year', label: 'Year', icon: Wallet },
-    { id: 'savings', label: 'Savings', icon: PiggyBank },
     { id: 'budget', label: 'Budget', icon: Target },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
@@ -317,16 +316,7 @@ export default function FinanceDashboard() {
   }
 
   return (
-    <Shell saveState={saveState}>
-      <div style={{ overflowX: 'auto', marginBottom: '1.1rem' }}>
-        <div className="vg-tabs">
-          {TABS.map(t => { const I = t.icon; return (
-            <button key={t.id} className="vg-tab" data-on={tab === t.id} onClick={() => setTab(t.id)}>
-              <I className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 4, verticalAlign: '-2px' }} />{t.label}
-            </button>) })}
-        </div>
-      </div>
-
+    <Shell saveState={saveState} me={me} tabs={TABS} activeTab={tab} onTab={id => setTab(id as Tab)}>
       {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
@@ -335,6 +325,7 @@ export default function FinanceDashboard() {
       {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner, common) => runAction({ action: 'importRows', rows, owner, common })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'setup' && <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} />}
+      {tab === 'profile' && <ProfileTab me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} />}
 
       {editing && (
         <ExpenseEditor
@@ -349,25 +340,229 @@ export default function FinanceDashboard() {
   )
 }
 
-function Shell({ children, saveState }: { children: React.ReactNode; saveState?: 'idle' | 'saving' | 'saved' }) {
+type MeLite = { role: 'super' | 'member'; username?: string; firstName?: string; lastName?: string; name?: string; avatar?: string }
+
+function Avatar({ me, size = 30 }: { me?: MeLite; size?: number }) {
+  const initial = (me?.firstName || me?.name || me?.username || '?').trim().charAt(0).toUpperCase()
+  if (me?.avatar) return <img src={me.avatar} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+  return (
+    <span style={{ width: size, height: size, borderRadius: '50%', background: 'var(--vg-accent)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.42, fontWeight: 700 }}>{initial}</span>
+  )
+}
+
+interface ShellTab { id: string; label: string; icon: typeof Wallet }
+function Shell({ children, saveState, me, tabs, activeTab, onTab }: {
+  children: React.ReactNode
+  saveState?: 'idle' | 'saving' | 'saved'
+  me?: MeLite
+  tabs?: ShellTab[]
+  activeTab?: string
+  onTab?: (id: string) => void
+}) {
+  const firstName = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
     <div className="vg">
       <div className="vg-wrap">
-        <div className="vg-top">
-          <div>
-            <Link href="/vault" className="vg-back"><ArrowLeft className="h-4 w-4" /> Vault</Link>
-            <h1 className="vg-h1">Finance</h1>
+        <div className="vg-appbar">
+          <div className="vg-appbar-left">
+            {me?.role === 'super' && <Link href="/vault" className="vg-back"><ArrowLeft className="h-4 w-4" /> Vault</Link>}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={{ minWidth: 62, textAlign: 'right' }}>
-              {saveState === 'saving' && <span className="vg-muted" style={{ fontSize: '0.8rem' }}><Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline' }} /> Saving…</span>}
-              {saveState === 'saved' && <span className="vg-pos" style={{ fontSize: '0.8rem' }}><Check className="h-3.5 w-3.5" style={{ display: 'inline' }} /> Saved</span>}
+
+          {tabs && tabs.length > 0 && (
+            <nav className="vg-navtabs" aria-label="Sections">
+              {tabs.map(t => { const I = t.icon; return (
+                <button key={t.id} className="vg-navtab" data-on={activeTab === t.id} onClick={() => onTab?.(t.id)}>
+                  <I className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 4, verticalAlign: '-2px' }} />{t.label}
+                </button>) })}
+            </nav>
+          )}
+
+          <div className="vg-appbar-right">
+            <span style={{ minWidth: 20, textAlign: 'right' }}>
+              {saveState === 'saving' && <Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline', color: 'var(--vg-muted)' }} />}
+              {saveState === 'saved' && <Check className="h-3.5 w-3.5" style={{ display: 'inline', color: 'var(--vg-pos, #16a34a)' }} />}
             </span>
+            {me && (
+              <button className="vg-me" onClick={() => onTab?.('profile')} title="Your profile" data-on={activeTab === 'profile'}>
+                <Avatar me={me} />
+                {firstName && <span className="vg-me-name">{firstName}</span>}
+              </button>
+            )}
             <VaultLogout />
           </div>
         </div>
         {children}
       </div>
+    </div>
+  )
+}
+
+// ---------- Change password (email OTP) -------------------------
+function ChangePasswordModal({ username, onClose }: { username: string; onClose: () => void }) {
+  const [step, setStep] = useState<'request' | 'verify'>('request')
+  const [otp, setOtp] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  async function sendCode() {
+    setBusy(true); setErr(null); setNotice(null)
+    try {
+      const r = await fetch('/api/vault/otp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(d.error ?? 'Could not send a code') } else { setNotice(`Code sent to ${d.emailHint ?? 'your email'}. It expires in 10 minutes.`); setStep('verify') }
+    } catch { setErr('Could not send a code') }
+    setBusy(false)
+  }
+
+  async function save() {
+    setBusy(true); setErr(null)
+    try {
+      const r = await fetch('/api/vault/password/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, otp, newPassword: newPass }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(d.error ?? 'Reset failed') } else { setDone(true) }
+    } catch { setErr('Reset failed') }
+    setBusy(false)
+  }
+
+  return (
+    <div className="vg-lb" onClick={onClose}>
+      <div className="vg-card vg-pad" onClick={e => e.stopPropagation()} style={{ width: 'min(420px, 96vw)', background: 'var(--vg-glass-2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}><KeyRound className="h-4 w-4" style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} /> Change password</p>
+          <button className="vg-icobtn" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        {done ? (
+          <>
+            <p className="vg-pos" style={{ fontSize: '0.9rem' }}><Check className="h-4 w-4" style={{ display: 'inline', verticalAlign: '-2px' }} /> Password changed.</p>
+            <div style={{ marginTop: '1rem', textAlign: 'right' }}><button className="vg-btn" onClick={onClose}>Done</button></div>
+          </>
+        ) : (
+          <>
+            <p className="vg-muted" style={{ fontSize: '0.85rem', marginBottom: '0.8rem' }}>
+              We verify by emailing a one-time code to <strong>{username}</strong>&rsquo;s address, then you set a new password.
+            </p>
+            {notice && <p className="vg-pos" style={{ fontSize: '0.82rem', marginBottom: '0.7rem' }}>{notice}</p>}
+            {step === 'request' ? (
+              <button className="vg-btn-primary" onClick={sendCode} disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> : null} Email me a code
+              </button>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.7rem' }}>
+                <div>
+                  <label className="vg-lbl">6-digit code</label>
+                  <input className="vg-input" inputMode="numeric" maxLength={6} value={otp}
+                    onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} placeholder="000000" style={{ letterSpacing: '0.3em' }} />
+                </div>
+                <div>
+                  <label className="vg-lbl">New password</label>
+                  <input className="vg-input" type="password" minLength={6} value={newPass}
+                    onChange={e => setNewPass(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button className="vg-btn-ghost" onClick={sendCode} disabled={busy}>Resend code</button>
+                  <button className="vg-btn-primary" onClick={save} disabled={busy || otp.length < 6 || newPass.length < 6}>
+                    {busy ? <Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> : null} Set new password
+                  </button>
+                </div>
+              </div>
+            )}
+            {err && <p className="vg-neg" style={{ fontSize: '0.82rem', marginTop: '0.7rem' }}>{err}</p>}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Profile tab -----------------------------------------
+async function fileToAvatar(file: File): Promise<string> {
+  const dataUrl: string = await new Promise((res, rej) => {
+    const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(file)
+  })
+  const img = document.createElement('img')
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl })
+  const size = 256
+  const c = document.createElement('canvas'); c.width = size; c.height = size
+  const ctx = c.getContext('2d')!
+  const scale = Math.max(size / img.width, size / img.height)
+  const w = img.width * scale, h = img.height * scale
+  ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h)
+  return c.toDataURL('image/jpeg', 0.82)
+}
+
+function ProfileTab({ me, onSaved }: { me?: MeLite & { email?: string }; onSaved: (patch: Partial<MeLite & { email?: string }>) => void }) {
+  const [firstName, setFirstName] = useState(me?.firstName ?? '')
+  const [lastName, setLastName] = useState(me?.lastName ?? '')
+  const [email, setEmail] = useState(me?.email ?? '')
+  const [avatar, setAvatar] = useState<string | undefined>(me?.avatar)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [showPw, setShowPw] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function pickImage(f?: File) {
+    if (!f) return
+    setErr(null)
+    try {
+      const a = await fileToAvatar(f)
+      if (a.length > 300_000) { setErr('That image is too detailed — try a smaller one.'); return }
+      setAvatar(a)
+    } catch { setErr('Could not read that image.') }
+  }
+
+  async function save() {
+    setErr(null); setMsg(null)
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/vault/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, lastName, email, avatar: avatar ?? '' }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(d.error ?? 'Could not save') }
+      else {
+        setMsg('Profile saved.')
+        const name = [firstName, lastName].filter(Boolean).join(' ')
+        onSaved({ firstName, lastName, email, avatar, name })
+      }
+    } catch { setErr('Could not save') }
+    setBusy(false)
+  }
+
+  return (
+    <div className="vg-card vg-pad" style={{ maxWidth: 560 }}>
+      <p className="vg-sec"><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your profile</p>
+      <p className="vg-muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>Your name and picture show in the top bar. Your email is where password-reset codes are sent.</p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1rem 0' }}>
+        <Avatar me={{ role: 'member', firstName, name: firstName, avatar }} size={64} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => pickImage(e.target.files?.[0])} />
+          <button className="vg-btn" onClick={() => fileRef.current?.click()}><Camera className="h-4 w-4" /> {avatar ? 'Change photo' : 'Add photo'}</button>
+          {avatar && <button className="vg-btn-ghost" onClick={() => setAvatar(undefined)}>Remove</button>}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: '1fr 1fr' }}>
+        <div><label className="vg-lbl">First name</label><input className="vg-input" value={firstName} onChange={e => setFirstName(e.target.value)} /></div>
+        <div><label className="vg-lbl">Last name</label><input className="vg-input" value={lastName} onChange={e => setLastName(e.target.value)} /></div>
+      </div>
+      <div style={{ marginTop: '0.7rem' }}>
+        <label className="vg-lbl">Email</label>
+        <input className="vg-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com" />
+      </div>
+
+      {err && <p className="vg-neg" style={{ fontSize: '0.85rem', marginTop: '0.7rem' }}>{err}</p>}
+      {msg && <p className="vg-pos" style={{ fontSize: '0.85rem', marginTop: '0.7rem' }}><Check className="h-4 w-4" style={{ display: 'inline', verticalAlign: '-2px' }} /> {msg}</p>}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.1rem', flexWrap: 'wrap', gap: 8 }}>
+        <button className="vg-btn-ghost" onClick={() => setShowPw(true)}><KeyRound className="h-4 w-4" /> Change password</button>
+        <button className="vg-btn-primary" onClick={save} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> : null} Save profile</button>
+      </div>
+
+      {showPw && me?.username && <ChangePasswordModal username={me.username} onClose={() => setShowPw(false)} />}
     </div>
   )
 }
@@ -682,7 +877,7 @@ function SavingsTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fin
 }
 
 // ---------- Entities tab ----------------------------------------
-interface PUser { username: string; name: string; role: 'super' | 'member'; entityId: string | null }
+interface PUser { username: string; name: string; role: 'super' | 'member'; entityId: string | null; email?: string }
 
 function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
   const upd = (id: string, patch: Partial<Entity>) => patchDoc(d => ({ ...d, entities: d.entities.map(e => e.id === id ? { ...e, ...patch } : e) }))
@@ -691,29 +886,53 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
 
   const [users, setUsers] = useState<PUser[]>([])
   const [flash, setFlash] = useState<{ username: string; password: string } | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const loadUsers = () => fetch('/api/vault/users').then(r => (r.ok ? r.json() : { users: [] })).then(d => setUsers(d.users ?? [])).catch(() => {})
+  const [emailDraft, setEmailDraft] = useState<Record<string, string>>({})
+  const loadUsers = () => fetch('/api/vault/users').then(r => (r.ok ? r.json() : { users: [] })).then(d => {
+    const us: PUser[] = d.users ?? []
+    setUsers(us)
+    setEmailDraft(prev => { const next = { ...prev }; us.forEach(u => { if (u.entityId && next[u.entityId] === undefined) next[u.entityId] = u.email ?? '' }); return next })
+  }).catch(() => {})
   useEffect(() => { loadUsers() }, [])
   const loginFor = (eid: string) => users.find(u => u.entityId === eid)
   const slug = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'user'
+  const validEmail = (e?: string) => !!e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
   async function createLogin(e: Entity) {
+    setErr(null); setMsg(null)
+    const email = (emailDraft[e.id] ?? '').trim()
+    if (!validEmail(email)) { setErr(`Add a valid email for ${e.name} first — it’s required for password reset.`); return }
     setBusy(true)
     const username = slug(e.name)
     try {
-      const r = await fetch('/api/vault/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'create', username, name: e.name, role: 'member', entityId: e.id }) })
+      const r = await fetch('/api/vault/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'create', username, name: e.name, role: 'member', entityId: e.id, email }) })
       const d = await r.json().catch(() => ({}))
       if (d.ok) { setFlash({ username, password: d.password }); await loadUsers() }
-    } catch { /* ignore */ }
+      else setErr(d.error ?? 'Could not create login')
+    } catch { setErr('Could not create login') }
     setBusy(false)
   }
   async function resetLogin(username: string) {
-    setBusy(true)
+    setBusy(true); setErr(null); setMsg(null)
     try {
       const r = await fetch('/api/vault/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'reset', username }) })
       const d = await r.json().catch(() => ({}))
       if (d.ok) setFlash({ username, password: d.password })
     } catch { /* ignore */ }
+    setBusy(false)
+  }
+  async function saveEmail(username: string, email: string) {
+    setErr(null); setMsg(null)
+    if (!validEmail(email)) { setErr('Enter a valid email address.'); return }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/vault/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'setEmail', username, email: email.trim() }) })
+      const d = await r.json().catch(() => ({}))
+      if (d.ok) { setMsg(`Email updated for ${username}.`); await loadUsers() }
+      else setErr(d.error ?? 'Could not update email')
+    } catch { setErr('Could not update email') }
     setBusy(false)
   }
 
@@ -758,31 +977,44 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
             <Check className="h-4 w-4" style={{ display: 'inline' }} /> Login <b>{flash.username}</b> · password <b>{flash.password}</b> — share it with them; they can change it after signing in.
           </p>
         )}
+        {msg && <p className="vg-pos" style={{ marginTop: 0 }}><Check className="h-4 w-4" style={{ display: 'inline' }} /> {msg}</p>}
+        {err && <p className="vg-neg" style={{ marginTop: 0 }}>{err}</p>}
         <div className="vg-tablewrap">
-          <table className="vg-table" style={{ minWidth: 440 }}>
-            <thead><tr><th>Member</th><th>Username</th><th style={{ width: 190 }}></th></tr></thead>
+          <table className="vg-table" style={{ minWidth: 620 }}>
+            <thead><tr><th>Member</th><th>Username</th><th>Email (for reset)</th><th style={{ width: 210 }}></th></tr></thead>
             <tbody>
               {persons.map(e => {
                 const lg = loginFor(e.id)
+                const draft = emailDraft[e.id] ?? ''
+                const changed = lg && draft.trim() !== (lg.email ?? '')
                 return (
                   <tr key={e.id}>
                     <td><span className="vg-dot" style={{ background: e.color, marginRight: 6 }} />{e.name}</td>
                     <td>{lg ? <b>{lg.username}</b> : <span className="vg-muted">no login yet</span>}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        {lg
-                          ? <button className="vg-btn" disabled={busy} onClick={() => resetLogin(lg.username)}>Reset password</button>
-                          : <button className="vg-btn vg-btn-primary" disabled={busy} onClick={() => createLogin(e)}><Plus className="h-4 w-4" /> Create login</button>}
+                      <input className="vg-input" type="email" placeholder="name@email.com" value={draft}
+                        onChange={ev => setEmailDraft(m => ({ ...m, [e.id]: ev.target.value }))} style={{ minWidth: 180 }} />
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        {lg ? (
+                          <>
+                            {changed && <button className="vg-btn vg-btn-primary" disabled={busy} onClick={() => saveEmail(lg.username, draft)}>Save email</button>}
+                            <button className="vg-btn" disabled={busy} onClick={() => resetLogin(lg.username)}>Reset password</button>
+                          </>
+                        ) : (
+                          <button className="vg-btn vg-btn-primary" disabled={busy} onClick={() => createLogin(e)}><Plus className="h-4 w-4" /> Create login</button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 )
               })}
-              {persons.length === 0 && <tr><td colSpan={3} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Add a person above, then create their login here.</td></tr>}
+              {persons.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Add a person above, then create their login here.</td></tr>}
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>New logins get the default password <b>Qwerty@123</b>. Only you (super) can create or reset logins.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Every profile needs an email — it&rsquo;s where the one-time reset code is sent. New logins get the default password <b>Qwerty@123</b>. Only you (super) can create or reset logins.</p>
       </div>
     </>
   )
@@ -1238,7 +1470,7 @@ function MemberSavings({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: s
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Only you (and the family admin) can see these. Other members never do.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>This is private to your profile. No one else can see it — not other members, and not the family admin.</p>
       </div>
     </>
   )
@@ -1250,6 +1482,47 @@ function memberNewItem(bucket: Bucket, entities: Entity[], entityId: string): It
   if (bucket === 'personal') { it.paidBy = entityId; it.alloc = { mode: 'single', who: entityId } }
   else if (bucket === 'emi') { it.paidBy = entityId }
   return it
+}
+
+// Editable, private per-profile income for a single month.
+function MemberIncomeCard({ rows, monthKey: mk, onSave }: {
+  rows: IncomeItem[]; monthKey: string
+  onSave: (rows: { id: string; source: string; amount: number }[]) => void
+}) {
+  const [draft, setDraft] = useState<{ id: string; source: string; amount: number }[]>(() => rows.map(r => ({ id: r.id, source: r.source, amount: r.amount })))
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => { setDraft(rows.map(r => ({ id: r.id, source: r.source, amount: r.amount }))); setDirty(false) /* eslint-disable-next-line */ }, [mk])
+  const set = (id: string, patch: Partial<{ source: string; amount: number }>) => { setDraft(d => d.map(r => r.id === id ? { ...r, ...patch } : r)); setDirty(true) }
+  const add = () => { setDraft(d => [...d, { id: uid('inc'), source: 'Salary', amount: 0 }]); setDirty(true) }
+  const del = (id: string) => { setDraft(d => d.filter(r => r.id !== id)); setDirty(true) }
+  const total = draft.reduce((a, b) => a + (Number(b.amount) || 0), 0)
+  return (
+    <div className="vg-card vg-pad">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <p className="vg-sec" style={{ margin: 0 }}><ShieldCheck className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-pos)', verticalAlign: '-3px' }} /> My income · {INR(total)}</p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="vg-btn" onClick={add}><Plus className="h-4 w-4" /> Add</button>
+          <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={() => { onSave(draft.map(r => ({ ...r, amount: Number(r.amount) || 0 }))); setDirty(false) }}><Check className="h-4 w-4" /> Save</button>
+        </div>
+      </div>
+      <div className="vg-tablewrap">
+        <table className="vg-table" style={{ minWidth: 320 }}>
+          <thead><tr><th>Source</th><th className="num">Amount / mo</th><th style={{ width: 36 }}></th></tr></thead>
+          <tbody>
+            {draft.map(r => (
+              <tr key={r.id}>
+                <td><input className="vg-input" value={r.source} onChange={e => set(r.id, { source: e.target.value })} placeholder="Salary, rent received…" /></td>
+                <td className="num"><input className="vg-input" type="number" value={r.amount} onChange={e => set(r.id, { amount: Number(e.target.value) })} style={{ textAlign: 'right', maxWidth: 130 }} /></td>
+                <td><button className="vg-icobtn" onClick={() => del(r.id)}><Trash2 className="h-4 w-4" /></button></td>
+              </tr>
+            ))}
+            {draft.length === 0 && <tr><td colSpan={3} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No income yet. Add your salary or other earnings.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>Private to your profile — no one else, including the family admin, can see this.</p>
+    </div>
+  )
 }
 
 function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
@@ -1360,18 +1633,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
       </div>
 
       <div className="vg-grid2">
-        <div className="vg-card vg-pad">
-          <p className="vg-sec">Income you can see</p>
-          <div className="vg-tablewrap">
-            <table className="vg-table" style={{ minWidth: 320 }}>
-              <thead><tr><th>Source</th><th>Who</th><th className="num">Amount</th></tr></thead>
-              <tbody>
-                {m.income.map(i => <tr key={i.id}><td>{i.source}</td><td>{entName(entities, i.entity)}</td><td className="num">{INR(i.amount)}</td></tr>)}
-                {m.income.length === 0 && <tr><td colSpan={3} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No income visible.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k}
+          onSave={rows => action({ action: 'setMonthIncome', monthKey: k, income: rows })} />
         <div className="vg-card vg-pad">
           <p className="vg-sec">Where it goes</p>
           {cats.length ? <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><Donut data={cats} /><div style={{ flex: 1, minWidth: 160 }}><Legend items={cats} /></div></div> : <p className="vg-muted">Add expenses to see the breakdown.</p>}
@@ -1383,13 +1646,14 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 }
 
 // ---------- Member dashboard ------------------------------------
-function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; entityId: string }) {
+function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'import' | 'setup' | 'approvals'>('month')
+  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
   const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [editing, setEditing] = useState<{ item: Item; onSave: (it: Item) => void } | null>(null)
+  const [meState, setMeState] = useState<(MeLite & { email?: string }) | undefined>(profile)
   const me = { role: 'member' as const, entityId }
 
   async function action(payload: Record<string, unknown>) {
@@ -1412,16 +1676,12 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
     { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing },
-  ] as const
+  ] as ShellTab[]
+
+  const shellMe: MeLite = { role: 'member', username: meState?.username, firstName: meState?.firstName, name: meState?.name, avatar: meState?.avatar }
 
   return (
-    <Shell saveState={busy}>
-      <div style={{ overflowX: 'auto', marginBottom: '1.1rem' }}>
-        <div className="vg-tabs">
-          {TABS.map(t => { const I = t.icon; return <button key={t.id} className="vg-tab" data-on={tab === t.id} onClick={() => setTab(t.id)}><I className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 4, verticalAlign: '-2px' }} />{t.label}</button> })}
-        </div>
-      </div>
-
+    <Shell saveState={busy} me={shellMe} tabs={TABS} activeTab={tab} onTab={id => setTab(id as typeof tab)}>
       {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} action={action} openEditor={setEditing} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
@@ -1429,6 +1689,7 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
       {tab === 'setup' && <MemberSetup doc={doc} entityId={entityId} openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })} onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })} />}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows) => action({ action: 'importRows', rows })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => action({ action: kind, id })} />}
+      {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
 
       {editing && (
         <ExpenseEditor item={editing.item} entities={doc.entities} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}

@@ -98,16 +98,31 @@ export async function POST(request: Request) {
 
       case 'setSavings': {
         const rows = (body.savings ?? [])
-        const who = actor ?? 'blamba'
+        const who = actor ?? 'su'
         const mine = rows.map(r => ({ ...r, entity: isSuper ? r.entity : who }))
         doc.savings = isSuper ? mine : [...doc.savings.filter(s => s.entity !== who), ...mine]
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
+      case 'setMonthIncome': {
+        // A member sets their OWN personal income for a month. Private to
+        // them, applied directly (never proposed). Common income and
+        // everyone else's rows are left untouched.
+        if (isSuper || !actor) return NextResponse.json({ error: 'Members only' }, { status: 403 })
+        const mk = (body as unknown as { monthKey?: string }).monthKey || monthKey()
+        const incoming = ((body as unknown as { income?: { id?: string; source?: string; amount?: number }[] }).income ?? [])
+          .map(r => ({ id: r.id || uid('inc'), source: r.source || 'Income', amount: Number(r.amount) || 0, entity: actor, src: 'manual' as const }))
+        const m = doc.months[mk] ?? materialise(doc.template, mk)
+        m.income = [...m.income.filter(i => i.entity !== actor), ...incoming]
+        doc.months[mk] = m
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
       case 'setBudget': {
         if (!body.budget) return NextResponse.json({ error: 'No budget' }, { status: 400 })
-        const who = actor ?? 'blamba'
+        const who = actor ?? 'su'
         doc.budgets.byEntity[who] = body.budget
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })

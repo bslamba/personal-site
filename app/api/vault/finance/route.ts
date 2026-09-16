@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSession, VAULT_COOKIE, type Session } from '@/lib/vault-auth'
+import { findUser } from '@/lib/users'
 import { s3 } from '@/lib/storage'
 import { seedDoc, migrate, filterDocForMember, type FinanceDoc } from '@/lib/finance-data'
 
@@ -32,8 +33,22 @@ export async function readRaw(): Promise<unknown | null> {
 export async function writeDoc(doc: FinanceDoc): Promise<void> {
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: KEY, Body: JSON.stringify(doc), ContentType: 'application/json' }))
 }
+// Savings and personal (non-common) income are private to each individual
+// profile — not even the super-user sees them. Strip them from the super
+// view; PUT re-merges the stored copies so they are never lost.
+function stripPrivate(doc: FinanceDoc): FinanceDoc {
+  const months: FinanceDoc['months'] = {}
+  for (const [k, m] of Object.entries(doc.months)) months[k] = { ...m, income: m.income.filter(i => i.entity === 'common') }
+  return {
+    ...doc,
+    savings: [],
+    months,
+    template: { ...doc.template, income: doc.template.income.filter(i => i.entity === 'common') },
+  }
+}
+
 export function viewFor(session: Session, doc: FinanceDoc): FinanceDoc {
-  if (session.r === 'super' || !session.e) return doc
+  if (session.r === 'super' || !session.e) return stripPrivate(doc)
   return filterDocForMember(doc, session.e)
 }
 
@@ -46,7 +61,15 @@ export async function GET() {
     let doc: FinanceDoc
     if (!raw) { doc = seedDoc(); await writeDoc(doc) }
     else { const wasV2 = (raw as { version?: number }).version === 2; doc = migrate(raw); if (!wasV2) await writeDoc(doc) }
-    return NextResponse.json({ doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+    const u = await findUser(session.u)
+    return NextResponse.json({
+      doc: viewFor(session, doc),
+      me: {
+        role: session.r, entityId: session.e, username: session.u,
+        name: u?.name, firstName: u?.firstName, lastName: u?.lastName,
+        email: u?.email, avatar: u?.avatar,
+      },
+    })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Storage error' }, { status: 500 })
   }
@@ -60,6 +83,24 @@ export async function PUT(request: Request) {
   try {
     const body = (await request.json().catch(() => null)) as { doc?: FinanceDoc } | null
     if (!body?.doc || body.doc.version !== 2) return NextResponse.json({ error: 'Bad document' }, { status: 400 })
+    // The super view never contains savings or personal income (both are
+    // private to each profile), so a super PUT must NOT overwrite them —
+    // re-merge the stored copies before writing.
+    const rawStored = await readRaw()
+    const stored = rawStored ? migrate(rawStored) : null
+    body.doc.savings = stored?.savings ?? []
+    if (stored) {
+      for (const [k, m] of Object.entries(body.doc.months)) {
+        const priv = stored.months[k] ? stored.months[k].income.filter(i => i.entity !== 'common') : []
+        m.income = [...m.income.filter(i => i.entity === 'common'), ...priv]
+      }
+      // Preserve any stored months the super view didn't carry.
+      for (const [k, m] of Object.entries(stored.months)) if (!body.doc.months[k]) body.doc.months[k] = m
+      body.doc.template.income = [
+        ...body.doc.template.income.filter(i => i.entity === 'common'),
+        ...stored.template.income.filter(i => i.entity !== 'common'),
+      ]
+    }
     body.doc.updatedAt = new Date().toISOString()
     await writeDoc(body.doc)
     return NextResponse.json({ ok: true, updatedAt: body.doc.updatedAt })

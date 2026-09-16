@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
-import { getUsers, upsertUser, setPassword, removeUser, publicUser, DEFAULT_PASSWORD } from '@/lib/users'
+import { getUsers, upsertUser, setPassword, removeUser, publicUser, setEmail, DEFAULT_PASSWORD } from '@/lib/users'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,13 +30,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!(await guardSuper())) return NextResponse.json({ error: 'Super only' }, { status: 403 })
-  const b = await request.json().catch(() => ({})) as { op?: string; username?: string; name?: string; entityId?: string | null; role?: string; password?: string }
+  const b = await request.json().catch(() => ({})) as { op?: string; username?: string; name?: string; entityId?: string | null; role?: string; password?: string; email?: string }
+  const emailOk = (e?: string) => !!e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
   try {
     if (b.op === 'create') {
       if (!b.username || !b.name) return NextResponse.json({ error: 'Missing name' }, { status: 400 })
+      if (!emailOk(b.email)) return NextResponse.json({ error: 'A valid email is required for every profile (used for password reset).' }, { status: 400 })
       const pw = b.password || DEFAULT_PASSWORD
-      const user = await upsertUser({ username: b.username, name: b.name, role: b.role === 'super' ? 'super' : 'member', entityId: b.entityId ?? null, password: pw })
+      const user = await upsertUser({ username: b.username, name: b.name, role: b.role === 'super' ? 'super' : 'member', entityId: b.entityId ?? null, password: pw, email: b.email!.trim() })
       return NextResponse.json({ ok: true, user, password: pw })
+    }
+    if (b.op === 'setEmail') {
+      if (!b.username) return NextResponse.json({ error: 'Missing username' }, { status: 400 })
+      if (!emailOk(b.email)) return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
+      const ok = await setEmail(b.username, b.email!.trim())
+      return NextResponse.json({ ok })
     }
     if (b.op === 'reset') {
       if (!b.username) return NextResponse.json({ error: 'Missing username' }, { status: 400 })
