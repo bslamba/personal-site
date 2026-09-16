@@ -92,6 +92,7 @@ export async function PUT(request: Request) {
     const stored = rawStored ? migrate(rawStored) : null
     body.doc.savings = stored?.savings ?? []
     body.doc.auditLog = stored?.auditLog ?? body.doc.auditLog ?? []
+    body.doc.settlements = stored?.settlements ?? body.doc.settlements ?? {}
     if (stored) {
       for (const [k, m] of Object.entries(body.doc.months)) {
         const priv = stored.months[k] ? stored.months[k].income.filter(i => i.entity !== 'common') : []

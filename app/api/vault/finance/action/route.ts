@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid,
+         setCommonIncome, computeSettlement,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget, type Entity } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
 
@@ -307,6 +308,94 @@ export async function POST(request: Request) {
         audit('propose', label, { reason: reason || undefined, proposalId: pr.id, parties: [actor, ...approvers] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'setCommonIncome': {
+        // The common account's earning (rent). Everyone can see it; changing it
+        // needs approval by a chosen person (super applies directly).
+        const bt = body as unknown as { monthKey?: string; amount?: number; approver?: string; reason?: string }
+        const mk = bt.monthKey || monthKey()
+        const amount = Math.max(0, Number(bt.amount) || 0)
+        if (isSuper) {
+          setCommonIncome(doc, mk, amount)
+          audit('apply', `Common income → ${amount}`, { monthKey: mk })
+          await writeDoc(doc)
+          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        }
+        if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
+        const approver = bt.approver
+        if (!approver || approver === actor) return NextResponse.json({ error: 'Choose someone else to approve this change.' }, { status: 400 })
+        const reason = (bt.reason || '').trim()
+        if (!reason) return NextResponse.json({ error: 'Please give a reason for changing the common income.' }, { status: 400 })
+        const item: Item = { id: uid('cinc'), name: 'Common account income', amount, kind: 'oneoff', paidBy: 'common', alloc: { mode: 'single', who: 'common' } }
+        const pr: Proposal = {
+          id: uid('prop'), item, monthKey: mk, proposedBy: actor, proposedByName: entName(doc, actor),
+          approvers: [approver], approved: [], mode: 'any', status: 'pending', createdAt: new Date().toISOString(),
+          incomeEdit: { monthKey: mk, amount }, reason,
+        }
+        doc.proposals = [...(doc.proposals ?? []), pr]
+        audit('propose', `Common income → ${amount}`, { monthKey: mk, reason, proposalId: pr.id, parties: [actor, approver] })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'settlePay': {
+        // Mark a settlement transfer as paid, with an uploaded proof image.
+        const bt = body as unknown as { monthKey?: string; transferKey?: string; proofKey?: string }
+        const mk = bt.monthKey, key = bt.transferKey
+        if (!mk || !key) return NextResponse.json({ error: 'Missing transfer' }, { status: 400 })
+        const st = doc.settlements?.[mk] ?? {}
+        st.paid = { ...(st.paid ?? {}), [key]: { key: bt.proofKey || '', by: actorName, at: new Date().toISOString() } }
+        doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'settleUnpay': {
+        const bt = body as unknown as { monthKey?: string; transferKey?: string }
+        const mk = bt.monthKey, key = bt.transferKey
+        if (!mk || !key) return NextResponse.json({ error: 'Missing transfer' }, { status: 400 })
+        const st = doc.settlements?.[mk]
+        if (st?.paid) { delete st.paid[key]; doc.settlements = { ...(doc.settlements ?? {}), [mk]: st } }
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'closeSettlement': {
+        // Close the month: any unpaid transfer is carried into next month with
+        // a reference back to where it came from, so the outstanding is proven.
+        const bt = body as unknown as { monthKey?: string }
+        const mk = bt.monthKey
+        if (!mk) return NextResponse.json({ error: 'Missing month' }, { status: 400 })
+        const view = computeSettlement(doc, mk)
+        const [y, mo] = mk.split('-').map(Number)
+        const nextMk = monthKey(new Date(y, mo, 1))
+        const carry = view.transfers.filter(tr => !view.paid[tr.key]).map(tr => ({
+          id: uid('carry'), from: tr.from, to: tr.to, amount: tr.amount,
+          fromMonth: tr.kind === 'carry' && tr.fromMonth ? tr.fromMonth : mk,
+          note: tr.note || `Unpaid from ${mk}`,
+        }))
+        const st = doc.settlements?.[mk] ?? {}
+        st.closed = true; st.closedAt = new Date().toISOString(); st.closedBy = actorName
+        doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
+        if (carry.length) {
+          const nx = doc.settlements[nextMk] ?? {}
+          nx.carry = [...(nx.carry ?? []), ...carry]
+          doc.settlements[nextMk] = nx
+        }
+        audit('apply', `Closed settlement · ${mk}${carry.length ? ` · ${carry.length} carried forward` : ''}`, { monthKey: mk })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, carried: carry.length, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'reopenSettlement': {
+        const bt = body as unknown as { monthKey?: string }
+        const mk = bt.monthKey
+        if (!mk) return NextResponse.json({ error: 'Missing month' }, { status: 400 })
+        const st = doc.settlements?.[mk]
+        if (st) { st.closed = false; st.closedAt = undefined; doc.settlements = { ...(doc.settlements ?? {}), [mk]: st } }
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       default:

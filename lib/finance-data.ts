@@ -101,6 +101,16 @@ export interface AuditEntry {
   personal?: boolean          // a private, personal-only action
 }
 
+export interface SettlementProof { key: string; by: string; at: string }
+export interface CarryItem { id: string; from: string; to: string; amount: number; fromMonth: string; note?: string }
+export interface Settlement {
+  closed?: boolean
+  closedAt?: string
+  closedBy?: string
+  paid?: Record<string, SettlementProof>   // transferKey -> payment proof
+  carry?: CarryItem[]                        // outstanding carried in from earlier months
+}
+
 export interface FinanceDoc {
   version: 2
   entities: Entity[]
@@ -111,6 +121,7 @@ export interface FinanceDoc {
   proposals: Proposal[]
   budgets: Budgets
   auditLog?: AuditEntry[]
+  settlements?: Record<string, Settlement>
   updatedAt: string
 }
 
@@ -250,6 +261,7 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.categories) || doc.categories.length === 0) doc.categories = seedCategories()
     if (!Array.isArray(doc.proposals)) doc.proposals = []
     if (!Array.isArray(doc.auditLog)) doc.auditLog = []
+    if (!doc.settlements || typeof doc.settlements !== 'object') doc.settlements = {}
     if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
     return doc
   }
@@ -456,6 +468,7 @@ export interface Proposal {
   reason?: string             // why the edit was initiated (required for edits)
   template?: { section: 'monthly' | 'emis' | 'annual'; op: 'add' | 'update' | 'delete' }
   monthEdit?: { op: 'update' | 'delete' }
+  incomeEdit?: { monthKey: string; amount: number }   // common-account income change
 }
 
 /** Everyone touched by an expense: the payer plus anyone who bears a share. */
@@ -505,7 +518,7 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   const budgets: Budgets = { family: doc.budgets.family, byEntity: { [e]: doc.budgets.byEntity[e] ?? emptyBudget() } }
   const proposals = (doc.proposals ?? []).filter(p => p.proposedBy === e || p.approvers.includes(e))
   const auditLog = (doc.auditLog ?? []).filter(a => a.actor === e || (a.parties ?? []).includes(e))
-  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog }
+  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements }
 }
 
 /** Apply an add/update/delete to a template section. */
@@ -518,6 +531,7 @@ export function applyTemplateOp(doc: FinanceDoc, section: 'monthly' | 'emis' | '
 
 /** Apply an accepted proposal — either a template change or a month item. */
 export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
+  if (pr.incomeEdit) { setCommonIncome(doc, pr.incomeEdit.monthKey, pr.incomeEdit.amount); return }
   if (pr.template) { applyTemplateOp(doc, pr.template.section, pr.template.op, pr.item); return }
   const m = doc.months[pr.monthKey] ?? materialise(doc.template, pr.monthKey)
   if (pr.monthEdit) {
@@ -527,6 +541,54 @@ export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
     m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
   }
   doc.months[pr.monthKey] = m
+}
+
+/** Set the common-account income for a month to a single "rent" row. */
+export function setCommonIncome(doc: FinanceDoc, monthKey: string, amount: number) {
+  const m = doc.months[monthKey] ?? materialise(doc.template, monthKey)
+  const others = m.income.filter(i => i.entity !== 'common')
+  m.income = [...others, { id: uid('inc'), source: 'Common account income (rent)', entity: 'common', amount: Math.max(0, amount), src: 'manual' as const }]
+  doc.months[monthKey] = m
+}
+
+// ---------- Monthly settlement ----------------------------------
+export interface SettleTransfer { key: string; from: string; to: string; amount: number; kind: 'common' | 'peer' | 'carry'; fromMonth?: string; note?: string }
+export interface SettleView {
+  commonIncome: number
+  commonExpenses: number
+  shortfall: number
+  contributors: string[]
+  perContributor: number
+  transfers: SettleTransfer[]
+  paid: Record<string, SettlementProof>
+  closed: boolean
+  outstanding: number
+}
+
+export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
+  const m = monthView(doc, mk)
+  const entities = doc.entities
+  const persons = entities.filter(e => e.kind === 'person')
+  const t = totals(m, entities)
+  const commonIncome = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
+  const commonExpenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
+  const shortfall = Math.max(0, commonExpenses - commonIncome)
+  // Whoever earns funds the common pot's shortfall, split equally.
+  const contributors = persons.filter(e => e.earning).map(e => e.id)
+  const perContributor = contributors.length ? shortfall / contributors.length : 0
+
+  const transfers: SettleTransfer[] = []
+  if (perContributor > 0.5) contributors.forEach(c => transfers.push({ key: `common:${c}`, from: c, to: 'common', amount: perContributor, kind: 'common' }))
+  // Peer settlement (individual-paid shared expenses) already handled by totals().
+  t.transfers.forEach(tr => transfers.push({ key: `peer:${tr.from}>${tr.to}`, from: tr.from, to: tr.to, amount: tr.amount, kind: 'peer' }))
+  // Anything carried in from an earlier, closed month.
+  const st = doc.settlements?.[mk]
+  ;(st?.carry ?? []).forEach(c => transfers.push({ key: `carry:${c.id}`, from: c.from, to: c.to, amount: c.amount, kind: 'carry', fromMonth: c.fromMonth, note: c.note }))
+
+  const paid = st?.paid ?? {}
+  const closed = !!st?.closed
+  const outstanding = transfers.filter(tr => !paid[tr.key]).reduce((s, tr) => s + tr.amount, 0)
+  return { commonIncome, commonExpenses, shortfall, contributors, perContributor, transfers, paid, closed, outstanding }
 }
 
 // ============================================================

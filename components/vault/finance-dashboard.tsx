@@ -15,7 +15,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon,
+  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -24,6 +24,7 @@ import {
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
   emptyBudget, categoryOf, detectCategory, isPersonalTo,
+  computeSettlement, type SettleTransfer,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -252,7 +253,7 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
+type Tab = 'month' | 'settle' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard() {
@@ -306,6 +307,7 @@ export default function FinanceDashboard() {
 
   const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
     { id: 'month', label: 'This month', icon: CalendarDays },
+    { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'budget', label: 'Budget', icon: Target },
@@ -326,7 +328,8 @@ export default function FinanceDashboard() {
 
   return (
     <Shell saveState={saveState} me={me} tabs={TABS} activeTab={tab} onTab={id => setTab(id as Tab)}>
-      {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} />}
+      {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} action={runAction} />}
+      {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={runAction} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
@@ -600,10 +603,11 @@ function ProfileTab({ me, onSaved }: { me?: MeLite & { email?: string }; onSaved
 }
 
 // ---------- Month tab -------------------------------------------
-function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
+function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   doc: FinanceDoc; k: string; setKey: (k: string) => void
   patchMonth: (k: string, fn: (m: MonthData) => MonthData) => void
   openEditor: (e: Editing) => void
+  action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
 }) {
   const [bucket, setBucket] = useState<Bucket>('common')
   const [reading, setReading] = useState(false)
@@ -680,8 +684,10 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
         <Kpi label="Income" value={INR(t.income)} cls="vg-pos" info="All the money that came in this month — salary, rental and anything you list under Income." />
         <Kpi label="Expenses" value={INR(t.expense)} info="Everything spent this month, added up across the Common, EMI and Personal tabs." />
         <Kpi label={t.net >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(t.net))} cls={t.net >= 0 ? 'vg-pos' : 'vg-neg'} info="Income minus Expenses. Green means you kept money this month; red means you spent more than came in." />
-        <Kpi label="Settle up" small value={t.transfers.length ? `${t.transfers.length} transfer${t.transfers.length > 1 ? 's' : ''}` : 'All square'} info="Because one person often pays for shared things, this works out who should pay whom so everyone ends up even. The exact payments are in the Settle-up card below." />
+        <Kpi label="Settle up" small value={t.transfers.length ? `${t.transfers.length} transfer${t.transfers.length > 1 ? 's' : ''}` : 'All square'} info="Because one person often pays for shared things, this works out who should pay whom so everyone ends up even. The exact payments are in the Settlement tab." />
       </div>
+
+      {bucket === 'common' && <CommonAccountBar doc={doc} k={k} me={{ role: 'super', entityId: null }} action={action} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
@@ -1406,6 +1412,176 @@ function emiProgress(e: Item) {
 // ============================================================
 
 /** Apply an accept/decline to a proposal in place (super path mirrors the server). */
+// ---------- Common-account bar (shown on the Common sub-tab) -----
+function CommonAccountBar({ doc, k, me, action }: {
+  doc: FinanceDoc; k: string; me: { role: 'super' | 'member'; entityId: string | null }
+  action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
+}) {
+  const s = computeSettlement(doc, k)
+  const persons = doc.entities.filter(e => e.kind === 'person')
+  const [editing, setEditing] = useState(false)
+  const [amount, setAmount] = useState(String(s.commonIncome))
+  const [approver, setApprover] = useState(persons.find(p => p.id !== me.entityId)?.id ?? '')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const contribNames = s.contributors.map(c => entName(doc.entities, c)).join(' and ')
+
+  async function save() {
+    setBusy(true)
+    if (me.role === 'super') await action({ action: 'setCommonIncome', monthKey: k, amount: Number(amount) || 0 })
+    else await action({ action: 'setCommonIncome', monthKey: k, amount: Number(amount) || 0, approver, reason: reason.trim() })
+    setBusy(false); setEditing(false); setReason('')
+  }
+
+  return (
+    <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', borderLeft: s.shortfall > 0 ? '3px solid var(--vg-accent)' : undefined }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <p style={{ margin: 0, color: '#241b40' }}>
+          <Scale className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Common account earns <b>{INR(s.commonIncome)}</b>, spent <b>{INR(s.commonExpenses)}</b> this month.
+        </p>
+        {!editing && <button className="vg-btn" onClick={() => { setAmount(String(s.commonIncome)); setEditing(true) }}><Pencil className="h-4 w-4" /> Edit income</button>}
+      </div>
+
+      {editing && (
+        <div style={{ marginTop: '0.7rem', display: 'grid', gap: '0.6rem', maxWidth: 460 }}>
+          <div><label className="vg-lbl">Common account income (rent)</label><input className="vg-input" type="number" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+          {me.role !== 'super' && <>
+            <div><label className="vg-lbl">Who approves this change</label>
+              <select className="vg-select" value={approver} onChange={e => setApprover(e.target.value)}>
+                {persons.filter(p => p.id !== me.entityId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select></div>
+            <div><label className="vg-lbl">Reason</label><input className="vg-input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Rent revised to 50,000" /></div>
+          </>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="vg-btn" onClick={() => setEditing(false)}>Cancel</button>
+            <button className="vg-btn vg-btn-primary" disabled={busy || (me.role !== 'super' && (!approver || reason.trim().length < 3))} onClick={save}>{busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <Check className="h-4 w-4" />} {me.role === 'super' ? 'Save' : 'Send for approval'}</button>
+          </div>
+        </div>
+      )}
+
+      {s.shortfall > 0 && !editing && (
+        <p style={{ margin: '0.6rem 0 0', fontSize: '0.9rem' }}>
+          That&rsquo;s <b style={{ color: 'var(--vg-neg)' }}>{INR(s.shortfall)}</b> over what it earned.
+          {s.contributors.length > 0 && <> {contribNames} should each pay <b>{INR(s.perContributor)}</b> into the common account — settle it in the <b>Settlement</b> tab.</>}
+        </p>
+      )}
+      <p className="vg-muted" style={{ fontSize: '0.72rem', margin: '0.5rem 0 0' }}>Everyone can see the common income; changes {me.role === 'super' ? 'apply straight away for you' : 'go to the person you pick to approve'}.</p>
+    </div>
+  )
+}
+
+// ---------- Monthly settlement ----------------------------------
+function SettlementTab({ doc, me, k, setKey, action }: {
+  doc: FinanceDoc
+  me: { role: 'super' | 'member'; entityId: string | null }
+  k: string; setKey: (k: string) => void
+  action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
+}) {
+  const entities = doc.entities
+  const s = computeSettlement(doc, k)
+  const [busyKey, setBusyKey] = useState<string | null>(null)
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const step = (d: number) => { const [y, mo] = k.split('-').map(Number); setKey(monthKey(new Date(y, mo - 1 + d, 1))) }
+  const nm = (id: string) => (id === 'common' ? 'Common account' : entName(entities, id))
+  const contribNames = s.contributors.map(c => entName(entities, c)).join(' and ')
+
+  async function uploadProof(tr: SettleTransfer, file?: File) {
+    if (!file) return
+    setBusyKey(tr.key)
+    let proofKey = ''
+    try {
+      const safe = file.name.replace(/[^\w.\-]+/g, '_'); proofKey = `settlements/${k}-${tr.key.replace(/[^\w]+/g, '_')}-${Date.now()}-${safe}`
+      const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: proofKey, contentType: file.type }) })
+      const { url } = await u.json(); if (url) await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+    } catch { /* still record as paid, proof optional */ }
+    await action({ action: 'settlePay', monthKey: k, transferKey: tr.key, proofKey })
+    setBusyKey(null)
+  }
+
+  const kindChip = (kind: SettleTransfer['kind']) =>
+    kind === 'common' ? <span className="vg-chip">common pot</span>
+      : kind === 'carry' ? <span className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>carried forward</span>
+        : <span className="vg-chip">peer</span>
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+        <div className="vg-nav">
+          <button className="vg-icobtn" onClick={() => step(-1)}><ChevronLeft className="h-4 w-4" /></button>
+          <span className="lbl">{monthLabel(k)}</span>
+          <button className="vg-icobtn" onClick={() => step(1)}><ChevronRight className="h-4 w-4" /></button>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {s.closed ? <span className="vg-chip" style={{ background: 'rgba(31,157,107,0.14)', color: 'var(--vg-pos)' }}><Check className="h-3.5 w-3.5" /> Closed</span> : null}
+          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
+        </div>
+      </div>
+
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <Kpi label="Common income" value={INR(s.commonIncome)} cls="vg-pos" info="What the common account earns this month (e.g. rent)." />
+        <Kpi label="Paid from common" value={INR(s.commonExpenses)} info="Everything paid out of the common account this month." />
+        <Kpi label="Common shortfall" value={INR(s.shortfall)} cls={s.shortfall > 0 ? 'vg-neg' : 'vg-pos'} info="How much the common account overspent beyond its income — funded by the earners." />
+        <Kpi label="Still to settle" value={INR(s.outstanding)} cls={s.outstanding > 0 ? 'vg-neg' : 'vg-pos'} info="Total across all unpaid transfers this month." />
+      </div>
+
+      {s.shortfall > 0 && (
+        <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', borderLeft: '3px solid var(--vg-accent)' }}>
+          <p style={{ margin: 0, color: '#241b40' }}>
+            The common account spent <b>{INR(s.commonExpenses)}</b> but only earned <b>{INR(s.commonIncome)}</b> — a shortfall of <b>{INR(s.shortfall)}</b>.
+            {s.contributors.length > 0 && <> {contribNames} each put <b>{INR(s.perContributor)}</b> into the common account to cover it.</>}
+          </p>
+          <p className="vg-muted" style={{ fontSize: '0.78rem', marginTop: '0.5rem', marginBottom: 0 }}>Expenses paid <i>from</i> the common account are already shared between the earners, so they aren&rsquo;t settled item-by-item — only this shortfall is.</p>
+        </div>
+      )}
+
+      <div className="vg-card vg-pad">
+        <p className="vg-sec">Who pays whom</p>
+        {s.transfers.length === 0 ? (
+          <p className="vg-empty"><ShieldCheck className="h-6 w-6" style={{ display: 'inline', color: 'var(--vg-pos)' }} /><br />Nothing to settle this month — everyone&rsquo;s square.</p>
+        ) : (
+          <div className="vg-tablewrap">
+            <table className="vg-table" style={{ minWidth: 620 }}>
+              <thead><tr><th>From</th><th>To</th><th></th><th className="num">Amount</th><th style={{ width: 220 }}>Status</th></tr></thead>
+              <tbody>
+                {s.transfers.map(tr => {
+                  const proof = s.paid[tr.key]
+                  return (
+                    <tr key={tr.key}>
+                      <td><span className="vg-chip" style={{ background: entColor(entities, tr.from) + '22', color: entColor(entities, tr.from) }}>{nm(tr.from)}</span></td>
+                      <td><span className="vg-chip" style={{ background: (tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to)) + '22', color: tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to) }}>{nm(tr.to)}</span></td>
+                      <td>{kindChip(tr.kind)}{tr.kind === 'carry' && tr.fromMonth && <span className="vg-muted" style={{ fontSize: '0.72rem', marginLeft: 4 }}>from {fmtMon(tr.fromMonth)}</span>}</td>
+                      <td className="num" style={{ fontWeight: 700 }}>{INR(tr.amount)}</td>
+                      <td>
+                        {proof ? (
+                          <span className="vg-pos" style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <Check className="h-4 w-4" /> Paid <span className="vg-muted">· {proof.by}</span>
+                            {!s.closed && <button className="vg-icobtn" title="Undo" onClick={() => action({ action: 'settleUnpay', monthKey: k, transferKey: tr.key })}><X className="h-4 w-4" /></button>}
+                          </span>
+                        ) : s.closed ? <span className="vg-neg" style={{ fontSize: '0.82rem' }}>unpaid → carried</span> : (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <input ref={el => { fileRefs.current[tr.key] = el }} type="file" accept="image/*" hidden onChange={e => uploadProof(tr, e.target.files?.[0])} />
+                            <button className="vg-btn" disabled={busyKey === tr.key} onClick={() => fileRefs.current[tr.key]?.click()}>{busyKey === tr.key ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Proof + mark paid</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.9rem', gap: 8, flexWrap: 'wrap' }}>
+          <p className="vg-muted" style={{ fontSize: '0.75rem', margin: 0, maxWidth: 560 }}>Upload the payment screenshot as proof when someone pays. When you close the month, anything still unpaid is carried into next month with a reference back to here.</p>
+          {s.closed
+            ? (me.role === 'super' && <button className="vg-btn" onClick={() => action({ action: 'reopenSettlement', monthKey: k })}>Reopen</button>)
+            : <button className="vg-btn vg-btn-primary" disabled={s.transfers.length === 0} onClick={() => action({ action: 'closeSettlement', monthKey: k })}><Check className="h-4 w-4" /> Close this month</button>}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ---------- Approvals -------------------------------------------
 function editKind(p: Proposal): string {
   if (p.template) return `Recurring ${p.template.section === 'emis' ? 'EMI' : p.template.section} · ${p.template.op}`
@@ -1826,6 +2002,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
         <Kpi label="Common + shared" value={INR(t.expense)} info="Total of everything you can see: common household costs and anything shared with you." />
       </div>
 
+      {bucket === 'common' && <CommonAccountBar doc={doc} k={k} me={{ role: 'member', entityId }} action={action} />}
+
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
           <div className="vg-subtabs">
@@ -1888,7 +2066,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 // ---------- Member dashboard ------------------------------------
 function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'year' | 'tags' | 'savings' | 'budget' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
+  const [tab, setTab] = useState<'month' | 'settle' | 'year' | 'tags' | 'savings' | 'budget' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
   const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -1910,6 +2088,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
   const pending = (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
   const TABS = [
     { id: 'month', label: 'This month', icon: CalendarDays },
+    { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'savings', label: 'My Savings', icon: PiggyBank },
@@ -1924,6 +2103,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
   return (
     <Shell saveState={busy} me={shellMe} tabs={TABS} activeTab={tab} onTab={id => setTab(id as typeof tab)}>
       {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} action={action} openEditor={setEditing} />}
+      {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={action} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
