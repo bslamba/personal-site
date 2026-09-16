@@ -46,6 +46,7 @@ function stripPrivate(doc: FinanceDoc): FinanceDoc {
     template: { ...doc.template, income: doc.template.income.filter(i => i.entity === 'common') },
     // The super sees shared history, but not other people's purely-personal edits.
     auditLog: (doc.auditLog ?? []).filter(a => !a.personal),
+    reminders: (doc.reminders ?? []).filter(r => r.scope === 'common'),
   }
 }
 
@@ -93,6 +94,9 @@ export async function PUT(request: Request) {
     body.doc.savings = stored?.savings ?? []
     body.doc.auditLog = stored?.auditLog ?? body.doc.auditLog ?? []
     body.doc.settlements = stored?.settlements ?? body.doc.settlements ?? {}
+    // Personal reminders are stripped from the super view — re-merge them, and
+    // keep stored reminders as the source of truth (managed via the action API).
+    body.doc.reminders = stored?.reminders ?? body.doc.reminders ?? []
     if (stored) {
       for (const [k, m] of Object.entries(body.doc.months)) {
         const priv = stored.months[k] ? stored.months[k].income.filter(i => i.entity !== 'common') : []

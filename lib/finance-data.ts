@@ -111,6 +111,20 @@ export interface Settlement {
   carry?: CarryItem[]                        // outstanding carried in from earlier months
 }
 
+export interface Reminder {
+  id: string
+  label: string
+  scope: 'common' | 'personal'       // common = family bill; personal = one profile's
+  owner?: string                     // entity id (personal) — whose reminder it is
+  amount?: number
+  dayOfMonth: number                 // 1..28 — remind from this day each month
+  notify: string[]                   // entity ids whose emails receive the reminder
+  active: boolean
+  createdBy?: string
+  done?: Record<string, { proofKey?: string; at: string; by: string }>  // monthKey -> resolved
+  lastSent?: Record<string, string>  // monthKey -> ISO date last emailed (once/day)
+}
+
 export interface FinanceDoc {
   version: 2
   entities: Entity[]
@@ -122,6 +136,7 @@ export interface FinanceDoc {
   budgets: Budgets
   auditLog?: AuditEntry[]
   settlements?: Record<string, Settlement>
+  reminders?: Reminder[]
   updatedAt: string
 }
 
@@ -262,6 +277,7 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.proposals)) doc.proposals = []
     if (!Array.isArray(doc.auditLog)) doc.auditLog = []
     if (!doc.settlements || typeof doc.settlements !== 'object') doc.settlements = {}
+    if (!Array.isArray(doc.reminders)) doc.reminders = []
     if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
     return doc
   }
@@ -518,7 +534,8 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   const budgets: Budgets = { family: doc.budgets.family, byEntity: { [e]: doc.budgets.byEntity[e] ?? emptyBudget() } }
   const proposals = (doc.proposals ?? []).filter(p => p.proposedBy === e || p.approvers.includes(e))
   const auditLog = (doc.auditLog ?? []).filter(a => a.actor === e || (a.parties ?? []).includes(e))
-  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements }
+  const reminders = (doc.reminders ?? []).filter(r => r.scope === 'common' || r.owner === e || (r.notify ?? []).includes(e))
+  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements, reminders }
 }
 
 /** Apply an add/update/delete to a template section. */

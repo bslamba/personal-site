@@ -1470,6 +1470,114 @@ function CommonAccountBar({ doc, k, me, action }: {
   )
 }
 
+// ---------- Payment reminders -----------------------------------
+function RemindersCard({ doc, me, k, action }: {
+  doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
+  k: string
+  action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
+}) {
+  const persons = doc.entities.filter(e => e.kind === 'person')
+  const list = doc.reminders ?? []
+  const [adding, setAdding] = useState(false)
+  const [label, setLabel] = useState('')
+  const [amount, setAmount] = useState('')
+  const [day, setDay] = useState('1')
+  const [scope, setScope] = useState<'common' | 'personal'>('common')
+  const [notify, setNotify] = useState<string[]>(persons.filter(p => p.earning).map(p => p.id))
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const proofRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const toggleNotify = (id: string) => setNotify(n => n.includes(id) ? n.filter(x => x !== id) : [...n, id])
+
+  async function add() {
+    if (!label.trim()) return
+    await action({ action: 'saveReminder', reminder: { label: label.trim(), amount: amount ? Number(amount) : undefined, dayOfMonth: Number(day) || 1, scope, owner: scope === 'personal' ? me.entityId ?? undefined : undefined, notify, active: true } })
+    setLabel(''); setAmount(''); setDay('1'); setAdding(false)
+  }
+
+  async function resolve(id: string, file?: File) {
+    setBusyId(id)
+    let proofKey = ''
+    if (file) {
+      try {
+        const safe = file.name.replace(/[^\w.\-]+/g, '_'); proofKey = `reminders/${k}-${id}-${Date.now()}-${safe}`
+        const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: proofKey, contentType: file.type }) })
+        const { url } = await u.json(); if (url) await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+      } catch { /* proof optional */ }
+    }
+    await action({ action: 'resolveReminder', id, monthKey: k, proofKey })
+    setBusyId(null)
+  }
+
+  return (
+    <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: '0.5rem' }}>
+        <p className="vg-sec" style={{ margin: 0 }}><BellRing className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Payment reminders</p>
+        <button className="vg-btn vg-btn-primary" onClick={() => setAdding(a => !a)}><Plus className="h-4 w-4" /> Add reminder</button>
+      </div>
+
+      {adding && (
+        <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', padding: '0.8rem', border: '1px solid var(--vg-line)', borderRadius: 10, marginBottom: '0.8rem' }}>
+          <div style={{ gridColumn: '1 / -1' }}><label className="vg-lbl">What to pay</label><input className="vg-input" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Axis Home Loan EMI" /></div>
+          <div><label className="vg-lbl">Amount (optional)</label><input className="vg-input" type="number" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+          <div><label className="vg-lbl">Remind from day</label><input className="vg-input" type="number" min={1} max={28} value={day} onChange={e => setDay(e.target.value)} /></div>
+          <div><label className="vg-lbl">Kind</label><select className="vg-select" value={scope} onChange={e => setScope(e.target.value as 'common' | 'personal')}><option value="common">Common / family</option><option value="personal">Personal (mine)</option></select></div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label className="vg-lbl">Email these people</label>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+              {persons.map(p => <label key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.85rem' }}><input type="checkbox" checked={notify.includes(p.id)} onChange={() => toggleNotify(p.id)} />{p.name}</label>)}
+            </div>
+          </div>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button className="vg-btn" onClick={() => setAdding(false)}>Cancel</button>
+            <button className="vg-btn vg-btn-primary" disabled={!label.trim() || notify.length === 0} onClick={add}><Check className="h-4 w-4" /> Save reminder</button>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <p className="vg-muted" style={{ fontSize: '0.85rem' }}>No reminders yet. Add one to get a no-reply email from the day it&rsquo;s due until it&rsquo;s marked paid with proof.</p>
+      ) : (
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 620 }}>
+            <thead><tr><th>What</th><th>Kind</th><th style={{ width: 70 }}>Day</th><th>Notifies</th><th style={{ width: 210 }}>{monthLabel(k)}</th><th style={{ width: 80 }}></th></tr></thead>
+            <tbody>
+              {list.map(r => {
+                const done = r.done?.[k]
+                return (
+                  <tr key={r.id} style={{ opacity: r.active ? 1 : 0.5 }}>
+                    <td className="vg-nm" style={{ fontWeight: 600 }}>{r.label}{r.amount ? <span className="vg-muted" style={{ fontWeight: 400 }}> · {INR(r.amount)}</span> : null}</td>
+                    <td><span className="vg-chip">{r.scope === 'common' ? 'Common' : 'Personal'}</span></td>
+                    <td className="vg-muted">{r.dayOfMonth}</td>
+                    <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{(r.notify ?? []).map(n => entName(doc.entities, n)).join(', ') || '—'}</td>
+                    <td>
+                      {done ? (
+                        <span className="vg-pos" style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Check className="h-4 w-4" /> Paid <span className="vg-muted">· {done.by}</span><button className="vg-icobtn" title="Undo" onClick={() => action({ action: 'unresolveReminder', id: r.id, monthKey: k })}><X className="h-4 w-4" /></button></span>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input ref={el => { proofRefs.current[r.id] = el }} type="file" accept="image/*" hidden onChange={e => resolve(r.id, e.target.files?.[0])} />
+                          <button className="vg-btn" disabled={busyId === r.id} onClick={() => proofRefs.current[r.id]?.click()}>{busyId === r.id ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Mark paid</button>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="vg-icobtn" title={r.active ? 'Pause' : 'Resume'} onClick={() => action({ action: 'saveReminder', reminder: { ...r, active: !r.active } })}>{r.active ? '⏸' : '▶'}</button>
+                        <button className="vg-icobtn" onClick={() => action({ action: 'removeReminder', id: r.id })}><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>Emails are sent once a day from the due day until you mark the payment paid (with a screenshot). Needs an email provider key set up in Vercel (RESEND_API_KEY).</p>
+    </div>
+  )
+}
+
 // ---------- Monthly settlement ----------------------------------
 function SettlementTab({ doc, me, k, setKey, action }: {
   doc: FinanceDoc
@@ -1578,6 +1686,8 @@ function SettlementTab({ doc, me, k, setKey, action }: {
             : <button className="vg-btn vg-btn-primary" disabled={s.transfers.length === 0} onClick={() => action({ action: 'closeSettlement', monthKey: k })}><Check className="h-4 w-4" /> Close this month</button>}
         </div>
       </div>
+
+      <RemindersCard doc={doc} me={me} k={k} action={action} />
     </>
   )
 }

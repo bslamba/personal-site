@@ -388,6 +388,54 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, carried: carry.length, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
+      case 'saveReminder': {
+        const bt = body as unknown as { reminder?: Partial<import('@/lib/finance-data').Reminder> }
+        const r = bt.reminder
+        if (!r || !r.label || !r.dayOfMonth) return NextResponse.json({ error: 'Missing reminder details' }, { status: 400 })
+        const rec = {
+          id: r.id || uid('rem'), label: String(r.label).slice(0, 120),
+          scope: r.scope === 'common' ? 'common' as const : 'personal' as const,
+          owner: r.scope === 'common' ? undefined : (r.owner || actor || undefined),
+          amount: r.amount != null ? Math.max(0, Number(r.amount) || 0) : undefined,
+          dayOfMonth: Math.max(1, Math.min(28, Number(r.dayOfMonth) || 1)),
+          notify: Array.isArray(r.notify) ? r.notify.filter(Boolean) : [],
+          active: r.active !== false,
+          createdBy: actor ?? 'su',
+          done: (r as { done?: Record<string, { proofKey?: string; at: string; by: string }> }).done ?? {},
+          lastSent: (r as { lastSent?: Record<string, string> }).lastSent ?? {},
+        }
+        const list = doc.reminders ?? []
+        const idx = list.findIndex(x => x.id === rec.id)
+        doc.reminders = idx >= 0 ? list.map(x => (x.id === rec.id ? { ...x, ...rec } : x)) : [...list, rec]
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'removeReminder': {
+        const id = (body as unknown as { id?: string }).id
+        doc.reminders = (doc.reminders ?? []).filter(r => r.id !== id)
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'resolveReminder': {
+        const bt = body as unknown as { id?: string; monthKey?: string; proofKey?: string }
+        const mk = bt.monthKey || monthKey()
+        doc.reminders = (doc.reminders ?? []).map(r => r.id === bt.id
+          ? { ...r, done: { ...(r.done ?? {}), [mk]: { proofKey: bt.proofKey || '', at: new Date().toISOString(), by: actorName } } }
+          : r)
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'unresolveReminder': {
+        const bt = body as unknown as { id?: string; monthKey?: string }
+        const mk = bt.monthKey || monthKey()
+        doc.reminders = (doc.reminders ?? []).map(r => { if (r.id === bt.id && r.done) { const d = { ...r.done }; delete d[mk]; return { ...r, done: d } } return r })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
       case 'reopenSettlement': {
         const bt = body as unknown as { monthKey?: string }
         const mk = bt.monthKey
