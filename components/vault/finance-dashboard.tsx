@@ -575,6 +575,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
 }) {
   const [bucket, setBucket] = useState<Bucket>('common')
   const [reading, setReading] = useState(false)
+  const [receiptWarn, setReceiptWarn] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const entities = doc.entities
 
@@ -599,13 +600,15 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
     const it = newItem('common', entities)
     try {
       const b64 = await fileToB64(file)
-      const res = await fetch('/api/vault/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: b64, mediaType: file.type }) })
+      const res = await fetch('/api/vault/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: b64, mediaType: file.type, categories: doc.categories.map(c => c.name) }) })
       const info = await res.json().catch(() => ({}))
+      if (info.configured === false) setReceiptWarn('Receipt reading isn’t set up yet — add ANTHROPIC_API_KEY in Vercel to auto-read receipts. Fill it in manually for now.')
       if (info.amount) it.amount = Number(info.amount) || 0
       if (info.merchant) it.name = String(info.merchant)
       if (info.note && !it.name) it.name = String(info.note)
       if (info.date) it.date = String(info.date)
-      it.category = detectCategory(String(info.merchant || it.name || ''))
+      const known = doc.categories.map(c => c.name)
+      it.category = (info.category && known.includes(String(info.category))) ? String(info.category) : detectCategory(String(info.merchant || it.name || ''))
       // keep a copy of the receipt image (best-effort)
       try {
         const safe = file.name.replace(/[^\w.\-]+/g, '_'); const rkey = `receipts/${Date.now()}-${safe}`
@@ -661,6 +664,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
             <button className="vg-btn vg-btn-primary" onClick={() => openNew(bucket)}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
+        {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
         <div className="vg-tablewrap">
           <table className="vg-table" style={{ minWidth: 560 }}>
             <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">Amount</th><th style={{ width: 42 }}>Paid</th><th style={{ width: 76 }}></th></tr></thead>
@@ -1590,6 +1594,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 }) {
   const [bucket, setBucket] = useState<Bucket>('common')
   const [reading, setReading] = useState(false)
+  const [receiptWarn, setReceiptWarn] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const entities = doc.entities
   const m = monthView(doc, k)
@@ -1614,12 +1619,14 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
     const it = memberNewItem('personal', entities, entityId)
     try {
       const b64 = await fileToB64(file)
-      const res = await fetch('/api/vault/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: b64, mediaType: file.type }) })
+      const res = await fetch('/api/vault/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: b64, mediaType: file.type, categories: doc.categories.map(c => c.name) }) })
       const info = await res.json().catch(() => ({}))
+      if (info.configured === false) setReceiptWarn('Receipt reading isn’t set up yet — add ANTHROPIC_API_KEY in Vercel to auto-read receipts. Fill it in manually for now.')
       if (info.amount) it.amount = Number(info.amount) || 0
       if (info.merchant) it.name = String(info.merchant)
+      if (info.note && !it.name) it.name = String(info.note)
       if (info.date) it.date = String(info.date)
-      it.category = detectCategory(String(info.merchant || it.name || ''))
+      { const known = doc.categories.map(c => c.name); it.category = (info.category && known.includes(String(info.category))) ? String(info.category) : detectCategory(String(info.merchant || it.name || '')) }
       try {
         const safe = file.name.replace(/[^\w.\-]+/g, '_'); const rkey = `receipts/${Date.now()}-${safe}`
         const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: rkey, contentType: file.type }) })
@@ -1661,6 +1668,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
             <button className="vg-btn vg-btn-primary" onClick={() => openAdd(bucket)}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
+        {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
         <div className="vg-tablewrap">
           <table className="vg-table" style={{ minWidth: 560 }}>
             <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">Amount</th><th style={{ width: 42 }}>Paid</th><th style={{ width: 76 }}></th></tr></thead>
