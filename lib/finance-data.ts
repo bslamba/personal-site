@@ -87,6 +87,20 @@ export interface Template {
   income: IncomeItem[]
 }
 
+export interface AuditEntry {
+  id: string
+  ts: string                  // ISO timestamp
+  actor: string               // entity id, or 'super'
+  actorName: string
+  event: 'propose' | 'accept' | 'decline' | 'revoke' | 'apply'
+  what: string                // human summary, e.g. "Change · House Rashan"
+  reason?: string
+  monthKey?: string
+  proposalId?: string
+  parties?: string[]          // entity ids who may see this entry (besides the actor)
+  personal?: boolean          // a private, personal-only action
+}
+
 export interface FinanceDoc {
   version: 2
   entities: Entity[]
@@ -96,6 +110,7 @@ export interface FinanceDoc {
   categories: Category[]
   proposals: Proposal[]
   budgets: Budgets
+  auditLog?: AuditEntry[]
   updatedAt: string
 }
 
@@ -234,6 +249,7 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.entities) || doc.entities.length === 0) doc.entities = seedEntities()
     if (!Array.isArray(doc.categories) || doc.categories.length === 0) doc.categories = seedCategories()
     if (!Array.isArray(doc.proposals)) doc.proposals = []
+    if (!Array.isArray(doc.auditLog)) doc.auditLog = []
     if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
     return doc
   }
@@ -437,6 +453,7 @@ export interface Proposal {
   status: ProposalStatus
   createdAt: string
   note?: string
+  reason?: string             // why the edit was initiated (required for edits)
   template?: { section: 'monthly' | 'emis' | 'annual'; op: 'add' | 'update' | 'delete' }
   monthEdit?: { op: 'update' | 'delete' }
 }
@@ -487,7 +504,8 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   }
   const budgets: Budgets = { family: doc.budgets.family, byEntity: { [e]: doc.budgets.byEntity[e] ?? emptyBudget() } }
   const proposals = (doc.proposals ?? []).filter(p => p.proposedBy === e || p.approvers.includes(e))
-  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals }
+  const auditLog = (doc.auditLog ?? []).filter(a => a.actor === e || (a.parties ?? []).includes(e))
+  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog }
 }
 
 /** Apply an add/update/delete to a template section. */

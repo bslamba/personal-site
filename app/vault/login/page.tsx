@@ -8,7 +8,7 @@
 // the code and a new password. Works for every profile.
 // ============================================================
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Lock, Loader2, ArrowLeft } from 'lucide-react'
 
@@ -26,6 +26,10 @@ export default function VaultLogin() {
   const [emailHint, setEmailHint] = useState('')
   const [notice, setNotice]     = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).get('reason') === 'idle') setNotice('You were signed out after 25 minutes of inactivity. Please sign in again.') } catch { /* ignore */ }
+  }, [])
 
   const HEADING = { fontFamily: 'var(--font-heading)' } as const
   const inputCls = 'mt-2 w-full border border-ink-300 bg-paper px-3 py-2.5 text-sm outline-none transition-colors focus:border-signal-500'

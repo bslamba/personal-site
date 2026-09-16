@@ -44,6 +44,8 @@ function stripPrivate(doc: FinanceDoc): FinanceDoc {
     savings: [],
     months,
     template: { ...doc.template, income: doc.template.income.filter(i => i.entity === 'common') },
+    // The super sees shared history, but not other people's purely-personal edits.
+    auditLog: (doc.auditLog ?? []).filter(a => !a.personal),
   }
 }
 
@@ -89,6 +91,7 @@ export async function PUT(request: Request) {
     const rawStored = await readRaw()
     const stored = rawStored ? migrate(rawStored) : null
     body.doc.savings = stored?.savings ?? []
+    body.doc.auditLog = stored?.auditLog ?? body.doc.auditLog ?? []
     if (stored) {
       for (const [k, m] of Object.entries(body.doc.months)) {
         const priv = stored.months[k] ? stored.months[k].income.filter(i => i.entity !== 'common') : []

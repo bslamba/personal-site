@@ -20,13 +20,14 @@ import {
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
   type SavingItem, type Alloc, type Bucket, type Template, type Category,
-  type EntityBudget, type PlannedItem,
+  type EntityBudget, type PlannedItem, type Proposal,
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
-  commitProposalItem, emptyBudget, categoryOf, detectCategory, isPersonalTo,
+  emptyBudget, categoryOf, detectCategory, isPersonalTo,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
+import IdleLogout from '@/components/vault/idle-logout'
 
 const CAT_COLORS: Record<string, string> = {
   'Loans & EMIs': '#6d4bd8', 'Home & Utilities': '#4b7bec', 'Food & Groceries': '#1f9d6b',
@@ -330,7 +331,7 @@ export default function FinanceDashboard() {
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'budget' && <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
-      {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => patchDoc(d => { decideLocally(d, id, kind, true, null); return d })} />}
+      {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => runAction({ action: kind, id })} onRevoke={id => runAction({ action: 'revoke', id })} />}
       {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner) => runAction({ action: 'importRows', rows, owner })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'setup' && <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} />}
@@ -371,6 +372,7 @@ function Shell({ children, saveState, me, tabs, activeTab, onTab }: {
   const firstName = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
     <div className="vg">
+      <IdleLogout />
       <div className="vg-wrap">
         <div className="vg-appbar">
           <div className="vg-appbar-left">
@@ -481,6 +483,27 @@ function ChangePasswordModal({ username, onClose }: { username: string; onClose:
             {err && <p className="vg-neg" style={{ fontSize: '0.82rem', marginTop: '0.7rem' }}>{err}</p>}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Reason prompt (for shared edits) --------------------
+function ReasonModal({ title, hint, onConfirm, onClose }: { title: string; hint?: string; onConfirm: (reason: string) => void; onClose: () => void }) {
+  const [reason, setReason] = useState('')
+  return (
+    <div className="vg-lb" onClick={onClose}>
+      <div className="vg-card vg-pad" onClick={e => e.stopPropagation()} style={{ width: 'min(440px, 96vw)', background: 'var(--vg-glass-2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>{title}</p>
+          <button className="vg-icobtn" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.83rem', marginTop: 0 }}>{hint ?? 'The other person sees this reason when they review your request. It’s logged with a timestamp.'}</p>
+        <textarea className="vg-input" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Amount was wrong — actual bill is ₹4,871" style={{ resize: 'vertical' }} autoFocus />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '0.8rem' }}>
+          <button className="vg-btn" onClick={onClose}>Cancel</button>
+          <button className="vg-btn vg-btn-primary" disabled={reason.trim().length < 3} onClick={() => onConfirm(reason.trim())}><Check className="h-4 w-4" /> Send for approval</button>
+        </div>
       </div>
     </div>
   )
@@ -775,16 +798,7 @@ function YearTab({ doc, year, setYear, openMonth }: {
   const now = monthKey()
   const emiRows = doc.template.emis.filter(e => !e.endDate || e.endDate >= `${now}-01`).map(e => ({ ...emiProgress(e), name: e.name, monthly: e.amount, end: e.endDate }))
 
-  // Extra analysis
-  const netYear = totInc - totExp
-  const savingsRate = totInc > 0 ? Math.round((netYear / totInc) * 100) : 0
   const perEntYear = doc.entities.map((e, i) => ({ label: e.name, value: per.reduce((s, p) => s + (p.t.byEntity[e.id] ?? 0), 0), color: e.color || catColor(e.name, doc.categories, i) })).filter(p => p.value > 0).sort((a, b) => b.value - a.value)
-  const withExp = per.filter(p => p.t.expense > 0)
-  const hi = withExp.length ? withExp.reduce((a, b) => (b.t.expense > a.t.expense ? b : a)) : null
-  const lo = withExp.length ? withExp.reduce((a, b) => (b.t.expense < a.t.expense ? b : a)) : null
-  const totEmi = emiRows.reduce((s, r) => s + r.monthly, 0)
-  const maxBar = Math.max(1, ...per.map(x => Math.max(x.t.expense, x.t.income)))
-  const idxOf = (k: string) => months.indexOf(k)
 
   return (
     <>
@@ -799,30 +813,23 @@ function YearTab({ doc, year, setYear, openMonth }: {
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
         <Kpi label="Income (year)" value={INR(totInc)} cls="vg-pos" info="Total income across all 12 months of this year." />
         <Kpi label="Expenses (year)" value={INR(totExp)} info="Total spent across the whole year." />
-        <Kpi label={netYear >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(netYear))} cls={netYear >= 0 ? 'vg-pos' : 'vg-neg'} info="Year income minus year expenses." />
-        <Kpi label="Savings rate" value={`${savingsRate}%`} cls={savingsRate >= 0 ? 'vg-pos' : 'vg-neg'} info="Share of income kept after expenses — (income − expenses) ÷ income." />
+        <Kpi label={totInc - totExp >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(totInc - totExp))} cls={totInc - totExp >= 0 ? 'vg-pos' : 'vg-neg'} info="Year income minus year expenses." />
+        <Kpi label="Avg / active month" value={INR(totExp / active)} info="Average monthly spend, counting only the months that actually had expenses." />
       </div>
 
       <div className="vg-grid2">
         <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-            <p className="vg-sec" style={{ margin: 0 }}>Income vs spend by month — tap a bar to open it</p>
-            <span style={{ fontSize: '0.75rem', color: '#8b81ad', display: 'inline-flex', gap: 14 }}>
-              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(180deg,#4bd88f,#1f9d6b)', verticalAlign: '-1px', marginRight: 4 }} />Income</span>
-              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(180deg,#a06be0,#6d4bd8)', verticalAlign: '-1px', marginRight: 4 }} />Spend</span>
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 200, paddingTop: 8, marginTop: 6 }}>
+          <p className="vg-sec">Expenses by month — tap a bar to open it</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 190, paddingTop: 8 }}>
             {per.map((p, i) => {
-              const surplus = p.t.income - p.t.expense
+              const max = Math.max(1, ...per.map(x => x.t.expense))
               return (
-                <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · in ${INR(p.t.income)} · out ${INR(p.t.expense)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
-                  <span style={{ fontSize: 9, color: surplus >= 0 ? '#1f9d6b' : '#c0398b', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{p.t.expense || p.t.income ? (surplus >= 0 ? '+' : '−') + Math.abs(Math.round(surplus / 1000)) + 'k' : ''}</span>
-                  <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2, height: 140 }}>
-                    <span style={{ width: '42%', height: `${(p.t.income / maxBar) * 100}%`, minHeight: p.t.income ? 3 : 0, background: 'linear-gradient(180deg,#4bd88f,#1f9d6b)', borderRadius: '4px 4px 2px 2px' }} />
-                    <span style={{ width: '42%', height: `${(p.t.expense / maxBar) * 100}%`, minHeight: p.t.expense ? 3 : 0, background: p.k === now ? 'linear-gradient(180deg,#e0708f,#b0479a)' : 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '4px 4px 2px 2px' }} />
+                <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · ${INR(p.t.expense)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
+                  <span style={{ fontSize: 9, color: '#5b5080', fontVariantNumeric: 'tabular-nums' }}>{p.t.expense ? Math.round(p.t.expense / 1000) + 'k' : ''}</span>
+                  <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 130 }}>
+                    <span style={{ width: '100%', height: `${(p.t.expense / max) * 100}%`, minHeight: p.t.expense ? 3 : 0, background: p.k === now ? 'linear-gradient(180deg,#e0708f,#b0479a)' : 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '6px 6px 3px 3px' }} />
                   </span>
-                  <span style={{ fontSize: 10, color: p.k === now ? 'var(--vg-accent)' : '#8b81ad', fontWeight: p.k === now ? 700 : 400 }}>{MON[i]}</span>
+                  <span style={{ fontSize: 10, color: '#8b81ad' }}>{MON[i]}</span>
                 </button>
               )
             })}
@@ -851,18 +858,7 @@ function YearTab({ doc, year, setYear, openMonth }: {
           ) : <p className="vg-muted">No expenses to attribute yet.</p>}
         </div>
 
-        <div className="vg-card vg-pad">
-          <p className="vg-sec">Highlights</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Busiest month</span><span>{hi ? <button className="vg-linklike" onClick={() => openMonth(hi.k)} style={{ border: 0, background: 'none', color: 'var(--vg-accent)', cursor: 'pointer', fontWeight: 700 }}>{MON[idxOf(hi.k)]} · {INR(hi.t.expense)}</button> : '—'}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Lightest active month</span><span>{lo ? <b>{MON[idxOf(lo.k)]} · {INR(lo.t.expense)}</b> : '—'}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Avg / active month</span><b>{INR(totExp / active)}</b></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">EMIs / month (active)</span><b>{INR(totEmi)}</b></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span className="vg-muted">Top category</span><span>{cats[0] ? <b>{cats[0].name} · {INR(cats[0].value)}</b> : '—'}</span></div>
-          </div>
-        </div>
-
-        <div className="vg-card vg-pad">
+        <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
           <p className="vg-sec">Loan & EMI outlook</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
             {emiRows.map(r => (
@@ -1410,53 +1406,107 @@ function emiProgress(e: Item) {
 // ============================================================
 
 /** Apply an accept/decline to a proposal in place (super path mirrors the server). */
-function decideLocally(doc: FinanceDoc, id: string, kind: 'accept' | 'decline', isSuper: boolean, actor: string | null) {
-  const pr = (doc.proposals ?? []).find(p => p.id === id)
-  if (!pr) return
-  if (kind === 'decline') { doc.proposals = doc.proposals.filter(p => p.id !== id); return }
-  if (actor && !pr.approved.includes(actor)) pr.approved.push(actor)
-  const done = isSuper || pr.mode === 'any' || pr.approvers.every(a => pr.approved.includes(a))
-  if (done) { commitProposalItem(doc, pr); doc.proposals = doc.proposals.filter(p => p.id !== id) }
+// ---------- Approvals -------------------------------------------
+function editKind(p: Proposal): string {
+  if (p.template) return `Recurring ${p.template.section === 'emis' ? 'EMI' : p.template.section} · ${p.template.op}`
+  if (p.monthEdit) return p.monthEdit.op === 'delete' ? 'Remove' : 'Change'
+  return 'New charge'
 }
 
-// ---------- Approvals -------------------------------------------
-function ApprovalsTab({ doc, onDecide }: { doc: FinanceDoc; onDecide: (id: string, kind: 'accept' | 'decline') => void }) {
+function ApprovalsTab({ doc, onDecide, onRevoke, me }: {
+  doc: FinanceDoc
+  onDecide: (id: string, kind: 'accept' | 'decline') => void
+  onRevoke?: (id: string) => void
+  me?: { role: 'super' | 'member'; entityId: string | null }
+}) {
   const props = doc.proposals ?? []
   const ent = doc.entities
+  const isSuper = me?.role === 'super'
+  const meId = me?.entityId ?? null
+  const isMine = (p: Proposal) => (isSuper && p.proposedBy === 'super') || (meId != null && p.proposedBy === meId)
+  const canDecide = (p: Proposal) => isSuper || (meId != null && p.approvers.includes(meId) && !p.approved.includes(meId))
+  const toReview = props.filter(p => canDecide(p) && !isMine(p))
+  const mineOut = props.filter(isMine)
+  const log = (doc.auditLog ?? []).slice().reverse()
+  const when = (ts: string) => { try { return new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return ts } }
+  const evColor: Record<string, string> = { propose: 'var(--vg-accent)', accept: 'var(--vg-pos)', decline: 'var(--vg-neg)', revoke: '#c0398b', apply: '#8b81ad' }
+
+  const Card = ({ p }: { p: Proposal }) => (
+    <div className="vg-card" style={{ padding: '0.9rem 1rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div>
+          <b style={{ fontSize: '1rem' }}>{p.item.name || 'Expense'}</b> <span className="vg-chip">{editKind(p)}</span> {!p.template && <span className="vg-chip">{monthLabel(p.monthKey)}</span>}
+          <div className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 2 }}>
+            Proposed by <b>{p.proposedByName}</b> · paid by {entName(ent, p.item.paidBy)} · {shareSummary(p.item, ent)}
+          </div>
+          {p.reason && <div style={{ fontSize: '0.82rem', marginTop: 4, padding: '0.35rem 0.55rem', background: 'rgba(109,75,216,0.06)', borderLeft: '2px solid var(--vg-accent)', borderRadius: 4 }}><b>Reason:</b> {p.reason}</div>}
+          <div className="vg-muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>
+            Needs {p.mode === 'any' ? 'any one of' : 'all of'}: {p.approvers.map(a => entName(ent, a)).join(', ')}
+            {p.approved.length > 0 && ` · approved by ${p.approved.map(a => entName(ent, a)).join(', ')}`}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="v" style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{INR(p.item.amount)}</div>
+          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
+            {isMine(p) && !isSuper ? (
+              <>
+                <span className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>waiting on {p.approvers.map(a => entName(ent, a)).join(', ')}</span>
+                {onRevoke && <button className="vg-btn" onClick={() => onRevoke(p.id)}>Revoke</button>}
+              </>
+            ) : (
+              <>
+                {onRevoke && isMine(p) && <button className="vg-btn" onClick={() => onRevoke(p.id)}>Revoke</button>}
+                <button className="vg-btn" style={{ color: 'var(--vg-neg)' }} onClick={() => onDecide(p.id, 'decline')}>Decline</button>
+                <button className="vg-btn vg-btn-primary" onClick={() => onDecide(p.id, 'accept')}><Check className="h-4 w-4" /> Accept</button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="vg-grid2">
       <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
         <p className="vg-sec"><BellRing className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Charges waiting on a yes</p>
-        {props.length === 0 ? (
-          <p className="vg-empty"><ShieldCheck className="h-6 w-6" style={{ display: 'inline', color: 'var(--vg-pos)' }} /><br />Nothing to approve — you&rsquo;re all caught up.</p>
+        {toReview.length === 0 ? (
+          <p className="vg-empty"><ShieldCheck className="h-6 w-6" style={{ display: 'inline', color: 'var(--vg-pos)' }} /><br />Nothing waiting on you — you&rsquo;re all caught up.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-            {props.map(p => (
-              <div key={p.id} className="vg-card" style={{ padding: '0.9rem 1rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div>
-                    <b style={{ fontSize: '1rem' }}>{p.item.name || 'Expense'}</b> {p.template ? <span className="vg-chip">Recurring {p.template.section === 'emis' ? 'EMI' : p.template.section} · {p.template.op}</span> : <span className="vg-chip">{monthLabel(p.monthKey)}</span>}
-                    <div className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-                      Proposed by <b>{p.proposedByName}</b> · paid by {entName(ent, p.item.paidBy)} · {shareSummary(p.item, ent)}
-                    </div>
-                    <div className="vg-muted" style={{ fontSize: '0.75rem', marginTop: 2 }}>
-                      Needs {p.mode === 'any' ? 'any one of' : 'all of'}: {p.approvers.map(a => entName(ent, a)).join(', ')}
-                      {p.approved.length > 0 && ` · approved by ${p.approved.map(a => entName(ent, a)).join(', ')}`}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div className="v" style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{INR(p.item.amount)}</div>
-                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem' }}>
-                      <button className="vg-btn" style={{ color: 'var(--vg-neg)' }} onClick={() => onDecide(p.id, 'decline')}>Decline</button>
-                      <button className="vg-btn vg-btn-primary" onClick={() => onDecide(p.id, 'accept')}><Check className="h-4 w-4" /> Accept</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>{toReview.map(p => <Card key={p.id} p={p} />)}</div>
+        )}
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>When you accept, the change is applied to that month&rsquo;s sheet and logged below. Anything that&rsquo;s only yours is applied without asking.</p>
+      </div>
+
+      {mineOut.length > 0 && (
+        <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
+          <p className="vg-sec">Your requests — waiting on others</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>{mineOut.map(p => <Card key={p.id} p={p} />)}</div>
+          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>You can <b>Revoke</b> a request to pull it back and make more changes. Only one edit per expense can be open at a time.</p>
+        </div>
+      )}
+
+      <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
+        <p className="vg-sec">History</p>
+        {log.length === 0 ? <p className="vg-muted">No activity yet.</p> : (
+          <div className="vg-tablewrap">
+            <table className="vg-table" style={{ minWidth: 560 }}>
+              <thead><tr><th style={{ width: 130 }}>When</th><th style={{ width: 90 }}>Who</th><th style={{ width: 90 }}>Action</th><th>What</th><th>Reason</th></tr></thead>
+              <tbody>
+                {log.slice(0, 60).map(a => (
+                  <tr key={a.id}>
+                    <td className="vg-muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{when(a.ts)}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{a.actorName}</td>
+                    <td><span className="vg-chip" style={{ background: (evColor[a.event] || '#8b81ad') + '22', color: evColor[a.event] || '#8b81ad', textTransform: 'capitalize' }}>{a.event}</span></td>
+                    <td style={{ fontSize: '0.85rem' }}>{a.what}</td>
+                    <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{a.reason || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>When you accept, the charge is added to that month&rsquo;s sheet. Expenses that are only yours are added without asking anyone.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Every edit request, approval, decline and revoke is logged here with who did it and when.</p>
       </div>
     </div>
   )
@@ -1704,6 +1754,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
   const [bucket, setBucket] = useState<Bucket>('common')
   const [reading, setReading] = useState(false)
   const [receiptWarn, setReceiptWarn] = useState<string | null>(null)
+  const [reasonPrompt, setReasonPrompt] = useState<{ title: string; onConfirm: (reason: string) => void } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const entities = doc.entities
   const m = monthView(doc, k)
@@ -1716,10 +1767,21 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
   m.items.forEach(it => { counts[classify(it, entities)]++ })
   const cats = byCategory(m).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
   const bears = entities.map(e => ({ label: e.name, value: t.byEntity[e.id] ?? 0, color: e.color })).filter(p => p.value > 0)
+  // Items already awaiting an edit decision — locked from a second edit.
+  const underReview = new Set((doc.proposals ?? []).filter(p => p.monthEdit || (p.template && p.template.op !== 'add')).map(p => p.item?.id))
 
   const openAdd = (b: Bucket) => openEditor({ item: memberNewItem(b, entities, entityId), onSave: it => action({ action: 'propose', item: it, monthKey: k }) })
-  const openEdit = (it: Item) => openEditor({ item: it, onSave: x => action({ action: 'proposeMonthEdit', item: x, monthKey: k, op: 'update' }) })
-  const del = (it: Item) => action({ action: 'proposeMonthEdit', item: it, monthKey: k, op: 'delete' })
+  const openEdit = (it: Item) => {
+    const mine = isPersonalTo(it, entityId, entities)
+    if (mine) { openEditor({ item: it, onSave: x => action({ action: 'proposeMonthEdit', item: x, monthKey: k, op: 'update' }) }); return }
+    // Shared: edit the fields, then capture a reason before it goes for approval.
+    openEditor({ item: it, onSave: x => setReasonPrompt({ title: 'Reason for this change', onConfirm: reason => { action({ action: 'proposeMonthEdit', item: x, monthKey: k, op: 'update', reason }); setReasonPrompt(null) } }) })
+  }
+  const del = (it: Item) => {
+    const mine = isPersonalTo(it, entityId, entities)
+    if (mine) { action({ action: 'proposeMonthEdit', item: it, monthKey: k, op: 'delete' }); return }
+    setReasonPrompt({ title: 'Reason for removing this', onConfirm: reason => { action({ action: 'proposeMonthEdit', item: it, monthKey: k, op: 'delete', reason }); setReasonPrompt(null) } })
+  }
   const togglePaid = (it: Item, v: boolean) => action({ action: 'proposeMonthEdit', item: { ...it, paid: v }, monthKey: k, op: 'update' })
 
   async function onReceipt(files: FileList | null) {
@@ -1784,17 +1846,18 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
             <tbody>
               {rows.map(it => {
                 const mine = isPersonalTo(it, entityId, entities)
+                const locked = underReview.has(it.id)
                 return (
                   <tr key={it.id} className={it.paid ? 'vg-row-paid' : ''}>
-                    <td><span className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</span>{!mine && <span className="vg-chip" style={{ marginLeft: 6 }}>shared</span>}</td>
+                    <td><span className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</span>{!mine && <span className="vg-chip" style={{ marginLeft: 6 }}>shared</span>}{locked && <span className="vg-chip" style={{ marginLeft: 6, background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>under review</span>}</td>
                     <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
                     <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, entities)}</td>
                     <td className="num">{INR(it.amount)}</td>
                     <td style={{ textAlign: 'center' }}>{mine ? <input type="checkbox" checked={!!it.paid} onChange={e => togglePaid(it, e.target.checked)} /> : <span className="vg-muted">—</span>}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="vg-icobtn" title={mine ? 'Edit' : 'Propose a change (needs approval)'} onClick={() => openEdit(it)}><Pencil className="h-4 w-4" /></button>
-                        <button className="vg-icobtn" title={mine ? 'Remove' : 'Propose removal (needs approval)'} onClick={() => del(it)}><Trash2 className="h-4 w-4" /></button>
+                        <button className="vg-icobtn" disabled={locked} title={locked ? 'An edit is already waiting for approval' : mine ? 'Edit' : 'Propose a change (needs approval)'} onClick={() => openEdit(it)}><Pencil className="h-4 w-4" /></button>
+                        <button className="vg-icobtn" disabled={locked} title={locked ? 'An edit is already waiting for approval' : mine ? 'Remove' : 'Propose removal (needs approval)'} onClick={() => del(it)}><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -1816,6 +1879,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
         </div>
         {bears.length > 0 && <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}><p className="vg-sec">Who bears what</p><StackBar parts={bears} /></div>}
       </div>
+
+      {reasonPrompt && <ReasonModal title={reasonPrompt.title} onConfirm={reasonPrompt.onConfirm} onClose={() => setReasonPrompt(null)} />}
     </>
   )
 }
@@ -1865,7 +1930,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
       {tab === 'budget' && <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
       {tab === 'setup' && <MemberSetup doc={doc} entityId={entityId} openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })} onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })} />}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
-      {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => action({ action: kind, id })} />}
+      {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} />}
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
 
       {editing && (

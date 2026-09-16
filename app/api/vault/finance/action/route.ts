@@ -46,6 +46,15 @@ export async function POST(request: Request) {
   const doc: FinanceDoc = migrate(raw ?? {})
   const isSuper = session.r === 'super'
   const actor = session.e   // entity id for members; null for super
+  const actorName = isSuper ? 'Super admin' : entName(doc, actor)
+  const audit = (event: 'propose' | 'accept' | 'decline' | 'revoke' | 'apply', what: string, extra: { reason?: string; monthKey?: string; proposalId?: string; parties?: string[]; personal?: boolean } = {}) => {
+    doc.auditLog = [...(doc.auditLog ?? []), { id: uid('log'), ts: new Date().toISOString(), actor: actor ?? 'super', actorName, event, what, ...extra }].slice(-800)
+  }
+  const partiesOf = (pr: Proposal) => [pr.proposedBy, ...pr.approvers].filter(x => x && x !== 'super')
+  // An existing pending proposal that TARGETS a specific item (an edit or a
+  // template change/removal) — used to block a second, overlapping edit.
+  const pendingEditFor = (id: string) => (doc.proposals ?? []).find(p => p.item?.id === id && (p.monthEdit || (p.template && p.template.op !== 'add')))
+  const shortName = (it?: Item) => (it?.name || 'expense')
 
   try {
     switch (body.action) {
@@ -53,9 +62,11 @@ export async function POST(request: Request) {
         const item = body.item, monthKey = body.monthKey
         if (!item || !monthKey) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
         item.id = item.id || uid('one')
+        const addLabel = `Add · ${shortName(item)}`
         // Super, or an expense that is purely the caller's own, is added straight away.
         if (isSuper || (actor && isPersonalTo(item, actor, doc.entities))) {
           addToMonth(doc, monthKey, item)
+          audit('apply', addLabel, { monthKey, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, added: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
@@ -63,6 +74,7 @@ export async function POST(request: Request) {
         const { approvers, mode } = approversFor(item, actor, doc.entities)
         if (approvers.length === 0) {
           addToMonth(doc, monthKey, item)
+          audit('apply', addLabel, { monthKey, personal: true, parties: actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, added: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
@@ -71,6 +83,7 @@ export async function POST(request: Request) {
           approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(),
         }
         doc.proposals = [...(doc.proposals ?? []), pr]
+        audit('propose', addLabel, { monthKey, proposalId: pr.id, parties: [actor, ...approvers] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
@@ -81,9 +94,11 @@ export async function POST(request: Request) {
         if (!pr) return NextResponse.json({ error: 'Not found' }, { status: 404 })
         const canAct = isSuper || (actor && pr.approvers.includes(actor))
         if (!canAct) return NextResponse.json({ error: 'Not yours to decide' }, { status: 403 })
+        const prLabel = `${pr.monthEdit?.op === 'delete' || pr.template?.op === 'delete' ? 'Remove' : pr.monthEdit || (pr.template && pr.template.op !== 'add') ? 'Change' : 'Add'} · ${shortName(pr.item)}`
         if (body.action === 'decline') {
           pr.status = 'declined'
           doc.proposals = doc.proposals.filter(p => p.id !== pr.id)
+          audit('decline', prLabel, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr) })
         } else {
           if (actor && !pr.approved.includes(actor)) pr.approved.push(actor)
           const done = isSuper || pr.mode === 'any' || pr.approvers.every(a => pr.approved.includes(a))
@@ -91,6 +106,7 @@ export async function POST(request: Request) {
             commitProposalItem(doc, pr)
             doc.proposals = doc.proposals.filter(p => p.id !== pr.id)
           }
+          audit('accept', prLabel, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr) })
         }
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
@@ -208,14 +224,18 @@ export async function POST(request: Request) {
       }
 
       case 'proposeMonthEdit': {
-        const bt = body as unknown as { item?: Item; monthKey?: string; op?: 'update' | 'delete' }
+        const bt = body as unknown as { item?: Item; monthKey?: string; op?: 'update' | 'delete'; reason?: string }
         const item = bt.item, monthKey2 = bt.monthKey, op = bt.op
+        const reason = (bt.reason || '').trim()
         if (!item || !monthKey2 || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
         const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
-        if (isSuper || personal) {
+        const applyNow = isSuper || personal
+        const label = `${op === 'delete' ? 'Remove' : 'Change'} · ${shortName(item)}`
+        if (applyNow) {
           const m = doc.months[monthKey2] ?? materialise(doc.template, monthKey2)
           m.items = op === 'delete' ? m.items.filter(x => x.id !== item.id) : m.items.map(x => (x.id === item.id ? item : x))
           doc.months[monthKey2] = m
+          audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
@@ -225,26 +245,47 @@ export async function POST(request: Request) {
           const m = doc.months[monthKey2] ?? materialise(doc.template, monthKey2)
           m.items = op === 'delete' ? m.items.filter(x => x.id !== item.id) : m.items.map(x => (x.id === item.id ? item : x))
           doc.months[monthKey2] = m
+          audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
+        // Shared edit → needs approval. Require a reason and block a second,
+        // overlapping edit on the same expense.
+        if (!reason) return NextResponse.json({ error: 'Please give a reason for this change so the other person can review it.' }, { status: 400 })
+        if (pendingEditFor(item.id)) return NextResponse.json({ error: 'This expense already has an edit waiting for approval. Revoke that one first, or wait for it to be decided.' }, { status: 409 })
         const pr2: Proposal = {
           id: uid('prop'), item, monthKey: monthKey2, proposedBy: actor, proposedByName: entName(doc, actor),
-          approvers: ap.approvers, approved: [], mode: ap.mode, status: 'pending', createdAt: new Date().toISOString(), monthEdit: { op },
+          approvers: ap.approvers, approved: [], mode: ap.mode, status: 'pending', createdAt: new Date().toISOString(), monthEdit: { op }, reason,
         }
         doc.proposals = [...(doc.proposals ?? []), pr2]
+        audit('propose', label, { monthKey: monthKey2, reason, proposalId: pr2.id, parties: [actor, ...ap.approvers] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
+      case 'revoke': {
+        // The proposer (or super) cancels a pending proposal they raised.
+        const pr = (doc.proposals ?? []).find(p => p.id === body.id)
+        if (!pr) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        const mine = isSuper || pr.proposedBy === actor
+        if (!mine) return NextResponse.json({ error: 'You can only revoke your own requests.' }, { status: 403 })
+        doc.proposals = doc.proposals.filter(p => p.id !== pr.id)
+        audit('revoke', `Revoked · ${shortName(pr.item)}`, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr) })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, revoked: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
       case 'proposeTemplate': {
-        const bt = body as unknown as { item?: Item; section?: 'monthly' | 'emis' | 'annual'; op?: 'add' | 'update' | 'delete' }
+        const bt = body as unknown as { item?: Item; section?: 'monthly' | 'emis' | 'annual'; op?: 'add' | 'update' | 'delete'; reason?: string }
         const item = bt.item, section = bt.section, op = bt.op
+        const reason = (bt.reason || '').trim()
         if (!item || !section || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
         if (op === 'add') item.id = item.id || uid(section)
         const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
+        const label = `${op === 'delete' ? 'Remove' : op === 'add' ? 'Add' : 'Change'} recurring · ${shortName(item)}`
         if (isSuper || personal) {
           applyTemplateOp(doc, section, op, item)
+          audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
@@ -252,14 +293,18 @@ export async function POST(request: Request) {
         const { approvers, mode } = approversFor(item, actor, doc.entities)
         if (approvers.length === 0) {
           applyTemplateOp(doc, section, op, item)
+          audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
+        if (op !== 'add' && !reason) return NextResponse.json({ error: 'Please give a reason for this change so the other person can review it.' }, { status: 400 })
+        if (op !== 'add' && pendingEditFor(item.id)) return NextResponse.json({ error: 'This item already has a change waiting for approval. Revoke that one first.' }, { status: 409 })
         const pr: Proposal = {
           id: uid('prop'), item, monthKey: monthKey(), proposedBy: actor, proposedByName: entName(doc, actor),
-          approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(), template: { section, op },
+          approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(), template: { section, op }, reason: reason || undefined,
         }
         doc.proposals = [...(doc.proposals ?? []), pr]
+        audit('propose', label, { reason: reason || undefined, proposalId: pr.id, parties: [actor, ...approvers] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
