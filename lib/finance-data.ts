@@ -52,6 +52,7 @@ export interface Item {
   category?: string            // explicit category name; blank = auto from the item name
   date?: string | null         // transaction date (YYYY-MM-DD), e.g. from a receipt or statement
   src?: 'template' | 'manual'   // template-derived vs manually added in a month
+  ref?: string                 // stable fingerprint of an imported bank txn (for de-dup)
 }
 
 export interface IncomeItem {
@@ -60,6 +61,7 @@ export interface IncomeItem {
   entity: string         // who earned it (entity id, or 'common')
   amount: number
   src?: 'template' | 'manual'
+  ref?: string           // stable fingerprint of an imported bank txn (for de-dup)
 }
 
 export interface SavingItem {

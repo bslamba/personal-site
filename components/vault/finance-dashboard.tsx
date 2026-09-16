@@ -288,7 +288,7 @@ export default function FinanceDashboard() {
 
   const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
   const runAction = useCallback(async (payload: Record<string, unknown>) => {
-    try { const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json().catch(() => ({})); if (d.doc) setDoc(d.doc as FinanceDoc) } catch { /* ignore */ }
+    try { const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json().catch(() => ({})); if (d.doc) setDoc(d.doc as FinanceDoc); return d } catch { return null }
   }, [])
 
   if (!doc || !me) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
@@ -1278,7 +1278,8 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
       const d = await r.json().catch(() => ({}))
       if (d.doc) setDoc(d.doc as FinanceDoc)
       setBusy('saved'); setTimeout(() => setBusy('idle'), 1400)
-    } catch { setBusy('idle') }
+      return d
+    } catch { setBusy('idle'); return null }
   }
 
   const pending = (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
@@ -1317,13 +1318,14 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
 // ---------- Import from bank statement --------------------------
 function ImportTab({ doc, me, onImport }: {
   doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
-  onImport: (rows: { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string }[], owner: string, common: boolean) => void
+  onImport: (rows: { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string }[], owner: string, common: boolean) => Promise<{ added?: number; skipped?: number } | null | void> | void
 }) {
   const [rows, setRows] = useState<StatementRow[]>([])
   const [fileName, setFileName] = useState('')
   const [owner, setOwner] = useState(me.role === 'super' ? 'bhawneet' : (me.entityId ?? ''))
   const [common, setCommon] = useState(false)
   const [done, setDone] = useState(0)
+  const [skipped, setSkipped] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
   const persons = doc.entities.filter(e => e.kind === 'person')
   const catNames = doc.categories.map(c => c.name)
@@ -1331,7 +1333,13 @@ function ImportTab({ doc, me, onImport }: {
   async function onFile(files: FileList | null) {
     const f = files?.[0]; if (!f) return
     setFileName(f.name); setDone(0)
-    try { const text = await f.text(); setRows(parseStatement(text)) } catch { setRows([]) }
+    try {
+      const text = await f.text()
+      const parsed = parseStatement(text)
+      const seen = new Set<string>()
+      for (const m of Object.values(doc.months)) { for (const it of m.items) if (it.ref) seen.add(it.ref); for (const inc of m.income) if (inc.ref) seen.add(inc.ref) }
+      setRows(parsed.map(r => seen.has(r.ref) ? { ...r, include: false, dup: true } : r))
+    } catch { setRows([]) }
   }
   const upd = (id: string, patch: Partial<StatementRow>) => setRows(r => r.map(x => x.id === id ? { ...x, ...patch } : x))
   const setAll = (v: boolean) => setRows(r => r.map(x => ({ ...x, include: v })))
@@ -1340,10 +1348,12 @@ function ImportTab({ doc, me, onImport }: {
   const debitTotal = selected.filter(r => r.type === 'debit').reduce((a, b) => a + b.amount, 0)
   const creditTotal = selected.filter(r => r.type === 'credit').reduce((a, b) => a + b.amount, 0)
 
-  function doImport() {
-    const payload = selected.map(r => ({ date: r.date, name: r.payee || r.desc, amount: r.amount, type: r.type, category: r.category, note: r.note }))
-    onImport(payload, owner, common)
-    setDone(payload.length); setRows([])
+  async function doImport() {
+    const payload = selected.map(r => ({ date: r.date, name: r.payee || r.desc, amount: r.amount, type: r.type, category: r.category, note: r.note, ref: r.ref }))
+    const res = await onImport(payload, owner, common)
+    setDone(res && res.added != null ? res.added : payload.length)
+    setSkipped(res && res.skipped != null ? res.skipped : 0)
+    setRows([])
   }
 
   return (
@@ -1358,7 +1368,7 @@ function ImportTab({ doc, me, onImport }: {
             <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={e => onFile(e.target.files)} />
           </div>
         </div>
-        {done > 0 && <p className="vg-pos" style={{ marginTop: '0.6rem', marginBottom: 0 }}><Check className="h-4 w-4" style={{ display: 'inline' }} /> Imported {done} transaction{done === 1 ? '' : 's'}. They&rsquo;re in the month sheets now.</p>}
+        {(done > 0 || skipped > 0) && <p className="vg-pos" style={{ marginTop: '0.6rem', marginBottom: 0 }}><Check className="h-4 w-4" style={{ display: 'inline' }} /> Imported {done} transaction{done === 1 ? '' : 's'}{skipped > 0 ? ` · skipped ${skipped} already imported` : ''}. They&rsquo;re in the month sheets now.</p>}
       </div>
 
       {rows.length > 0 && (
@@ -1366,6 +1376,7 @@ function ImportTab({ doc, me, onImport }: {
           <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <span className="vg-muted" style={{ fontSize: '0.85rem' }}><b style={{ color: '#241b40' }}>{selected.length}</b> of {rows.length} selected</span>
+              {rows.some(r => r.dup) && <span className="vg-muted" style={{ fontSize: '0.85rem' }}>· {rows.filter(r => r.dup).length} already imported</span>}
               <span className="vg-neg" style={{ fontSize: '0.85rem' }}>− {INR(debitTotal)} out</span>
               <span className="vg-pos" style={{ fontSize: '0.85rem' }}>+ {INR(creditTotal)} in</span>
               <button className="vg-btn" onClick={() => setAll(true)}>All</button>
@@ -1399,7 +1410,7 @@ function ImportTab({ doc, me, onImport }: {
                       <tr key={r.id} style={{ opacity: r.include ? 1 : 0.45 }}>
                         <td><input type="checkbox" checked={r.include} onChange={e => upd(r.id, { include: e.target.checked })} /></td>
                         <td className="vg-muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{r.date.slice(8) + '/' + r.date.slice(5, 7)}</td>
-                        <td><input className="vg-input" value={r.payee} onChange={e => upd(r.id, { payee: e.target.value })} title={r.desc} /></td>
+                        <td><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{r.dup && <span className="vg-chip" style={{ background: 'rgba(226,68,92,0.14)', color: 'var(--vg-neg)' }}>dup</span>}<input className="vg-input" value={r.payee} onChange={e => upd(r.id, { payee: e.target.value })} title={r.desc} /></div></td>
                         <td><select className="vg-select" value={r.category} onChange={e => upd(r.id, { category: e.target.value })}>{opts.map(c => <option key={c} value={c}>{c}</option>)}</select></td>
                         <td><span className="vg-chip" style={{ background: r.type === 'credit' ? 'rgba(31,157,107,0.14)' : 'rgba(226,68,92,0.14)', color: r.type === 'credit' ? 'var(--vg-pos)' : 'var(--vg-neg)' }}>{r.type === 'credit' ? 'In' : 'Out'}</span></td>
                         <td className="num">{INR(r.amount)}</td>

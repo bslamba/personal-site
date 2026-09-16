@@ -21,6 +21,17 @@ export interface StatementRow {
   category: string
   note: string
   include: boolean
+  ref: string
+  dup?: boolean
+}
+
+/** Stable fingerprint of a transaction: date + amount + normalised
+    description (which carries the bank's unique UPI/IMPS/NEFT ref). */
+export function refOf(date: string, amount: number, desc: string): string {
+  const key = `${date}|${Math.round(amount * 100)}|${(desc || '').replace(/\s+/g, ' ').trim().toUpperCase()}`
+  let h = 5381
+  for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) | 0
+  return 'x' + (h >>> 0).toString(36)
 }
 
 function toISO(d: string): string {
@@ -77,6 +88,7 @@ export function parseStatement(text: string): StatementRow[] {
     const amount = inA ? (r.a as number) : (r.b ?? 0)
     const type: 'debit' | 'credit' = inA ? (aIsCredit ? 'credit' : 'debit') : (aIsCredit ? 'debit' : 'credit')
     const payee = cleanPayee(r.desc) || r.desc
-    return { id: 'st_' + i, date: r.date, desc: r.desc, payee, amount: Math.abs(amount), type, category: detectCategory(payee + ' ' + r.desc), note: '', include: true }
+    const amt = Math.abs(amount)
+    return { id: 'st_' + i, date: r.date, desc: r.desc, payee, amount: amt, type, category: detectCategory(payee + ' ' + r.desc), note: '', include: true, ref: refOf(r.date, amt, r.desc) }
   }).filter(r => r.amount > 0)
 }

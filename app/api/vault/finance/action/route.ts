@@ -122,7 +122,7 @@ export async function POST(request: Request) {
       }
 
       case 'importRows': {
-        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string }
+        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string }
         const rows = (body as unknown as { rows?: Row[] }).rows ?? []
         const wantOwner = (body as unknown as { owner?: string }).owner
         const asCommon = isSuper && (body as unknown as { common?: boolean }).common === true
@@ -130,27 +130,35 @@ export async function POST(request: Request) {
         if (!owner) return NextResponse.json({ error: 'No owner' }, { status: 400 })
         const persons = (doc.entities as Entity[]).filter(e => e.kind === 'person')
         const equalShares = Object.fromEntries(persons.map(pp => [pp.id, 1 / (persons.length || 1)]))
-        let added = 0
+        // Existing fingerprints across the whole sheet — skip anything already imported.
+        const seen = new Set<string>()
+        for (const m of Object.values(doc.months)) {
+          for (const it of m.items) if (it.ref) seen.add(it.ref)
+          for (const inc of m.income) if (inc.ref) seen.add(inc.ref)
+        }
+        let added = 0, skipped = 0
         for (const r of rows) {
           if (!r || !r.date || !(r.amount > 0)) continue
+          if (r.ref && seen.has(r.ref)) { skipped++; continue }
           const mk = r.date.slice(0, 7)
           const m = doc.months[mk] ?? materialise(doc.template, mk)
           if (r.type === 'credit') {
-            m.income = [...m.income, { id: uid('inc'), source: r.name || 'Income', entity: owner, amount: r.amount, src: 'manual' } as IncomeItem]
+            m.income = [...m.income, { id: uid('inc'), source: r.name || 'Income', entity: owner, amount: r.amount, src: 'manual', ref: r.ref } as IncomeItem]
           } else {
             const it: Item = {
               id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
               paidBy: asCommon ? 'common' : owner,
               alloc: asCommon ? { mode: 'split', shares: { ...equalShares } } : { mode: 'single', who: owner },
-              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual',
+              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref,
             }
             m.items = [...m.items, it]
           }
+          if (r.ref) seen.add(r.ref)
           doc.months[mk] = m
           added++
         }
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, added, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, added, skipped, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       default:
