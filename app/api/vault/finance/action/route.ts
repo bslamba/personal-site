@@ -19,7 +19,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
-import { migrate, approversFor, isPersonalTo, commitProposalItem, materialise, uid,
+import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget, type Entity } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
 
@@ -159,6 +159,33 @@ export async function POST(request: Request) {
         }
         await writeDoc(doc)
         return NextResponse.json({ ok: true, added, skipped, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'proposeTemplate': {
+        const bt = body as unknown as { item?: Item; section?: 'monthly' | 'emis' | 'annual'; op?: 'add' | 'update' | 'delete' }
+        const item = bt.item, section = bt.section, op = bt.op
+        if (!item || !section || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
+        if (op === 'add') item.id = item.id || uid(section)
+        const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
+        if (isSuper || personal) {
+          applyTemplateOp(doc, section, op, item)
+          await writeDoc(doc)
+          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        }
+        if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
+        const { approvers, mode } = approversFor(item, actor, doc.entities)
+        if (approvers.length === 0) {
+          applyTemplateOp(doc, section, op, item)
+          await writeDoc(doc)
+          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        }
+        const pr: Proposal = {
+          id: uid('prop'), item, monthKey: monthKey(), proposedBy: actor, proposedByName: entName(doc, actor),
+          approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(), template: { section, op },
+        }
+        doc.proposals = [...(doc.proposals ?? []), pr]
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       default:

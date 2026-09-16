@@ -436,6 +436,7 @@ export interface Proposal {
   status: ProposalStatus
   createdAt: string
   note?: string
+  template?: { section: 'monthly' | 'emis' | 'annual'; op: 'add' | 'update' | 'delete' }
 }
 
 /** Everyone touched by an expense: the payer plus anyone who bears a share. */
@@ -487,8 +488,17 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals }
 }
 
-/** Drop an accepted proposal's item into its month. */
+/** Apply an add/update/delete to a template section. */
+export function applyTemplateOp(doc: FinanceDoc, section: 'monthly' | 'emis' | 'annual', op: 'add' | 'update' | 'delete', item: Item) {
+  const arr = doc.template[section]
+  if (op === 'add') doc.template[section] = [...arr, item]
+  else if (op === 'update') doc.template[section] = arr.map(x => (x.id === item.id ? item : x))
+  else doc.template[section] = arr.filter(x => x.id !== item.id)
+}
+
+/** Apply an accepted proposal — either a template change or a month item. */
 export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
+  if (pr.template) { applyTemplateOp(doc, pr.template.section, pr.template.op, pr.item); return }
   const m = doc.months[pr.monthKey] ?? materialise(doc.template, pr.monthKey)
   m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
   doc.months[pr.monthKey] = m

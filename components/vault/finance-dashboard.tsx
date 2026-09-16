@@ -23,7 +23,7 @@ import {
   type EntityBudget, type PlannedItem,
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
-  commitProposalItem, emptyBudget, categoryOf, detectCategory,
+  commitProposalItem, emptyBudget, categoryOf, detectCategory, isPersonalTo,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -1032,7 +1032,7 @@ function ApprovalsTab({ doc, onDecide }: { doc: FinanceDoc; onDecide: (id: strin
               <div key={p.id} className="vg-card" style={{ padding: '0.9rem 1rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <div>
-                    <b style={{ fontSize: '1rem' }}>{p.item.name || 'Expense'}</b> <span className="vg-chip">{monthLabel(p.monthKey)}</span>
+                    <b style={{ fontSize: '1rem' }}>{p.item.name || 'Expense'}</b> {p.template ? <span className="vg-chip">Recurring {p.template.section === 'emis' ? 'EMI' : p.template.section} · {p.template.op}</span> : <span className="vg-chip">{monthLabel(p.monthKey)}</span>}
                     <div className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 2 }}>
                       Proposed by <b>{p.proposedByName}</b> · paid by {entName(ent, p.item.paidBy)} · {shareSummary(p.item, ent)}
                     </div>
@@ -1334,11 +1334,11 @@ function MemberMonth({ doc, entityId, k, setKey, openEditorWith }: {
 // ---------- Member dashboard ------------------------------------
 function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; entityId: string }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'import' | 'approvals'>('month')
+  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'import' | 'setup' | 'approvals'>('month')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
   const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [editing, setEditing] = useState<Item | null>(null)
+  const [editing, setEditing] = useState<{ item: Item; onSave: (it: Item) => void } | null>(null)
   const me = { role: 'member' as const, entityId }
 
   async function action(payload: Record<string, unknown>) {
@@ -1359,6 +1359,7 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
     { id: 'savings', label: 'My Savings', icon: PiggyBank },
     { id: 'budget', label: 'Budget', icon: Target },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
+    { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
     { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing },
   ] as const
 
@@ -1370,16 +1371,17 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
         </div>
       </div>
 
-      {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} openEditorWith={setEditing} />}
+      {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} openEditorWith={(item) => setEditing({ item, onSave: it => action({ action: 'propose', item: it, monthKey: key }) })} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
       {tab === 'budget' && <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
+      {tab === 'setup' && <MemberSetup doc={doc} entityId={entityId} openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })} onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })} />}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows) => action({ action: 'importRows', rows })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => action({ action: kind, id })} />}
 
       {editing && (
-        <ExpenseEditor item={editing} entities={doc.entities} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
-          onSave={it => { action({ action: 'propose', item: it, monthKey: key }); setEditing(null) }} onClose={() => setEditing(null)} />
+        <ExpenseEditor item={editing.item} entities={doc.entities} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
+          onSave={it => { editing.onSave(it); setEditing(null) }} onClose={() => setEditing(null)} />
       )}
     </Shell>
   )
@@ -1497,6 +1499,69 @@ function ImportTab({ doc, me, onImport }: {
           </div>
         </>
       )}
+    </>
+  )
+}
+
+// ---------- Member: Setup (edits route through approval) --------
+function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
+  doc: FinanceDoc; entityId: string
+  openTemplate: (item: Item, section: 'monthly' | 'emis' | 'annual', op: 'add' | 'update') => void
+  onRemove: (item: Item, section: 'monthly' | 'emis' | 'annual') => void
+}) {
+  const mkNew = (section: 'monthly' | 'emis' | 'annual'): Item => {
+    const base = { id: uid(section), name: '', amount: 0, paidBy: entityId, alloc: { mode: 'single', who: entityId } as Alloc }
+    if (section === 'emis') return { ...base, kind: 'emi', startDate: monthKey() + '-01', endDate: null }
+    if (section === 'annual') return { ...base, kind: 'annual', dueDate: monthKey() + '-15' }
+    return { ...base, kind: 'monthly' }
+  }
+
+  const Section = ({ title, section }: { title: string; section: 'monthly' | 'emis' | 'annual' }) => (
+    <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+        <p className="vg-sec" style={{ margin: 0 }}>{title}</p>
+        <button className="vg-btn vg-btn-primary" onClick={() => openTemplate(mkNew(section), section, 'add')}><Plus className="h-4 w-4" /> Add</button>
+      </div>
+      <div className="vg-tablewrap">
+        <table className="vg-table" style={{ minWidth: 560 }}>
+          <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">{section === 'annual' ? 'Amount/yr' : 'Amount'}</th><th style={{ width: 80 }}></th></tr></thead>
+          <tbody>
+            {doc.template[section].map(it => {
+              const mine = isPersonalTo(it, entityId, doc.entities)
+              return (
+                <tr key={it.id}>
+                  <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}{!mine && <span className="vg-chip" style={{ marginLeft: 6 }}>shared</span>}</td>
+                  <td><span className="vg-chip" style={{ background: entColor(doc.entities, it.paidBy) + '22', color: entColor(doc.entities, it.paidBy) }}>{entName(doc.entities, it.paidBy)}</span></td>
+                  <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, doc.entities)}</td>
+                  <td className="num">{INR(it.amount)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="vg-icobtn" title={mine ? 'Edit' : 'Propose a change (needs approval)'} onClick={() => openTemplate(it, section, 'update')}><Pencil className="h-4 w-4" /></button>
+                      <button className="vg-icobtn" title={mine ? 'Remove' : 'Propose removal (needs approval)'} onClick={() => onRemove(it, section)}><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {doc.template[section].length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <p style={{ margin: 0, color: '#241b40' }}>
+          <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your household&rsquo;s <b>recurring</b> items. Add or change anything here — items that are <b>only yours</b> apply straight away, while anything <b>common or shared</b> is sent to the tagged person to approve first. You only see common items and ones that involve you.
+        </p>
+      </div>
+      <div className="vg-grid2">
+        <Section title="Monthly recurring" section="monthly" />
+        <Section title="EMIs & loans" section="emis" />
+        <Section title="Yearly items" section="annual" />
+      </div>
     </>
   )
 }
