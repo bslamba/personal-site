@@ -19,8 +19,8 @@ import {
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
-  type SavingItem, type Alloc, type Bucket,
-  seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares,
+  type SavingItem, type Alloc, type Bucket, type Template,
+  seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
 } from '@/lib/finance-data'
 
@@ -194,9 +194,9 @@ function firstPerson(entities: Entity[]): string {
 function newItem(bucket: Bucket, entities: Entity[]): Item {
   const persons = entities.filter(e => e.kind === 'person')
   const equal: Alloc = { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / (persons.length || 1)])) }
-  if (bucket === 'emi') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null }
-  if (bucket === 'personal') { const p = firstPerson(entities); return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: p, alloc: { mode: 'single', who: p } } }
-  return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: entities.find(e => e.kind === 'common')?.id ?? 'common', alloc: equal }
+  if (bucket === 'emi') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null, src: 'manual' }
+  if (bucket === 'personal') { const p = firstPerson(entities); return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: p, alloc: { mode: 'single', who: p }, src: 'manual' } }
+  return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: entities.find(e => e.kind === 'common')?.id ?? 'common', alloc: equal, src: 'manual' }
 }
 function fileToB64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -218,6 +218,7 @@ export default function FinanceDashboard() {
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [editing, setEditing] = useState<Editing | null>(null)
+  const [setupDraft, setSetupDraft] = useState<Template | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -259,6 +260,15 @@ export default function FinanceDashboard() {
     { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
   ]
 
+  const setupTemplate = setupDraft ?? doc.template
+  const setupDirty = setupDraft !== null && JSON.stringify(setupDraft) !== JSON.stringify(doc.template)
+  const setSetupTemplate = (fn: (t: Template) => Template) => setSetupDraft(prev => fn(structuredClone(prev ?? doc.template) as Template))
+  const saveSetup = (scope: ApplyScope) => {
+    const draft = structuredClone(setupDraft ?? doc.template) as Template
+    patchDoc(d => { d.template = draft; applyScopeToDoc(d, scope); return d })
+    setSetupDraft(null)
+  }
+
   return (
     <Shell saveState={saveState}>
       <div style={{ overflowX: 'auto', marginBottom: '1.1rem' }}>
@@ -274,7 +284,7 @@ export default function FinanceDashboard() {
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
-      {tab === 'setup' && <SetupTab doc={doc} patchDoc={patchDoc} openEditor={setEditing} />}
+      {tab === 'setup' && <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} />}
 
       {editing && (
         <ExpenseEditor
@@ -658,15 +668,46 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
 // need EntityKind type at runtime-less usage
 type EntityKind = Entity['kind']
 
-// ---------- Setup tab -------------------------------------------
+// ---------- Setup tab (staged: edits are local until you Save) ---
 type Sec = 'monthly' | 'emis' | 'annual'
-function SetupTab({ doc, patchDoc, openEditor }: {
-  doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void; openEditor: (e: Editing) => void
+type ApplyScope =
+  | { mode: 'future' }
+  | { mode: 'this' }
+  | { mode: 'all' }
+  | { mode: 'except-current' }
+  | { mode: 'from'; month: string }
+
+function applyScopeToDoc(d: FinanceDoc, scope: ApplyScope) {
+  const cur = monthKey()
+  const keys = Object.keys(d.months)
+  let targets: string[] = []
+  if (scope.mode === 'this') targets = [cur]
+  else if (scope.mode === 'all') targets = Array.from(new Set([...keys, cur]))
+  else if (scope.mode === 'except-current') targets = keys.filter(k => k !== cur)
+  else if (scope.mode === 'from') targets = Array.from(new Set([...keys, cur])).filter(k => k >= scope.month)
+  // 'future' → touch no existing month; new months pick up the template when opened
+  for (const k of targets) d.months[k] = applyTemplateToMonth(d.template, k, d.months[k])
+}
+
+function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, currentMonth, openEditor }: {
+  entities: Entity[]
+  draft: Template
+  setDraft: (fn: (t: Template) => Template) => void
+  dirty: boolean
+  onSave: (scope: ApplyScope) => void
+  onDiscard: () => void
+  currentMonth: string
+  openEditor: (e: Editing) => void
 }) {
-  const entities = doc.entities
-  const addT = (sec: Sec, it: Item) => patchDoc(d => ({ ...d, template: { ...d.template, [sec]: [...d.template[sec], it] } }))
-  const updT = (sec: Sec, it: Item) => patchDoc(d => ({ ...d, template: { ...d.template, [sec]: d.template[sec].map(x => x.id === it.id ? it : x) } }))
-  const delT = (sec: Sec, id: string) => patchDoc(d => ({ ...d, template: { ...d.template, [sec]: d.template[sec].filter(x => x.id !== id) } }))
+  const [scopeOpen, setScopeOpen] = useState(false)
+
+  const addT = (sec: Sec, it: Item) => setDraft(t => ({ ...t, [sec]: [...t[sec], it] }))
+  const updT = (sec: Sec, it: Item) => setDraft(t => ({ ...t, [sec]: t[sec].map(x => x.id === it.id ? it : x) }))
+  const delT = (sec: Sec, id: string) => setDraft(t => ({ ...t, [sec]: t[sec].filter(x => x.id !== id) }))
+
+  const setInc = (id: string, patch: Partial<IncomeItem>) => setDraft(t => ({ ...t, income: t.income.map(i => i.id === id ? { ...i, ...patch } : i) }))
+  const delInc = (id: string) => setDraft(t => ({ ...t, income: t.income.filter(i => i.id !== id) }))
+  const addInc = () => setDraft(t => ({ ...t, income: [...t.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0 }] }))
 
   const templateNew = (sec: Sec): Item => {
     const persons = entities.filter(e => e.kind === 'person')
@@ -676,10 +717,6 @@ function SetupTab({ doc, patchDoc, openEditor }: {
     if (sec === 'annual') return { id: uid('yr'), name: '', amount: 0, kind: 'annual', paidBy: common, alloc: equal, dueDate: monthKey() + '-01' }
     return { id: uid('mon'), name: '', amount: 0, kind: 'monthly', paidBy: common, alloc: equal }
   }
-
-  const setInc = (id: string, patch: Partial<IncomeItem>) => patchDoc(d => ({ ...d, template: { ...d.template, income: d.template.income.map(i => i.id === id ? { ...i, ...patch } : i) } }))
-  const delInc = (id: string) => patchDoc(d => ({ ...d, template: { ...d.template, income: d.template.income.filter(i => i.id !== id) } }))
-  const addInc = () => patchDoc(d => ({ ...d, template: { ...d.template, income: [...d.template.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0 }] } }))
 
   const Section = ({ title, sec }: { title: string; sec: Sec }) => (
     <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
@@ -691,7 +728,7 @@ function SetupTab({ doc, patchDoc, openEditor }: {
         <table className="vg-table" style={{ minWidth: 560 }}>
           <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">{sec === 'annual' ? 'Amount/yr' : 'Amount'}</th>{sec !== 'monthly' && <th style={{ width: 120 }}>{sec === 'emis' ? 'Ends' : 'Due'}</th>}<th style={{ width: 76 }}></th></tr></thead>
           <tbody>
-            {doc.template[sec].map(it => (
+            {draft[sec].map(it => (
               <tr key={it.id}>
                 <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</td>
                 <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
@@ -704,7 +741,7 @@ function SetupTab({ doc, patchDoc, openEditor }: {
                 </div></td>
               </tr>
             ))}
-            {doc.template[sec].length === 0 && <tr><td colSpan={sec === 'monthly' ? 5 : 6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
+            {draft[sec].length === 0 && <tr><td colSpan={sec === 'monthly' ? 5 : 6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -713,9 +750,18 @@ function SetupTab({ doc, patchDoc, openEditor }: {
 
   return (
     <>
-      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: '#241b40' }}><SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your <b>recurring</b> items. Changes flow into <b>future</b> months; months you’ve already opened keep what they had.</p>
+      {/* Save bar — Setup does NOT auto-save */}
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', position: 'sticky', top: '0.5rem', zIndex: 5 }}>
+        <p style={{ margin: 0, color: '#241b40' }}>
+          <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
+          {dirty ? <b>Unsaved changes</b> : 'Setup is saved manually'} — edits here don’t auto-save; choose which months to push them to when you Save.
+        </p>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {dirty && <button className="vg-btn" onClick={onDiscard}>Discard</button>}
+          <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={() => setScopeOpen(true)}><Check className="h-4 w-4" /> Save…</button>
+        </div>
       </div>
+
       <div className="vg-grid2">
         <Section title="Monthly recurring" sec="monthly" />
         <Section title="EMIs & loans" sec="emis" />
@@ -729,7 +775,7 @@ function SetupTab({ doc, patchDoc, openEditor }: {
             <table className="vg-table" style={{ minWidth: 360 }}>
               <thead><tr><th>Source</th><th>Who</th><th className="num">Amount</th><th style={{ width: 40 }}></th></tr></thead>
               <tbody>
-                {doc.template.income.map(i => (
+                {draft.income.map(i => (
                   <tr key={i.id}>
                     <td><input className="vg-input" value={i.source} onChange={e => setInc(i.id, { source: e.target.value })} /></td>
                     <td><select className="vg-select" value={i.entity} onChange={e => setInc(i.id, { entity: e.target.value })}>{entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}</select></td>
@@ -737,12 +783,58 @@ function SetupTab({ doc, patchDoc, openEditor }: {
                     <td><button className="vg-icobtn" onClick={() => delInc(i.id)}><Trash2 className="h-4 w-4" /></button></td>
                   </tr>
                 ))}
-                {doc.template.income.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No recurring income.</td></tr>}
+                {draft.income.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No recurring income.</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      {scopeOpen && <SaveScopeModal currentMonth={currentMonth} onClose={() => setScopeOpen(false)} onSave={sc => { onSave(sc); setScopeOpen(false) }} />}
     </>
+  )
+}
+
+function SaveScopeModal({ currentMonth, onSave, onClose }: {
+  currentMonth: string; onSave: (s: ApplyScope) => void; onClose: () => void
+}) {
+  const [mode, setMode] = useState<ApplyScope['mode']>('future')
+  const [from, setFrom] = useState<string>(currentMonth)
+  const opts: { id: ApplyScope['mode']; label: string; hint: string }[] = [
+    { id: 'future', label: 'Future months only', hint: 'New months pick up the changes when opened. Existing months untouched.' },
+    { id: 'this', label: `Also this month (${monthLabel(currentMonth)})`, hint: 'Apply to the current month as well.' },
+    { id: 'all', label: 'All months', hint: 'Apply to every month you have opened, plus this one.' },
+    { id: 'except-current', label: 'All except current month', hint: 'Apply to every opened month but leave the current one as it is.' },
+    { id: 'from', label: 'From a chosen month onwards', hint: 'Apply to that month and every month after it.' },
+  ]
+  const commit = () => onSave(mode === 'from' ? { mode: 'from', month: from } : { mode } as ApplyScope)
+
+  return (
+    <div className="vg-lb" onClick={onClose}>
+      <div className="vg-card vg-pad" style={{ width: 'min(440px, 96vw)', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>Save — apply to which months?</p>
+          <button className="vg-icobtn" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {opts.map(o => (
+            <label key={o.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.6rem 0.7rem', borderRadius: 12, cursor: 'pointer', background: mode === o.id ? 'rgba(109,75,216,0.1)' : 'rgba(255,255,255,0.5)', border: `1px solid ${mode === o.id ? 'var(--vg-accent)' : 'var(--vg-line)'}` }}>
+              <input type="radio" name="scope" checked={mode === o.id} onChange={() => setMode(o.id)} style={{ marginTop: 3 }} />
+              <span>
+                <b style={{ fontSize: '0.92rem' }}>{o.label}</b>
+                <span className="vg-muted" style={{ display: 'block', fontSize: '0.78rem' }}>{o.hint}</span>
+                {o.id === 'from' && mode === 'from' && (
+                  <input type="month" className="vg-input" style={{ marginTop: '0.4rem', maxWidth: 180 }} value={from} onChange={e => setFrom(e.target.value)} onClick={e => e.stopPropagation()} />
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+          <button className="vg-btn" onClick={onClose}>Cancel</button>
+          <button className="vg-btn vg-btn-primary" onClick={commit}><Check className="h-4 w-4" /> Save changes</button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -49,6 +49,7 @@ export interface Item {
   paid?: boolean
   note?: string
   receiptKey?: string | null
+  src?: 'template' | 'manual'   // template-derived vs manually added in a month
 }
 
 export interface IncomeItem {
@@ -189,7 +190,7 @@ function v1ItemToV2(it: V1Item): Item {
   return {
     id: it.id ?? uid(kind), name: it.name, amount: it.amount || 0, kind, paidBy, alloc,
     startDate: it.startDate ?? null, endDate: it.endDate ?? null, dueDate: it.dueDate ?? null,
-    principal: it.principal ?? null, tenure: it.tenure ?? null, paid: it.paid, note: it.note,
+    principal: it.principal ?? null, tenure: it.tenure ?? null, paid: it.paid, note: it.note, src: kind === 'oneoff' ? 'manual' : 'template',
   }
 }
 
@@ -237,7 +238,7 @@ export function emiActive(it: Item, key: string): boolean {
 }
 
 const clone = (it: Item): Item => ({
-  ...it, id: uid(it.kind), paid: false,
+  ...it, id: uid(it.kind), paid: false, src: 'template',
   alloc: it.alloc.mode === 'split' ? { mode: 'split', shares: { ...it.alloc.shares } } : { ...it.alloc },
 })
 
@@ -253,6 +254,16 @@ export function materialise(template: Template, key: string): MonthData {
 
 export function monthView(doc: FinanceDoc, key: string): MonthData {
   return doc.months[key] ?? materialise(doc.template, key)
+}
+
+/** Re-apply the template's recurring items to a month, keeping that
+    month's manually-added items, its income and its note. Used when
+    you Save the Setup tab and push changes into existing months. */
+export function applyTemplateToMonth(template: Template, key: string, existing?: MonthData): MonthData {
+  const fresh = materialise(template, key)
+  if (!existing) return fresh
+  const manual = existing.items.filter(i => i.src === 'manual')
+  return { items: [...fresh.items, ...manual], income: existing.income, note: existing.note }
 }
 
 // ----- allocation & settlement ----------------------------------
