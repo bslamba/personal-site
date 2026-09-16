@@ -4,14 +4,14 @@
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifySession, VAULT_COOKIE } from '@/lib/vault-auth'
+import { isSuper, VAULT_COOKIE } from '@/lib/vault-auth'
 import { listPrefix, totalUsage } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
 async function guard() {
   const jar = await cookies()
-  return verifySession(jar.get(VAULT_COOKIE)?.value)
+  return isSuper(jar.get(VAULT_COOKIE)?.value)
 }
 
 export async function GET(request: Request) {

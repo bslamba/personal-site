@@ -13,7 +13,7 @@
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifySession, VAULT_COOKIE } from '@/lib/vault-auth'
+import { isSuper, VAULT_COOKIE } from '@/lib/vault-auth'
 import { listPrefix, presignDownload, createFolder, sanitiseKey } from '@/lib/storage'
 
 export const runtime = 'nodejs'
@@ -24,7 +24,7 @@ const IMG = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i
 
 async function guard(): Promise<boolean> {
   const jar = await cookies()
-  return verifySession(jar.get(VAULT_COOKIE)?.value)
+  return isSuper(jar.get(VAULT_COOKIE)?.value)
 }
 
 export async function GET(request: Request) {

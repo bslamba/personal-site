@@ -5,7 +5,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { verifySession, VAULT_COOKIE } from '@/lib/vault-auth'
+import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import PhotoWall from '@/components/vault/photo-wall'
 
 export const metadata: Metadata = {
@@ -17,6 +17,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function PhotosPage() {
   const jar = await cookies()
-  if (!(await verifySession(jar.get(VAULT_COOKIE)?.value))) redirect('/vault/login')
+  const session = await getSession(jar.get(VAULT_COOKIE)?.value)
+  if (!session) redirect('/vault/login')
+  if (session.r !== 'super') redirect('/vault')
   return <PhotoWall />
 }

@@ -90,6 +90,8 @@ export interface FinanceDoc {
   months: Record<string, MonthData>
   savings: SavingItem[]
   categories: Category[]
+  proposals: Proposal[]
+  budgets: Budgets
   updatedAt: string
 }
 
@@ -186,6 +188,8 @@ export function seedDoc(): FinanceDoc {
     months: {},
     savings: [],
     categories: seedCategories(),
+    proposals: [],
+    budgets: seedBudgets(),
     updatedAt: new Date().toISOString(),
   }
 }
@@ -221,6 +225,8 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.savings)) doc.savings = []
     if (!Array.isArray(doc.entities) || doc.entities.length === 0) doc.entities = seedEntities()
     if (!Array.isArray(doc.categories) || doc.categories.length === 0) doc.categories = seedCategories()
+    if (!Array.isArray(doc.proposals)) doc.proposals = []
+    if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
     return doc
   }
   // v1 → v2
@@ -242,7 +248,7 @@ export function migrate(raw: unknown): FinanceDoc {
   for (const [k, m] of Object.entries(rawMonths)) {
     months[k] = { items: (m.items ?? []).map(v1ItemToV2), income: mapIncome(m.income), note: m.note ?? '' }
   }
-  return { version: 2, entities: seedEntities(), template, months, savings: [], categories: seedCategories(), updatedAt: new Date().toISOString() }
+  return { version: 2, entities: seedEntities(), template, months, savings: [], categories: seedCategories(), proposals: [], budgets: seedBudgets(), updatedAt: new Date().toISOString() }
 }
 
 // ----- month helpers --------------------------------------------
@@ -388,6 +394,8 @@ function bucket(name: string, kind: Kind): string {
   return 'Other'
 }
 
+export function categoryOf(it: Item): string { return it.category || bucket(it.name, it.kind) }
+
 export const INR = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
 export const monthLabel = (key: string) => {
   const [y, m] = key.split('-').map(Number)
@@ -395,3 +403,86 @@ export const monthLabel = (key: string) => {
 }
 export const entName = (entities: Entity[], id: string) => entities.find(e => e.id === id)?.name ?? id
 export const entColor = (entities: Entity[], id: string) => entities.find(e => e.id === id)?.color ?? '#8b81ad'
+
+// ============================================================
+// v3 — multi-user: budgets, proposals (approval queue), and the
+// privacy / involvement helpers the API uses to decide who may see
+// and who must approve each expense.
+// ============================================================
+
+export interface PlannedItem { id: string; name: string; amount: number; targetMonth: string; note?: string }
+export interface EntityBudget { monthly: number; byCategory: Record<string, number>; planned: PlannedItem[]; note?: string }
+export interface Budgets { family: EntityBudget; byEntity: Record<string, EntityBudget> }
+export function emptyBudget(): EntityBudget { return { monthly: 0, byCategory: {}, planned: [] } }
+export function seedBudgets(): Budgets { return { family: emptyBudget(), byEntity: {} } }
+
+export type ProposalStatus = 'pending' | 'accepted' | 'declined'
+export interface Proposal {
+  id: string
+  item: Item
+  monthKey: string
+  proposedBy: string          // entity id, or 'super'
+  proposedByName: string
+  approvers: string[]         // entity ids expected to approve
+  approved: string[]          // entity ids who have approved
+  mode: 'all' | 'any'
+  status: ProposalStatus
+  createdAt: string
+  note?: string
+}
+
+/** Everyone touched by an expense: the payer plus anyone who bears a share. */
+export function participantsOf(it: Item): string[] {
+  const s = new Set<string>()
+  if (it.alloc.mode === 'single') s.add(it.alloc.who)
+  else Object.entries(it.alloc.shares).forEach(([id, f]) => { if ((f || 0) > 0) s.add(id) })
+  s.add(it.paidBy)
+  return [...s]
+}
+export function involves(it: Item, entityId: string): boolean {
+  return participantsOf(it).includes(entityId)
+}
+export function isCommon(it: Item, entities: Entity[]): boolean {
+  const commons = new Set(entities.filter(e => e.kind === 'common').map(e => e.id))
+  return commons.has(it.paidBy) || participantsOf(it).some(p => commons.has(p))
+}
+export function isPersonalTo(it: Item, entityId: string, entities: Entity[]): boolean {
+  const p = participantsOf(it)
+  return it.paidBy === entityId && p.length === 1 && p[0] === entityId && !isCommon(it, entities)
+}
+
+/** Who must approve a proposed expense, and whether all or any of them. */
+export function approversFor(it: Item, actor: string, entities: Entity[]): { approvers: string[]; mode: 'all' | 'any' } {
+  const persons = new Set(entities.filter(e => e.kind === 'person').map(e => e.id))
+  const earners = entities.filter(e => e.kind === 'person' && (e.earning || e.canPay)).map(e => e.id)
+  if (isCommon(it, entities)) {
+    return { approvers: earners.filter(id => id !== actor), mode: 'any' }
+  }
+  const charged = participantsOf(it).filter(id => persons.has(id) && id !== actor)
+  return { approvers: charged, mode: 'all' }
+}
+
+/** A member's private view of the family doc — only what they may see. */
+export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
+  const keep = (it: Item) => isCommon(it, doc.entities) || involves(it, e)
+  const months: Record<string, MonthData> = {}
+  for (const [k, m] of Object.entries(doc.months)) {
+    months[k] = { items: m.items.filter(keep), income: m.income.filter(i => i.entity === e || i.entity === 'common'), note: m.note }
+  }
+  const template: Template = {
+    monthly: doc.template.monthly.filter(keep),
+    emis: doc.template.emis.filter(keep),
+    annual: doc.template.annual.filter(keep),
+    income: doc.template.income.filter(i => i.entity === e || i.entity === 'common'),
+  }
+  const budgets: Budgets = { family: doc.budgets.family, byEntity: { [e]: doc.budgets.byEntity[e] ?? emptyBudget() } }
+  const proposals = (doc.proposals ?? []).filter(p => p.proposedBy === e || p.approvers.includes(e))
+  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals }
+}
+
+/** Drop an accepted proposal's item into its month. */
+export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
+  const m = doc.months[pr.monthKey] ?? materialise(doc.template, pr.monthKey)
+  m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
+  doc.months[pr.monthKey] = m
+}

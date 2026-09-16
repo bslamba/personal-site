@@ -4,14 +4,14 @@
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifySession, VAULT_COOKIE } from '@/lib/vault-auth'
+import { isSuper, VAULT_COOKIE } from '@/lib/vault-auth'
 import { deleteKey, deleteFolder } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   const jar = await cookies()
-  if (!await verifySession(jar.get(VAULT_COOKIE)?.value)) {
+  if (!await isSuper(jar.get(VAULT_COOKIE)?.value)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   }
 

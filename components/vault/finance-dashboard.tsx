@@ -15,13 +15,15 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal,
+  Equal, Target, BellRing, ShieldCheck,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
   type SavingItem, type Alloc, type Bucket, type Template, type Category,
+  type EntityBudget, type PlannedItem,
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
+  commitProposalItem, emptyBudget, categoryOf,
 } from '@/lib/finance-data'
 
 const CAT_COLORS: Record<string, string> = {
@@ -86,9 +88,9 @@ function shareSummary(it: Item, entities: Entity[]): string {
   return parts.join(' · ') || '—'
 }
 
-function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete }: {
+function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true }: {
   item: Item; entities: Entity[]; categories: Category[]; onAddCategory: (name: string, color: string) => void
-  onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void
+  onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void; allowNewCategory?: boolean
 }) {
   const [d, setD] = useState<Item>(() => structuredClone(item))
   const [custom, setCustom] = useState(false)
@@ -128,7 +130,7 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
             <select className="vg-select" value={d.category ?? ''} onChange={e => { if (e.target.value === '__new') setCustom(true); else set({ category: e.target.value || undefined }) }}>
               <option value="">Auto (by name)</option>
               {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-              <option value="__new">＋ New category…</option>
+              {allowNewCategory && <option value="__new">＋ New category…</option>}
             </select>
           ) : (
             <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
@@ -234,7 +236,7 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'year' | 'savings' | 'entities' | 'setup'
+type Tab = 'month' | 'year' | 'savings' | 'budget' | 'approvals' | 'entities' | 'setup'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard() {
@@ -245,6 +247,7 @@ export default function FinanceDashboard() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [editing, setEditing] = useState<Editing | null>(null)
   const [setupDraft, setSetupDraft] = useState<Template | null>(null)
+  const [me, setMe] = useState<{ role: 'super' | 'member'; entityId: string | null } | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -252,8 +255,8 @@ export default function FinanceDashboard() {
     let live = true
     fetch('/api/vault/finance')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('load'))))
-      .then(d => { if (live) setDoc(d.doc as FinanceDoc) })
-      .catch(() => { if (live) setDoc(seedDoc()) })
+      .then(d => { if (live) { setDoc(d.doc as FinanceDoc); setMe(d.me ?? { role: 'super', entityId: null }) } })
+      .catch(() => { if (live) { setDoc(seedDoc()); setMe({ role: 'super', entityId: null }) } })
     return () => { live = false }
   }, [])
 
@@ -278,12 +281,16 @@ export default function FinanceDashboard() {
 
   const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
 
-  if (!doc) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
+  if (!doc || !me) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
+
+  if (me.role === 'member') return <MemberDashboard initialDoc={doc} entityId={me.entityId ?? ''} />
 
   const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
     { id: 'month', label: 'This month', icon: CalendarDays },
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'savings', label: 'Savings', icon: PiggyBank },
+    { id: 'budget', label: 'Budget', icon: Target },
+    { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
     { id: 'entities', label: 'Entities', icon: Users },
     { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
   ]
@@ -311,6 +318,8 @@ export default function FinanceDashboard() {
       {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
+      {tab === 'budget' && <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
+      {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => patchDoc(d => { decideLocally(d, id, kind, true, null); return d })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'setup' && <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} />}
 
@@ -907,4 +916,382 @@ function emiProgress(e: Item) {
   const outstanding = remaining != null ? e.amount * remaining : null
   const pct = total ? Math.round((paid / total) * 100) : 0
   return { total, paid, remaining, outstanding, pct }
+}
+
+// ============================================================
+// v3 — Approvals, Budget, and the Member dashboard
+// ============================================================
+
+/** Apply an accept/decline to a proposal in place (super path mirrors the server). */
+function decideLocally(doc: FinanceDoc, id: string, kind: 'accept' | 'decline', isSuper: boolean, actor: string | null) {
+  const pr = (doc.proposals ?? []).find(p => p.id === id)
+  if (!pr) return
+  if (kind === 'decline') { doc.proposals = doc.proposals.filter(p => p.id !== id); return }
+  if (actor && !pr.approved.includes(actor)) pr.approved.push(actor)
+  const done = isSuper || pr.mode === 'any' || pr.approvers.every(a => pr.approved.includes(a))
+  if (done) { commitProposalItem(doc, pr); doc.proposals = doc.proposals.filter(p => p.id !== id) }
+}
+
+// ---------- Approvals -------------------------------------------
+function ApprovalsTab({ doc, onDecide }: { doc: FinanceDoc; onDecide: (id: string, kind: 'accept' | 'decline') => void }) {
+  const props = doc.proposals ?? []
+  const ent = doc.entities
+  return (
+    <div className="vg-grid2">
+      <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
+        <p className="vg-sec"><BellRing className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Charges waiting on a yes</p>
+        {props.length === 0 ? (
+          <p className="vg-empty"><ShieldCheck className="h-6 w-6" style={{ display: 'inline', color: 'var(--vg-pos)' }} /><br />Nothing to approve — you&rsquo;re all caught up.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+            {props.map(p => (
+              <div key={p.id} className="vg-card" style={{ padding: '0.9rem 1rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div>
+                    <b style={{ fontSize: '1rem' }}>{p.item.name || 'Expense'}</b> <span className="vg-chip">{monthLabel(p.monthKey)}</span>
+                    <div className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 2 }}>
+                      Proposed by <b>{p.proposedByName}</b> · paid by {entName(ent, p.item.paidBy)} · {shareSummary(p.item, ent)}
+                    </div>
+                    <div className="vg-muted" style={{ fontSize: '0.75rem', marginTop: 2 }}>
+                      Needs {p.mode === 'any' ? 'any one of' : 'all of'}: {p.approvers.map(a => entName(ent, a)).join(', ')}
+                      {p.approved.length > 0 && ` · approved by ${p.approved.map(a => entName(ent, a)).join(', ')}`}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="v" style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{INR(p.item.amount)}</div>
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem' }}>
+                      <button className="vg-btn" style={{ color: 'var(--vg-neg)' }} onClick={() => onDecide(p.id, 'decline')}>Decline</button>
+                      <button className="vg-btn vg-btn-primary" onClick={() => onDecide(p.id, 'accept')}><Check className="h-4 w-4" /> Accept</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>When you accept, the charge is added to that month&rsquo;s sheet. Expenses that are only yours are added without asking anyone.</p>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Budget ----------------------------------------------
+function BudgetTab({ doc, me, onSaveBudget }: {
+  doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
+  onSaveBudget: (who: string, b: EntityBudget) => void
+}) {
+  const persons = doc.entities.filter(e => e.kind === 'person')
+  const whoOptions = me.role === 'super' ? ['family', ...persons.map(p => p.id)] : [me.entityId ?? persons[0]?.id ?? '']
+  const [who, setWho] = useState(whoOptions[0])
+  const stored = who === 'family' ? doc.budgets.family : (doc.budgets.byEntity[who] ?? emptyBudget())
+  const [draft, setDraft] = useState<EntityBudget>(() => structuredClone(stored))
+  useEffect(() => {
+    setDraft(structuredClone(who === 'family' ? doc.budgets.family : (doc.budgets.byEntity[who] ?? emptyBudget())))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [who, doc])
+  const dirty = JSON.stringify(draft) !== JSON.stringify(stored)
+
+  const mk = monthKey()
+  const m = monthView(doc, mk)
+  const t = totals(m, doc.entities)
+  const spent = who === 'family' ? t.expense : (t.byEntity[who] ?? 0)
+  const income = who === 'family' ? t.income : m.income.filter(i => i.entity === who).reduce((a, b) => a + b.amount, 0)
+  const savingsTotal = (who === 'family' ? doc.savings : doc.savings.filter(s => s.entity === who)).reduce((a, b) => a + (b.balance || 0), 0)
+  const monthlySaving = income - spent
+  const plannedTotal = draft.planned.reduce((a, b) => a + (b.amount || 0), 0)
+  const monthsToFund = monthlySaving > 0 ? Math.ceil(plannedTotal / monthlySaving) : null
+
+  const catAct = new Map<string, number>()
+  for (const it of m.items) { const f = who === 'family' ? 1 : (shares(it)[who] ?? 0); if (f <= 0) continue; catAct.set(categoryOf(it), (catAct.get(categoryOf(it)) ?? 0) + it.amount * f) }
+
+  const setCat = (name: string, v: number) => setDraft(d => ({ ...d, byCategory: { ...d.byCategory, [name]: v } }))
+  const addPlan = () => setDraft(d => ({ ...d, planned: [...d.planned, { id: uid('plan'), name: 'New goal', amount: 0, targetMonth: monthKey() }] }))
+  const updPlan = (id: string, patch: Partial<PlannedItem>) => setDraft(d => ({ ...d, planned: d.planned.map(x => x.id === id ? { ...x, ...patch } : x) }))
+  const delPlan = (id: string) => setDraft(d => ({ ...d, planned: d.planned.filter(x => x.id !== id) }))
+
+  const overBudget = draft.monthly > 0 && spent > draft.monthly
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.1rem' }}>
+        {whoOptions.length > 1 ? (
+          <div className="vg-tabs">
+            {whoOptions.map(o => <button key={o} className="vg-tab" data-on={who === o} onClick={() => setWho(o)}>{o === 'family' ? 'Family' : entName(doc.entities, o)}</button>)}
+          </div>
+        ) : <p className="vg-sec" style={{ margin: 0 }}>My budget</p>}
+        {dirty && (
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="vg-btn" onClick={() => setDraft(structuredClone(stored))}>Discard</button>
+            <button className="vg-btn vg-btn-primary" onClick={() => onSaveBudget(who, draft)}><Check className="h-4 w-4" /> Save budget</button>
+          </div>
+        )}
+      </div>
+
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <div className="vg-kpi"><div className="k">Monthly budget</div><div className="v">
+          <input className="vg-input vg-num" style={{ maxWidth: 130 }} inputMode="numeric" value={String(draft.monthly)} onChange={e => setDraft(d => ({ ...d, monthly: num(e.target.value) }))} />
+        </div></div>
+        <div className="vg-kpi"><div className="k">Spent this month</div><div className={`v ${overBudget ? 'vg-neg' : ''}`}>{INR(spent)}</div></div>
+        <div className="vg-kpi"><div className="k">{draft.monthly - spent >= 0 ? 'Left to spend' : 'Over by'}</div><div className={`v ${draft.monthly - spent >= 0 ? 'vg-pos' : 'vg-neg'}`}>{draft.monthly ? INR(Math.abs(draft.monthly - spent)) : '—'}</div></div>
+        <div className="vg-kpi"><div className="k">Saving this month</div><div className={`v ${monthlySaving >= 0 ? 'vg-pos' : 'vg-neg'}`}>{INR(Math.abs(monthlySaving))}</div></div>
+      </div>
+
+      {draft.monthly > 0 && (
+        <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--vg-ink-soft)', marginBottom: 4 }}>
+            <span>{INR(spent)} spent</span><span>budget {INR(draft.monthly)}</span>
+          </div>
+          <div className="vg-emi-bar" style={{ height: 12 }}><i style={{ width: `${Math.min(100, (spent / draft.monthly) * 100)}%`, background: overBudget ? 'linear-gradient(90deg,#e2445c,#b0479a)' : 'linear-gradient(90deg,#a06be0,#6d4bd8)' }} /></div>
+        </div>
+      )}
+
+      <div className="vg-grid2">
+        {/* Category budgets */}
+        <div className="vg-card vg-pad">
+          <p className="vg-sec">Category limits</p>
+          <div className="vg-tablewrap">
+            <table className="vg-table" style={{ minWidth: 380 }}>
+              <thead><tr><th>Category</th><th className="num">Limit</th><th className="num">Spent</th></tr></thead>
+              <tbody>
+                {doc.categories.map(c => {
+                  const a = catAct.get(c.name) ?? 0
+                  const lim = draft.byCategory[c.name] ?? 0
+                  const over = lim > 0 && a > lim
+                  return (
+                    <tr key={c.name}>
+                      <td><span className="vg-dot" style={{ background: c.color, marginRight: 6 }} />{c.name}</td>
+                      <td className="num"><input className="vg-input vg-num" style={{ width: 90 }} inputMode="numeric" value={String(lim)} onChange={e => setCat(c.name, num(e.target.value))} /></td>
+                      <td className={`num ${over ? 'vg-neg' : ''}`} style={{ fontWeight: over ? 700 : 400 }}>{INR(a)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Planned purchases + projection */}
+        <div className="vg-card vg-pad">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <p className="vg-sec" style={{ margin: 0 }}>Planned purchases</p>
+            <button className="vg-btn vg-btn-primary" onClick={addPlan}><Plus className="h-4 w-4" /> Add</button>
+          </div>
+          <div className="vg-tablewrap">
+            <table className="vg-table" style={{ minWidth: 400 }}>
+              <thead><tr><th>Goal</th><th className="num">Cost</th><th style={{ width: 120 }}>Target</th><th style={{ width: 36 }}></th></tr></thead>
+              <tbody>
+                {draft.planned.map(pl => (
+                  <tr key={pl.id}>
+                    <td><input className="vg-input" value={pl.name} onChange={e => updPlan(pl.id, { name: e.target.value })} /></td>
+                    <td className="num"><input className="vg-input vg-num" style={{ width: 90 }} inputMode="numeric" value={String(pl.amount)} onChange={e => updPlan(pl.id, { amount: num(e.target.value) })} /></td>
+                    <td><input className="vg-input" type="month" value={pl.targetMonth} onChange={e => updPlan(pl.id, { targetMonth: e.target.value })} /></td>
+                    <td><button className="vg-icobtn" onClick={() => delPlan(pl.id)}><Trash2 className="h-4 w-4" /></button></td>
+                  </tr>
+                ))}
+                {draft.planned.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Add something you&rsquo;re saving up for.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: '0.9rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.8rem', lineHeight: 1.7 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">Savings now</span><b>{INR(savingsTotal)}</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">Wishlist total</span><b>{INR(plannedTotal)}</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">After buying it all</span><b className={savingsTotal - plannedTotal >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(savingsTotal - plannedTotal)}</b></div>
+            {plannedTotal > 0 && (
+              <p style={{ marginTop: '0.6rem', fontSize: '0.88rem' }}>
+                {savingsTotal >= plannedTotal
+                  ? <span className="vg-pos"><b>Your savings already cover this.</b></span>
+                  : monthsToFund != null
+                    ? <>At <b>{INR(monthlySaving)}</b> saved this month, the shortfall of <b>{INR(plannedTotal - savingsTotal)}</b> is about <b>{Math.max(0, Math.ceil((plannedTotal - savingsTotal) / monthlySaving))} months</b> away.</>
+                    : <span className="vg-neg">You&rsquo;re not saving this month, so this can&rsquo;t be funded from savings yet.</span>}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ---------- Member: My Savings ----------------------------------
+function MemberSavings({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: string; onSave: (rows: SavingItem[]) => void }) {
+  const stored = () => doc.savings.filter(s => s.entity === entityId).map(s => ({ ...s }))
+  const [rows, setRows] = useState<SavingItem[]>(stored)
+  useEffect(() => { setRows(stored()) /* eslint-disable-next-line */ }, [doc, entityId])
+  const dirty = JSON.stringify(rows) !== JSON.stringify(stored())
+  const total = rows.reduce((a, b) => a + (b.balance || 0), 0)
+  const upd = (id: string, patch: Partial<SavingItem>) => setRows(r => r.map(x => x.id === id ? { ...x, ...patch } : x))
+  const del = (id: string) => setRows(r => r.filter(x => x.id !== id))
+  const add = () => setRows(r => [...r, { id: uid('sav'), label: 'New savings', entity: entityId, balance: 0, kind: 'FD' }])
+  return (
+    <>
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <div className="vg-kpi"><div className="k">My savings</div><div className="v vg-pos">{INR(total)}</div></div>
+        <div className="vg-kpi"><div className="k">Pots</div><div className="v">{rows.length}</div></div>
+      </div>
+      <div className="vg-card vg-pad">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <p className="vg-sec" style={{ margin: 0 }}><ShieldCheck className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-pos)', verticalAlign: '-3px' }} /> Private to you</p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {dirty && <button className="vg-btn" onClick={() => setRows(stored())}>Discard</button>}
+            <button className="vg-btn" onClick={add}><Plus className="h-4 w-4" /> Add</button>
+            <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={() => onSave(rows)}><Check className="h-4 w-4" /> Save</button>
+          </div>
+        </div>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 560 }}>
+            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th className="num">Balance</th><th>Note</th><th style={{ width: 36 }}></th></tr></thead>
+            <tbody>
+              {rows.map(s => (
+                <tr key={s.id}>
+                  <td><input className="vg-input" value={s.label} onChange={e => upd(s.id, { label: e.target.value })} /></td>
+                  <td><input className="vg-input" value={s.kind ?? ''} placeholder="FD / MF…" onChange={e => upd(s.id, { kind: e.target.value })} /></td>
+                  <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(s.balance)} onChange={e => upd(s.id, { balance: num(e.target.value) })} /></td>
+                  <td><input className="vg-input" value={s.note ?? ''} onChange={e => upd(s.id, { note: e.target.value })} /></td>
+                  <td><button className="vg-icobtn" onClick={() => del(s.id)}><Trash2 className="h-4 w-4" /></button></td>
+                </tr>
+              ))}
+              {rows.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Only you (and the family admin) can see these. Other members never do.</p>
+      </div>
+    </>
+  )
+}
+
+// ---------- Member: This month ----------------------------------
+function MemberMonth({ doc, entityId, k, setKey, openEditorWith }: {
+  doc: FinanceDoc; entityId: string; k: string; setKey: (k: string) => void; openEditorWith: (it: Item) => void
+}) {
+  const [reading, setReading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const m = monthView(doc, k)
+  const t = totals(m, doc.entities)
+  const step = (delta: number) => { const [y, mo] = k.split('-').map(Number); setKey(monthKey(new Date(y, mo - 1 + delta, 1))) }
+  const bal = t.netBalance[entityId] ?? 0
+  const cats = byCategory(m).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
+
+  async function onReceipt(files: FileList | null) {
+    if (!files || !files[0]) return
+    const file = files[0]; setReading(true)
+    const it = newItem('personal', doc.entities); it.paidBy = entityId
+    if (it.alloc.mode === 'single') it.alloc.who = entityId
+    try {
+      const b64 = await fileToB64(file)
+      const res = await fetch('/api/vault/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: b64, mediaType: file.type }) })
+      const info = await res.json().catch(() => ({}))
+      if (info.amount) it.amount = Number(info.amount) || 0
+      if (info.merchant) it.name = String(info.merchant)
+      try {
+        const safe = file.name.replace(/[^\w.\-]+/g, '_'); const rkey = `receipts/${Date.now()}-${safe}`
+        const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: rkey, contentType: file.type }) })
+        const { url } = await u.json(); if (url) { await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file }); it.receiptKey = rkey }
+      } catch { /* ignore */ }
+    } catch { /* ignore */ }
+    setReading(false); openEditorWith(it)
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+        <div className="vg-nav">
+          <button className="vg-icobtn" onClick={() => step(-1)}><ChevronLeft className="h-4 w-4" /></button>
+          <span className="lbl">{monthLabel(k)}</span>
+          <button className="vg-icobtn" onClick={() => step(1)}><ChevronRight className="h-4 w-4" /></button>
+        </div>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
+          <button className="vg-btn vg-btn-primary" onClick={() => { const it = newItem('personal', doc.entities); it.paidBy = entityId; if (it.alloc.mode === 'single') it.alloc.who = entityId; openEditorWith(it) }}><Plus className="h-4 w-4" /> Add expense</button>
+        </div>
+      </div>
+
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <Kpi label="My income" value={INR(m.income.filter(i => i.entity === entityId).reduce((a, b) => a + b.amount, 0))} cls="vg-pos" info="Income you recorded for yourself this month." />
+        <Kpi label="My spend" value={INR(t.byEntity[entityId] ?? 0)} info="Your share of everything this month — your own expenses plus your part of shared and common ones." />
+        <Kpi label={bal >= 0 ? 'You are owed' : 'You owe'} value={INR(Math.abs(bal))} cls={bal >= 0 ? 'vg-pos' : 'vg-neg'} small info="Net of shared bills once everyone settles up." />
+        <Kpi label="Common + shared" value={INR(t.expense)} info="Total of everything you can see this month: common household costs and anything shared with you." />
+      </div>
+
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <p className="vg-sec">What you can see this month</p>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 480 }}>
+            <thead><tr><th>Item</th><th>Paid by</th><th>Shared</th><th className="num">Amount</th></tr></thead>
+            <tbody>
+              {m.items.map(it => (
+                <tr key={it.id}>
+                  <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</td>
+                  <td><span className="vg-chip" style={{ background: entColor(doc.entities, it.paidBy) + '22', color: entColor(doc.entities, it.paidBy) }}>{entName(doc.entities, it.paidBy)}</span></td>
+                  <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, doc.entities)}</td>
+                  <td className="num">{INR(it.amount)}</td>
+                </tr>
+              ))}
+              {m.items.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing yet. Use <b>Add expense</b> or snap a <b>Receipt</b>.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Your purely personal expenses are private. Common bills and anything shared with you appear here; the family admin manages edits.</p>
+      </div>
+
+      {cats.length > 0 && (
+        <div className="vg-card vg-pad">
+          <p className="vg-sec">Where it goes</p>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><Donut data={cats} /><div style={{ flex: 1, minWidth: 160 }}><Legend items={cats} /></div></div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ---------- Member dashboard ------------------------------------
+function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; entityId: string }) {
+  const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
+  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'approvals'>('month')
+  const [key, setKey] = useState(monthKey())
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [editing, setEditing] = useState<Item | null>(null)
+  const me = { role: 'member' as const, entityId }
+
+  async function action(payload: Record<string, unknown>) {
+    setBusy('saving')
+    try {
+      const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const d = await r.json().catch(() => ({}))
+      if (d.doc) setDoc(d.doc as FinanceDoc)
+      setBusy('saved'); setTimeout(() => setBusy('idle'), 1400)
+    } catch { setBusy('idle') }
+  }
+
+  const pending = (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
+  const TABS = [
+    { id: 'month', label: 'This month', icon: CalendarDays },
+    { id: 'year', label: 'Year', icon: Wallet },
+    { id: 'savings', label: 'My Savings', icon: PiggyBank },
+    { id: 'budget', label: 'Budget', icon: Target },
+    { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing },
+  ] as const
+
+  return (
+    <Shell saveState={busy}>
+      <div style={{ overflowX: 'auto', marginBottom: '1.1rem' }}>
+        <div className="vg-tabs">
+          {TABS.map(t => { const I = t.icon; return <button key={t.id} className="vg-tab" data-on={tab === t.id} onClick={() => setTab(t.id)}><I className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 4, verticalAlign: '-2px' }} />{t.label}</button> })}
+        </div>
+      </div>
+
+      {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} openEditorWith={setEditing} />}
+      {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
+      {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
+      {tab === 'budget' && <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
+      {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => action({ action: kind, id })} />}
+
+      {editing && (
+        <ExpenseEditor item={editing} entities={doc.entities} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
+          onSave={it => { action({ action: 'propose', item: it, monthKey: key }); setEditing(null) }} onClose={() => setEditing(null)} />
+      )}
+    </Shell>
+  )
 }

@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { Wallet, Images, FolderLock, ArrowRight } from 'lucide-react'
-import { verifySession, VAULT_COOKIE } from '@/lib/vault-auth'
+import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import VaultLogout from '@/components/vault/logout-button'
 
 export const metadata: Metadata = {
@@ -48,7 +48,10 @@ const TILES = [
 
 export default async function VaultHome() {
   const jar = await cookies()
-  if (!(await verifySession(jar.get(VAULT_COOKIE)?.value))) redirect('/vault/login')
+  const session = await getSession(jar.get(VAULT_COOKIE)?.value)
+  if (!session) redirect('/vault/login')
+  // Members only get Finance — send them straight there.
+  if (session.r !== 'super') redirect('/vault/finance')
 
   return (
     <div className="vg">
