@@ -53,6 +53,7 @@ export interface Item {
   date?: string | null         // transaction date (YYYY-MM-DD), e.g. from a receipt or statement
   src?: 'template' | 'manual'   // template-derived vs manually added in a month
   ref?: string                 // stable fingerprint of an imported bank txn (for de-dup)
+  tags?: string[]              // free-form event tags (e.g. "Ooty 2026"), independent of category
 }
 
 export interface IncomeItem {

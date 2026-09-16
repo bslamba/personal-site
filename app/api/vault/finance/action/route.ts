@@ -137,43 +137,74 @@ export async function POST(request: Request) {
       }
 
       case 'importRows': {
-        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string }
+        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string; shareWith?: string; sharePct?: number; tags?: string[] }
         const rows = (body as unknown as { rows?: Row[] }).rows ?? []
         const wantOwner = (body as unknown as { owner?: string }).owner
-        const asCommon = isSuper && (body as unknown as { common?: boolean }).common === true
+        // "Paid from" = the logged-in profile (or, for super, the chosen person).
         const owner = isSuper ? (wantOwner || 'bhawneet') : (actor ?? '')
         if (!owner) return NextResponse.json({ error: 'No owner' }, { status: 400 })
-        const persons = (doc.entities as Entity[]).filter(e => e.kind === 'person')
-        const equalShares = Object.fromEntries(persons.map(pp => [pp.id, 1 / (persons.length || 1)]))
-        // Existing fingerprints across the whole sheet — skip anything already imported.
+        // Existing fingerprints across the whole sheet (items, income, pending
+        // proposals) — skip anything already imported or awaiting approval.
         const seen = new Set<string>()
         for (const m of Object.values(doc.months)) {
           for (const it of m.items) if (it.ref) seen.add(it.ref)
           for (const inc of m.income) if (inc.ref) seen.add(inc.ref)
         }
-        let added = 0, skipped = 0
+        for (const p of (doc.proposals ?? [])) if (p.item?.ref) seen.add(p.item.ref)
+
+        let added = 0, proposed = 0, skipped = 0
         for (const r of rows) {
           if (!r || !r.date || !(r.amount > 0)) continue
           if (r.ref && seen.has(r.ref)) { skipped++; continue }
           const mk = r.date.slice(0, 7)
-          const m = doc.months[mk] ?? materialise(doc.template, mk)
+          const tags = Array.isArray(r.tags) ? r.tags.map(t => String(t).trim()).filter(Boolean) : undefined
+
           if (r.type === 'credit') {
+            // Credit = income, private to the owner. Applied directly.
+            const m = doc.months[mk] ?? materialise(doc.template, mk)
             m.income = [...m.income, { id: uid('inc'), source: r.name || 'Income', entity: owner, amount: r.amount, src: 'manual', ref: r.ref } as IncomeItem]
-          } else {
+            doc.months[mk] = m
+            if (r.ref) seen.add(r.ref)
+            added++
+            continue
+          }
+
+          const pct = Math.max(0, Math.min(100, Number(r.sharePct) || 0)) / 100
+          const shareWith = r.shareWith && r.shareWith !== owner ? r.shareWith : null
+          if (shareWith && pct > 0) {
+            // Shared expense: build the split and send it to the tagged person
+            // to approve. It only enters the common/shared view once accepted.
             const it: Item = {
               id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
-              paidBy: asCommon ? 'common' : owner,
-              alloc: asCommon ? { mode: 'split', shares: { ...equalShares } } : { mode: 'single', who: owner },
-              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref,
+              paidBy: owner, alloc: { mode: 'split', shares: { [owner]: 1 - pct, [shareWith]: pct } },
+              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref, tags,
+            }
+            const pr: Proposal = {
+              id: uid('prop'), item: it, monthKey: mk,
+              proposedBy: isSuper ? 'super' : owner, proposedByName: entName(doc, owner),
+              approvers: [shareWith], approved: [], mode: 'any', status: 'pending', createdAt: new Date().toISOString(),
+              note: r.note || undefined,
+            }
+            doc.proposals = [...(doc.proposals ?? []), pr]
+            if (r.ref) seen.add(r.ref)
+            proposed++
+          } else {
+            // Personal expense: parked on the owner's profile, applied directly.
+            // Not part of any shared calculation.
+            const m = doc.months[mk] ?? materialise(doc.template, mk)
+            const it: Item = {
+              id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
+              paidBy: owner, alloc: { mode: 'single', who: owner },
+              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref, tags,
             }
             m.items = [...m.items, it]
+            doc.months[mk] = m
+            if (r.ref) seen.add(r.ref)
+            added++
           }
-          if (r.ref) seen.add(r.ref)
-          doc.months[mk] = m
-          added++
         }
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, added, skipped, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, added, proposed, skipped, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       case 'proposeMonthEdit': {
