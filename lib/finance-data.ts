@@ -49,6 +49,7 @@ export interface Item {
   paid?: boolean
   note?: string
   receiptKey?: string | null
+  category?: string            // explicit category name; blank = auto from the item name
   src?: 'template' | 'manual'   // template-derived vs manually added in a month
 }
 
@@ -57,6 +58,7 @@ export interface IncomeItem {
   source: string
   entity: string         // who earned it (entity id, or 'common')
   amount: number
+  src?: 'template' | 'manual'
 }
 
 export interface SavingItem {
@@ -87,6 +89,7 @@ export interface FinanceDoc {
   template: Template
   months: Record<string, MonthData>
   savings: SavingItem[]
+  categories: Category[]
   updatedAt: string
 }
 
@@ -111,6 +114,20 @@ const half = (): Alloc => ({ mode: 'split', shares: { bhawneet: 0.5, gurneet: 0.
 
 function mk(kind: Kind, name: string, paidBy: string, amount: number, alloc: Alloc, extra: Partial<Item> = {}): Item {
   return { id: uid(kind), name, amount, kind, paidBy, alloc, ...extra }
+}
+
+export interface Category { name: string; color: string }
+
+export function seedCategories(): Category[] {
+  return [
+    { name: 'Food & Groceries', color: '#1f9d6b' },
+    { name: 'Home & Utilities', color: '#4b7bec' },
+    { name: 'Vehicles & Travel', color: '#e8963a' },
+    { name: 'Insurance & Taxes', color: '#b0479a' },
+    { name: 'Subscriptions', color: '#5bc0d0' },
+    { name: 'Loans & EMIs', color: '#6d4bd8' },
+    { name: 'Other', color: '#9b93b8' },
+  ]
 }
 
 export function seedTemplate(): Template {
@@ -168,6 +185,7 @@ export function seedDoc(): FinanceDoc {
     template: seedTemplate(),
     months: {},
     savings: [],
+    categories: seedCategories(),
     updatedAt: new Date().toISOString(),
   }
 }
@@ -202,6 +220,7 @@ export function migrate(raw: unknown): FinanceDoc {
     const doc = d as unknown as FinanceDoc
     if (!Array.isArray(doc.savings)) doc.savings = []
     if (!Array.isArray(doc.entities) || doc.entities.length === 0) doc.entities = seedEntities()
+    if (!Array.isArray(doc.categories) || doc.categories.length === 0) doc.categories = seedCategories()
     return doc
   }
   // v1 → v2
@@ -210,7 +229,7 @@ export function migrate(raw: unknown): FinanceDoc {
     Array.isArray(arr) ? arr.map((i) => {
       const x = i as { id?: string; source?: string; person?: string; entity?: string; amount?: number }
       const person = (x.entity ?? x.person ?? 'common').toString().toLowerCase()
-      return { id: x.id ?? uid('inc'), source: x.source ?? 'Income', entity: ['bhawneet', 'gurneet', 'papa', 'common'].includes(person) ? person : 'common', amount: x.amount ?? 0 }
+      return { id: x.id ?? uid('inc'), source: x.source ?? 'Income', entity: ['bhawneet', 'gurneet', 'papa', 'common'].includes(person) ? person : 'common', amount: x.amount ?? 0, src: 'template' }
     }) : []
   const template: Template = {
     monthly: (tpl.monthly ?? []).map(v1ItemToV2),
@@ -223,7 +242,7 @@ export function migrate(raw: unknown): FinanceDoc {
   for (const [k, m] of Object.entries(rawMonths)) {
     months[k] = { items: (m.items ?? []).map(v1ItemToV2), income: mapIncome(m.income), note: m.note ?? '' }
   }
-  return { version: 2, entities: seedEntities(), template, months, savings: [], updatedAt: new Date().toISOString() }
+  return { version: 2, entities: seedEntities(), template, months, savings: [], categories: seedCategories(), updatedAt: new Date().toISOString() }
 }
 
 // ----- month helpers --------------------------------------------
@@ -249,7 +268,7 @@ export function materialise(template: Template, key: string): MonthData {
     ...template.emis.filter(e => emiActive(e, key)).map(clone),
     ...template.annual.filter(a => (a.dueDate ?? '').slice(5, 7) === mm).map(clone),
   ]
-  return { items, income: template.income.map(i => ({ ...i, id: uid('inc') })), note: '' }
+  return { items, income: template.income.map(i => ({ ...i, id: uid('inc'), src: 'template' as const })), note: '' }
 }
 
 export function monthView(doc: FinanceDoc, key: string): MonthData {
@@ -263,7 +282,8 @@ export function applyTemplateToMonth(template: Template, key: string, existing?:
   const fresh = materialise(template, key)
   if (!existing) return fresh
   const manual = existing.items.filter(i => i.src === 'manual')
-  return { items: [...fresh.items, ...manual], income: existing.income, note: existing.note }
+  const manualIncome = existing.income.filter(i => i.src === 'manual')
+  return { items: [...fresh.items, ...manual], income: [...fresh.income, ...manualIncome], note: existing.note }
 }
 
 // ----- allocation & settlement ----------------------------------
@@ -352,7 +372,7 @@ export function classify(it: Item, entities: Entity[]): Bucket {
 export function byCategory(m: MonthData): { name: string; value: number }[] {
   const map = new Map<string, number>()
   for (const it of m.items) {
-    const key = bucket(it.name, it.kind)
+    const key = it.category || bucket(it.name, it.kind)
     map.set(key, (map.get(key) ?? 0) + (it.amount || 0))
   }
   return [...map.entries()].map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value)

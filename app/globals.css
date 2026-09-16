@@ -2045,3 +2045,15 @@ body:has(.bday-root) .wa-float { display: none !important; }
 .vg .vg-subtab { border: 0; background: transparent; color: var(--vg-ink-soft); font: inherit; font-weight: 600; font-size: 0.82rem; padding: 0.4rem 0.8rem; border-radius: 9px; cursor: pointer; }
 .vg .vg-subtab[data-on="true"] { background: #fff; color: var(--vg-accent); box-shadow: 0 4px 12px -6px rgba(109,75,216,0.5); }
 .vg .vg-count { font-size: 0.7rem; opacity: 0.7; margin-left: 0.3rem; }
+
+/* Vault — KPI info popover + EMI outlook rows */
+.vg .vg-info { margin-left: 0.35rem; width: 15px; height: 15px; border-radius: 999px; border: 0; background: rgba(109,75,216,0.16); color: var(--vg-accent); font-size: 0.62rem; font-weight: 800; font-style: italic; line-height: 15px; padding: 0; cursor: pointer; vertical-align: 1px; }
+.vg .vg-info:hover { background: rgba(109,75,216,0.3); }
+.vg .vg-pop { position: absolute; top: 100%; left: 0; right: 0; margin-top: 6px; z-index: 8; background: #2a2148; color: #fff; font-size: 0.76rem; line-height: 1.45; padding: 0.55rem 0.7rem; border-radius: 10px; box-shadow: 0 16px 34px -12px rgba(0,0,0,0.55); cursor: default; }
+.vg .vg-emi-top { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.vg .vg-emi-name { font-weight: 600; color: var(--vg-ink); }
+.vg .vg-emi-amt { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--vg-accent); white-space: nowrap; }
+.vg .vg-emi-amt small { color: var(--vg-ink-faint); font-weight: 600; }
+.vg .vg-emi-bar { height: 7px; border-radius: 999px; background: rgba(120,99,190,0.16); overflow: hidden; margin: 0.4rem 0 0.35rem; }
+.vg .vg-emi-bar i { display: block; height: 100%; background: linear-gradient(90deg, #a06be0, #6d4bd8); border-radius: 999px; }
+.vg .vg-emi-meta { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.78rem; color: var(--vg-ink-soft); font-variant-numeric: tabular-nums; }

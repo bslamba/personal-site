@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
-  type SavingItem, type Alloc, type Bucket, type Template,
+  type SavingItem, type Alloc, type Bucket, type Template, type Category,
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
 } from '@/lib/finance-data'
@@ -86,10 +86,14 @@ function shareSummary(it: Item, entities: Entity[]): string {
   return parts.join(' · ') || '—'
 }
 
-function ExpenseEditor({ item, entities, onSave, onClose, onDelete }: {
-  item: Item; entities: Entity[]; onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void
+function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete }: {
+  item: Item; entities: Entity[]; categories: Category[]; onAddCategory: (name: string, color: string) => void
+  onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void
 }) {
   const [d, setD] = useState<Item>(() => structuredClone(item))
+  const [custom, setCustom] = useState(false)
+  const [custName, setCustName] = useState('')
+  const [custColor, setCustColor] = useState('#6d4bd8')
   const isEmi = d.kind === 'emi'
   const isAnnual = d.kind === 'annual'
   const payers = entities.filter(e => e.canPay)
@@ -118,6 +122,24 @@ function ExpenseEditor({ item, entities, onSave, onClose, onDelete }: {
         <label className="vg-lbl">What is it</label>
         <input className="vg-input" value={d.name} onChange={e => set({ name: e.target.value })} placeholder="e.g. Zomato dinner" />
 
+        <div style={{ marginTop: '0.6rem' }}>
+          <label className="vg-lbl">Category</label>
+          {!custom ? (
+            <select className="vg-select" value={d.category ?? ''} onChange={e => { if (e.target.value === '__new') setCustom(true); else set({ category: e.target.value || undefined }) }}>
+              <option value="">Auto (by name)</option>
+              {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+              <option value="__new">＋ New category…</option>
+            </select>
+          ) : (
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <input type="color" value={custColor} onChange={e => setCustColor(e.target.value)} style={{ width: 34, height: 34, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} />
+              <input className="vg-input" placeholder="New category name" value={custName} onChange={e => setCustName(e.target.value)} />
+              <button className="vg-btn vg-btn-primary" onClick={() => { const n = custName.trim(); if (n) { onAddCategory(n, custColor); set({ category: n }) } setCustom(false); setCustName('') }}>Add</button>
+              <button className="vg-btn" onClick={() => setCustom(false)}>×</button>
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
           <div>
             <label className="vg-lbl">{isAnnual ? 'Amount / year' : isEmi ? 'Monthly EMI' : 'Amount'}</label>
@@ -138,7 +160,11 @@ function ExpenseEditor({ item, entities, onSave, onClose, onDelete }: {
           </div>
         )}
         {isAnnual && (
-          <div style={{ marginTop: '0.6rem' }}><label className="vg-lbl">Due date</label><input type="date" className="vg-input" value={d.dueDate ?? ''} onChange={e => set({ dueDate: e.target.value || null })} /></div>
+          <div style={{ marginTop: '0.6rem' }}>
+            <label className="vg-lbl">Appears in month</label>
+            <input type="month" className="vg-input" value={d.dueDate ? d.dueDate.slice(0, 7) : ''} onChange={e => set({ dueDate: e.target.value ? e.target.value + '-15' : null })} />
+            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.3rem' }}>This yearly charge shows up automatically in that month&rsquo;s expenses (each year). Change the month to move it.</p>
+          </div>
         )}
 
         <div style={{ marginTop: '0.9rem' }}>
@@ -250,6 +276,8 @@ export default function FinanceDashboard() {
     setDoc(d => { if (!d) return d; const nd = structuredClone(d) as FinanceDoc; nd.months[k] = fn(nd.months[k] ?? materialise(nd.template, k)); return nd })
   }, [])
 
+  const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
+
   if (!doc) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
 
   const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
@@ -289,6 +317,7 @@ export default function FinanceDashboard() {
       {editing && (
         <ExpenseEditor
           item={editing.item} entities={doc.entities}
+          categories={doc.categories} onAddCategory={addCategory}
           onSave={it => { editing.commit(it); setEditing(null) }}
           onClose={() => setEditing(null)}
           onDelete={editing.remove ? () => { editing.remove!(); setEditing(null) } : undefined}
@@ -373,9 +402,9 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
 
   const setInc = (id: string, patch: Partial<IncomeItem>) => patchMonth(k, mm => ({ ...mm, income: mm.income.map(i => i.id === id ? { ...i, ...patch } : i) }))
   const delInc = (id: string) => patchMonth(k, mm => ({ ...mm, income: mm.income.filter(i => i.id !== id) }))
-  const addInc = () => patchMonth(k, mm => ({ ...mm, income: [...mm.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0 }] }))
+  const addInc = () => patchMonth(k, mm => ({ ...mm, income: [...mm.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0, src: 'manual' as const }] }))
 
-  const cats = byCategory(m).map((c, i) => ({ ...c, color: CAT_COLORS[c.name] ?? PALETTE[i % PALETTE.length] }))
+  const cats = byCategory(m).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
   const bears = entities.map(e => ({ label: e.name, value: t.byEntity[e.id] ?? 0, color: e.color })).filter(p => p.value > 0)
   const settleTxt = t.transfers.length === 0 ? 'All settled — nobody owes anyone.' : ''
 
@@ -391,10 +420,10 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
       </div>
 
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
-        <div className="vg-kpi"><div className="k">Income</div><div className="v vg-pos">{INR(t.income)}</div></div>
-        <div className="vg-kpi"><div className="k">Expenses</div><div className="v">{INR(t.expense)}</div></div>
-        <div className="vg-kpi"><div className="k">{t.net >= 0 ? 'Saved' : 'Overspent'}</div><div className={`v ${t.net >= 0 ? 'vg-pos' : 'vg-neg'}`}>{INR(Math.abs(t.net))}</div></div>
-        <div className="vg-kpi"><div className="k">Settle up</div><div className="v" style={{ fontSize: '0.95rem', lineHeight: 1.3 }}>{t.transfers.length ? `${t.transfers.length} transfer${t.transfers.length > 1 ? 's' : ''}` : 'All square'}</div></div>
+        <Kpi label="Income" value={INR(t.income)} cls="vg-pos" info="All the money that came in this month — salary, rental and anything you list under Income." />
+        <Kpi label="Expenses" value={INR(t.expense)} info="Everything spent this month, added up across the Common, EMI and Personal tabs." />
+        <Kpi label={t.net >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(t.net))} cls={t.net >= 0 ? 'vg-pos' : 'vg-neg'} info="Income minus Expenses. Green means you kept money this month; red means you spent more than came in." />
+        <Kpi label="Settle up" small value={t.transfers.length ? `${t.transfers.length} transfer${t.transfers.length > 1 ? 's' : ''}` : 'All square'} info="Because one person often pays for shared things, this works out who should pay whom so everyone ends up even. The exact payments are in the Settle-up card below." />
       </div>
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
@@ -506,14 +535,10 @@ function YearTab({ doc, year, setYear, openMonth }: {
 
   const catMap = new Map<string, number>()
   months.forEach(k => byCategory(monthView(doc, k)).forEach(c => catMap.set(c.name, (catMap.get(c.name) ?? 0) + c.value)))
-  const cats = [...catMap.entries()].map(([name, value], i) => ({ name, value, color: CAT_COLORS[name] ?? PALETTE[i % PALETTE.length] })).sort((a, b) => b.value - a.value)
+  const cats = [...catMap.entries()].map(([name, value], i) => ({ name, value, color: catColor(name, doc.categories, i) })).sort((a, b) => b.value - a.value)
 
   const now = monthKey()
-  const emiRows = doc.template.emis.filter(e => !e.endDate || e.endDate >= `${now}-01`).map(e => {
-    let remaining = 0
-    if (e.endDate) { const [ey, em] = e.endDate.slice(0, 7).split('-').map(Number); const [ny, nm] = now.split('-').map(Number); remaining = Math.max(0, (ey - ny) * 12 + (em - nm) + 1) }
-    return { name: e.name, monthly: e.amount, remaining, outstanding: e.endDate ? e.amount * remaining : null, end: e.endDate }
-  })
+  const emiRows = doc.template.emis.filter(e => !e.endDate || e.endDate >= `${now}-01`).map(e => ({ ...emiProgress(e), name: e.name, monthly: e.amount, end: e.endDate }))
 
   return (
     <>
@@ -526,10 +551,10 @@ function YearTab({ doc, year, setYear, openMonth }: {
       </div>
 
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
-        <div className="vg-kpi"><div className="k">Income (year)</div><div className="v vg-pos">{INR(totInc)}</div></div>
-        <div className="vg-kpi"><div className="k">Expenses (year)</div><div className="v">{INR(totExp)}</div></div>
-        <div className="vg-kpi"><div className="k">{totInc - totExp >= 0 ? 'Saved' : 'Overspent'}</div><div className={`v ${totInc - totExp >= 0 ? 'vg-pos' : 'vg-neg'}`}>{INR(Math.abs(totInc - totExp))}</div></div>
-        <div className="vg-kpi"><div className="k">Avg / active month</div><div className="v">{INR(totExp / active)}</div></div>
+        <Kpi label="Income (year)" value={INR(totInc)} cls="vg-pos" info="Total income across all 12 months of this year." />
+        <Kpi label="Expenses (year)" value={INR(totExp)} info="Total spent across the whole year." />
+        <Kpi label={totInc - totExp >= 0 ? 'Saved' : 'Overspent'} value={INR(Math.abs(totInc - totExp))} cls={totInc - totExp >= 0 ? 'vg-pos' : 'vg-neg'} info="Year income minus year expenses." />
+        <Kpi label="Avg / active month" value={INR(totExp / active)} info="Average monthly spend, counting only the months that actually had expenses." />
       </div>
 
       <div className="vg-grid2">
@@ -558,18 +583,23 @@ function YearTab({ doc, year, setYear, openMonth }: {
 
         <div className="vg-card vg-pad">
           <p className="vg-sec">Loan & EMI outlook</p>
-          <div className="vg-tablewrap">
-            <table className="vg-table" style={{ minWidth: 380 }}>
-              <thead><tr><th>Loan</th><th className="num">Monthly</th><th className="num">Months left</th><th className="num">Left to pay</th></tr></thead>
-              <tbody>
-                {emiRows.map(r => (
-                  <tr key={r.name}><td className="vg-nm">{r.name}<span className="vg-muted" style={{ display: 'block', fontSize: '0.72rem' }}>{r.end ? `ends ${r.end}` : 'open-ended'}</span></td><td className="num">{INR(r.monthly)}</td><td className="num">{r.end ? r.remaining : '—'}</td><td className="num">{r.outstanding != null ? INR(r.outstanding) : '—'}</td></tr>
-                ))}
-                {emiRows.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No active EMIs.</td></tr>}
-              </tbody>
-            </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+            {emiRows.map(r => (
+              <div key={r.name} className="vg-emi">
+                <div className="vg-emi-top">
+                  <span className="vg-emi-name">{r.name}</span>
+                  <span className="vg-emi-amt">{INR(r.monthly)}<small>/mo</small></span>
+                </div>
+                <div className="vg-emi-bar"><i style={{ width: `${r.pct}%` }} /></div>
+                <div className="vg-emi-meta">
+                  <span>{r.total != null ? `${r.paid} / ${r.total} months` : 'open-ended'}</span>
+                  <span>{r.outstanding != null ? `${INR(r.outstanding)} left` : '—'}{r.end ? ` · ends ${fmtMon(r.end)}` : ''}</span>
+                </div>
+              </div>
+            ))}
+            {emiRows.length === 0 && <p className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No active EMIs.</p>}
           </div>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>“Left to pay” is monthly × months remaining — a runway, not an amortised balance.</p>
+          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>The bar is months paid so far; “left” is the EMI × months remaining — a runway, not an amortised balance.</p>
         </div>
       </div>
     </>
@@ -837,4 +867,44 @@ function SaveScopeModal({ currentMonth, onSave, onClose }: {
       </div>
     </div>
   )
+}
+
+// ---------- small shared helpers --------------------------------
+function Kpi({ label, value, cls, info, small }: {
+  label: string; value: React.ReactNode; cls?: string; info?: string; small?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="vg-kpi" style={{ position: 'relative' }}>
+      <div className="k">{label}{info && <button className="vg-info" onClick={() => setOpen(o => !o)} aria-label={`What is ${label}?`}>i</button>}</div>
+      <div className={`v ${cls ?? ''}`} style={small ? { fontSize: '0.95rem', lineHeight: 1.3 } : undefined}>{value}</div>
+      {open && info && <div className="vg-pop" role="tooltip" onClick={() => setOpen(false)}>{info}</div>}
+    </div>
+  )
+}
+
+function catColor(name: string, cats: Category[], i = 0): string {
+  return cats.find(c => c.name === name)?.color ?? CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
+}
+
+function fmtMon(iso: string): string {
+  const [y, m] = iso.slice(0, 7).split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+}
+
+function emiProgress(e: Item) {
+  const now = new Date()
+  const s = e.startDate ? new Date(e.startDate) : null
+  let total: number | null = e.tenure ?? null
+  if (!total && e.startDate && e.endDate) {
+    const a = new Date(e.startDate), b = new Date(e.endDate)
+    total = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + 1
+  }
+  let paid = 0
+  if (s) paid = Math.max(0, (now.getFullYear() - s.getFullYear()) * 12 + (now.getMonth() - s.getMonth()) + 1)
+  if (total) paid = Math.min(paid, total)
+  const remaining = total != null ? Math.max(0, total - paid) : null
+  const outstanding = remaining != null ? e.amount * remaining : null
+  const pct = total ? Math.round((paid / total) * 100) : 0
+  return { total, paid, remaining, outstanding, pct }
 }
