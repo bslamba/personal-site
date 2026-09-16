@@ -15,7 +15,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal, Target, BellRing, ShieldCheck,
+  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -23,8 +23,9 @@ import {
   type EntityBudget, type PlannedItem,
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
-  commitProposalItem, emptyBudget, categoryOf,
+  commitProposalItem, emptyBudget, categoryOf, detectCategory,
 } from '@/lib/finance-data'
+import { parseStatement, type StatementRow } from '@/lib/statement'
 
 const CAT_COLORS: Record<string, string> = {
   'Loans & EMIs': '#6d4bd8', 'Home & Utilities': '#4b7bec', 'Food & Groceries': '#1f9d6b',
@@ -168,6 +169,12 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
             <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.3rem' }}>This yearly charge shows up automatically in that month&rsquo;s expenses (each year). Change the month to move it.</p>
           </div>
         )}
+        {!isEmi && !isAnnual && (
+          <div style={{ marginTop: '0.6rem' }}>
+            <label className="vg-lbl">Date <span className="vg-muted" style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+            <input type="date" className="vg-input" value={d.date ?? ''} onChange={e => set({ date: e.target.value || null })} />
+          </div>
+        )}
 
         <div style={{ marginTop: '0.9rem' }}>
           <label className="vg-lbl">How is it shared?</label>
@@ -236,7 +243,7 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'year' | 'savings' | 'budget' | 'approvals' | 'entities' | 'setup'
+type Tab = 'month' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard() {
@@ -280,6 +287,9 @@ export default function FinanceDashboard() {
   }, [])
 
   const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
+  const runAction = useCallback(async (payload: Record<string, unknown>) => {
+    try { const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json().catch(() => ({})); if (d.doc) setDoc(d.doc as FinanceDoc) } catch { /* ignore */ }
+  }, [])
 
   if (!doc || !me) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
 
@@ -290,6 +300,7 @@ export default function FinanceDashboard() {
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'savings', label: 'Savings', icon: PiggyBank },
     { id: 'budget', label: 'Budget', icon: Target },
+    { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
     { id: 'entities', label: 'Entities', icon: Users },
     { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
@@ -320,6 +331,7 @@ export default function FinanceDashboard() {
       {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'budget' && <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => patchDoc(d => { decideLocally(d, id, kind, true, null); return d })} />}
+      {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner, common) => runAction({ action: 'importRows', rows, owner, common })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'setup' && <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} />}
 
@@ -393,6 +405,8 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor }: {
       if (info.amount) it.amount = Number(info.amount) || 0
       if (info.merchant) it.name = String(info.merchant)
       if (info.note && !it.name) it.name = String(info.note)
+      if (info.date) it.date = String(info.date)
+      it.category = detectCategory(String(info.merchant || it.name || ''))
       // keep a copy of the receipt image (best-effort)
       try {
         const safe = file.name.replace(/[^\w.\-]+/g, '_'); const rkey = `receipts/${Date.now()}-${safe}`
@@ -1183,6 +1197,8 @@ function MemberMonth({ doc, entityId, k, setKey, openEditorWith }: {
       const info = await res.json().catch(() => ({}))
       if (info.amount) it.amount = Number(info.amount) || 0
       if (info.merchant) it.name = String(info.merchant)
+      if (info.date) it.date = String(info.date)
+      it.category = detectCategory(String(info.merchant || it.name || ''))
       try {
         const safe = file.name.replace(/[^\w.\-]+/g, '_'); const rkey = `receipts/${Date.now()}-${safe}`
         const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: rkey, contentType: file.type }) })
@@ -1248,7 +1264,7 @@ function MemberMonth({ doc, entityId, k, setKey, openEditorWith }: {
 // ---------- Member dashboard ------------------------------------
 function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; entityId: string }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'approvals'>('month')
+  const [tab, setTab] = useState<'month' | 'year' | 'savings' | 'budget' | 'import' | 'approvals'>('month')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
   const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -1271,6 +1287,7 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'savings', label: 'My Savings', icon: PiggyBank },
     { id: 'budget', label: 'Budget', icon: Target },
+    { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing },
   ] as const
 
@@ -1286,6 +1303,7 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
       {tab === 'budget' && <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
+      {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows) => action({ action: 'importRows', rows })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} onDecide={(id, kind) => action({ action: kind, id })} />}
 
       {editing && (
@@ -1293,5 +1311,111 @@ function MemberDashboard({ initialDoc, entityId }: { initialDoc: FinanceDoc; ent
           onSave={it => { action({ action: 'propose', item: it, monthKey: key }); setEditing(null) }} onClose={() => setEditing(null)} />
       )}
     </Shell>
+  )
+}
+
+// ---------- Import from bank statement --------------------------
+function ImportTab({ doc, me, onImport }: {
+  doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
+  onImport: (rows: { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string }[], owner: string, common: boolean) => void
+}) {
+  const [rows, setRows] = useState<StatementRow[]>([])
+  const [fileName, setFileName] = useState('')
+  const [owner, setOwner] = useState(me.role === 'super' ? 'bhawneet' : (me.entityId ?? ''))
+  const [common, setCommon] = useState(false)
+  const [done, setDone] = useState(0)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const persons = doc.entities.filter(e => e.kind === 'person')
+  const catNames = doc.categories.map(c => c.name)
+
+  async function onFile(files: FileList | null) {
+    const f = files?.[0]; if (!f) return
+    setFileName(f.name); setDone(0)
+    try { const text = await f.text(); setRows(parseStatement(text)) } catch { setRows([]) }
+  }
+  const upd = (id: string, patch: Partial<StatementRow>) => setRows(r => r.map(x => x.id === id ? { ...x, ...patch } : x))
+  const setAll = (v: boolean) => setRows(r => r.map(x => ({ ...x, include: v })))
+
+  const selected = rows.filter(r => r.include)
+  const debitTotal = selected.filter(r => r.type === 'debit').reduce((a, b) => a + b.amount, 0)
+  const creditTotal = selected.filter(r => r.type === 'credit').reduce((a, b) => a + b.amount, 0)
+
+  function doImport() {
+    const payload = selected.map(r => ({ date: r.date, name: r.payee || r.desc, amount: r.amount, type: r.type, category: r.category, note: r.note }))
+    onImport(payload, owner, common)
+    setDone(payload.length); setRows([])
+  }
+
+  return (
+    <>
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <p style={{ margin: 0, color: '#241b40' }}>
+            <FileSpreadsheet className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Upload a <b>bank statement CSV</b>. It reads every credit and debit, guesses a category, and lets you tick which to bring in — you can fix the payee, category and add a remark first.
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="vg-btn vg-btn-primary" onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> {fileName ? 'Choose another' : 'Upload CSV'}</button>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={e => onFile(e.target.files)} />
+          </div>
+        </div>
+        {done > 0 && <p className="vg-pos" style={{ marginTop: '0.6rem', marginBottom: 0 }}><Check className="h-4 w-4" style={{ display: 'inline' }} /> Imported {done} transaction{done === 1 ? '' : 's'}. They&rsquo;re in the month sheets now.</p>}
+      </div>
+
+      {rows.length > 0 && (
+        <>
+          <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="vg-muted" style={{ fontSize: '0.85rem' }}><b style={{ color: '#241b40' }}>{selected.length}</b> of {rows.length} selected</span>
+              <span className="vg-neg" style={{ fontSize: '0.85rem' }}>− {INR(debitTotal)} out</span>
+              <span className="vg-pos" style={{ fontSize: '0.85rem' }}>+ {INR(creditTotal)} in</span>
+              <button className="vg-btn" onClick={() => setAll(true)}>All</button>
+              <button className="vg-btn" onClick={() => setAll(false)}>None</button>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {me.role === 'super' && (
+                <>
+                  <label className="vg-muted" style={{ fontSize: '0.8rem' }}>Whose:&nbsp;
+                    <select className="vg-select" style={{ width: 'auto', display: 'inline-block' }} value={owner} onChange={e => setOwner(e.target.value)}>
+                      {persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="vg-muted" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <input type="checkbox" checked={common} onChange={e => setCommon(e.target.checked)} /> debits are common/shared
+                  </label>
+                </>
+              )}
+              <button className="vg-btn vg-btn-primary" disabled={selected.length === 0} onClick={doImport}><Plus className="h-4 w-4" /> Add {selected.length}</button>
+            </div>
+          </div>
+
+          <div className="vg-card vg-pad">
+            <div className="vg-tablewrap">
+              <table className="vg-table" style={{ minWidth: 760 }}>
+                <thead><tr><th style={{ width: 34 }}></th><th style={{ width: 92 }}>Date</th><th>Payee</th><th style={{ width: 150 }}>Category</th><th style={{ width: 60 }}>In/Out</th><th className="num" style={{ width: 100 }}>Amount</th><th style={{ width: 150 }}>Remark</th></tr></thead>
+                <tbody>
+                  {rows.map(r => {
+                    const opts = catNames.includes(r.category) ? catNames : [r.category, ...catNames]
+                    return (
+                      <tr key={r.id} style={{ opacity: r.include ? 1 : 0.45 }}>
+                        <td><input type="checkbox" checked={r.include} onChange={e => upd(r.id, { include: e.target.checked })} /></td>
+                        <td className="vg-muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{r.date.slice(8) + '/' + r.date.slice(5, 7)}</td>
+                        <td><input className="vg-input" value={r.payee} onChange={e => upd(r.id, { payee: e.target.value })} title={r.desc} /></td>
+                        <td><select className="vg-select" value={r.category} onChange={e => upd(r.id, { category: e.target.value })}>{opts.map(c => <option key={c} value={c}>{c}</option>)}</select></td>
+                        <td><span className="vg-chip" style={{ background: r.type === 'credit' ? 'rgba(31,157,107,0.14)' : 'rgba(226,68,92,0.14)', color: r.type === 'credit' ? 'var(--vg-pos)' : 'var(--vg-neg)' }}>{r.type === 'credit' ? 'In' : 'Out'}</span></td>
+                        <td className="num">{INR(r.amount)}</td>
+                        <td><input className="vg-input" value={r.note} placeholder="optional" onChange={e => upd(r.id, { note: e.target.value })} /></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>
+              Credits become income; debits become expenses{me.role === 'super' ? ' (personal to the chosen person, unless you tick common)' : ' on your own profile'}. Categories are a best guess — change any that look off. Everything can still be edited after importing.
+            </p>
+          </div>
+        </>
+      )}
+    </>
   )
 }

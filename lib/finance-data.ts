@@ -50,6 +50,7 @@ export interface Item {
   note?: string
   receiptKey?: string | null
   category?: string            // explicit category name; blank = auto from the item name
+  date?: string | null         // transaction date (YYYY-MM-DD), e.g. from a receipt or statement
   src?: 'template' | 'manual'   // template-derived vs manually added in a month
 }
 
@@ -126,8 +127,12 @@ export function seedCategories(): Category[] {
     { name: 'Home & Utilities', color: '#4b7bec' },
     { name: 'Vehicles & Travel', color: '#e8963a' },
     { name: 'Insurance & Taxes', color: '#b0479a' },
+    { name: 'Eating Out', color: '#e07a3a' },
+    { name: 'Health', color: '#2fb08a' },
+    { name: 'Shopping', color: '#c264d0' },
     { name: 'Subscriptions', color: '#5bc0d0' },
     { name: 'Loans & EMIs', color: '#6d4bd8' },
+    { name: 'Transfers', color: '#8593a8' },
     { name: 'Other', color: '#9b93b8' },
   ]
 }
@@ -485,4 +490,59 @@ export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
   const m = doc.months[pr.monthKey] ?? materialise(doc.template, pr.monthKey)
   m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
   doc.months[pr.monthKey] = m
+}
+
+// ============================================================
+// v3 — statement / receipt helpers: clean a bank "particulars"
+// line into a readable payee, and guess a category from the name.
+// Both are heuristic and always give the user something to edit.
+// ============================================================
+
+/** Turn a bank statement PARTICULARS string into a readable payee. */
+export function cleanPayee(raw: string): string {
+  const s = (raw || '').trim()
+  const parts = s.split('/').map(x => x.trim()).filter(Boolean)
+  const head = (parts[0] || '').toUpperCase()
+  let name = ''
+  if (head === 'UPI') name = parts[3] || parts[2] || ''
+  else if (head === 'POS' || head === 'PUR') name = parts[1] || ''
+  else if (head === 'NEFT' || head === 'IMPS' || head === 'RTGS') name = parts[2] || ''
+  if (!name || /^\d/.test(name) || name.length < 2) {
+    // fall back to the longest mostly-alphabetic chunk
+    const cand = parts.filter(x => /[a-z]/i.test(x) && !/bank|ltd|limited|upi|imps|neft|rtgs|pos|p2m|p2a|paymen|upiint|reques|refund/i.test(x))
+    name = cand.sort((a, b) => b.length - a.length)[0] || parts[0] || s
+  }
+  // ACH / EMI style lines rarely have a clean name
+  if (/ACH-DR|AUR\d|_EMI_|BAJAJFIN|MANAPPURAM|RAZORPAY|CAPITALFLO/i.test(s)) {
+    if (/BAJAJFIN/i.test(s)) name = 'Bajaj Finance EMI'
+    else if (/AUR\d|_EMI_/i.test(s)) name = 'Loan EMI'
+    else if (/MANAPPURAM/i.test(s)) name = 'Manappuram Finance'
+    else if (/RAZORPAY|CAPITALFLO/i.test(s)) name = 'Razorpay / CapitalFloat'
+    else name = 'Loan / EMI'
+  }
+  if (/salary|wage/i.test(s)) name = 'Salary'
+  return name.replace(/\s+/g, ' ').replace(/\.$/, '').trim()
+    .replace(/\b\w/g, c => c) // keep as-is (names come mixed case)
+    .slice(0, 60)
+}
+
+const CAT_RULES: [RegExp, string][] = [
+  [/zepto|blinkit|instamart|dmart|d\s?mart|milkbasket|big\s?basket|star bazaar|avenue supermart|reliance fresh|grocery|kirana|super\s?market|saddam fruits|vegetable|annapurna|tiffin/i, 'Food & Groceries'],
+  [/zomato|swiggy(?! instamart)|restaurant|cafe|chai\s?point|chaayos|rameshwaram|toscano|divine|puff|food truck|vindoos|samosa|bakery|bekary|soda|dining|dhaba|barbeque|pizza|burger|biryani|sweets|namkeen/i, 'Eating Out'],
+  [/medplus|apollo|pharma|pharmacy|1mg|tata 1mg|srl|vydehi|hospital|clinic|diagnostic|\blab\b|medical|med\b|dental|chemist/i, 'Health'],
+  [/myntra|max\s?fashion|max retail|ajio|flipkart|aditya birla fashion|van heusen|giva|ekart|fnp|jewel|lifestyle|westside|zudio|amazon(?!\s?pay later)|meesho|nykaa|shoppers|reliance trends|apparel|clothing/i, 'Shopping'],
+  [/yulu|fastag|etc tag|petro|petrol|fuel|iocl|bpcl|\bhp\b|indian oil|uber|\bola\b|rapido|parking|kesari|toll|metro|irctc|redbus|makemytrip|goibibo/i, 'Vehicles & Travel'],
+  [/jio|airtel|\bvi\b|vodafone|bescom|electricity|\bgas\b|broadband|\bact\b|water|maintenance|dth|tata power|adani/i, 'Home & Utilities'],
+  [/netflix|prime|spotify|hotstar|apple\.com|google|youtube|subscription|jio postpaid|jio mobil|astrotalk/i, 'Subscriptions'],
+  [/urban ?company|plumber|electrician|maid|cook|hardware|carpenter|salon|laundry/i, 'Home & Utilities'],
+  [/insurance|policy|lic\b|premium|property tax|\btax\b|gst/i, 'Insurance & Taxes'],
+  [/emi|bajajfin|bajaj|manappuram|razorpay|capitalflo|home loan|car loan|amazon pay later|\bloan\b/i, 'Loans & EMIs'],
+  [/imps|neft|rtgs|mob\/tpft|mob-td|\brd\b|brn-si|trfr to|self|family|transfer/i, 'Transfers'],
+]
+
+/** Guess a category from a payee / description. Falls back to "Other". */
+export function detectCategory(name: string): string {
+  const n = (name || '').toLowerCase()
+  for (const [re, cat] of CAT_RULES) if (re.test(n)) return cat
+  return 'Other'
 }

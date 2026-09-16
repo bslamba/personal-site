@@ -20,7 +20,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { migrate, approversFor, isPersonalTo, commitProposalItem, materialise, uid,
-         type FinanceDoc, type Item, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
+         type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget, type Entity } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
 
 export const runtime = 'nodejs'
@@ -119,6 +119,38 @@ export async function POST(request: Request) {
         doc.budgets.family = body.budget
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'importRows': {
+        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string }
+        const rows = (body as unknown as { rows?: Row[] }).rows ?? []
+        const wantOwner = (body as unknown as { owner?: string }).owner
+        const asCommon = isSuper && (body as unknown as { common?: boolean }).common === true
+        const owner = isSuper ? (wantOwner || 'bhawneet') : (actor ?? '')
+        if (!owner) return NextResponse.json({ error: 'No owner' }, { status: 400 })
+        const persons = (doc.entities as Entity[]).filter(e => e.kind === 'person')
+        const equalShares = Object.fromEntries(persons.map(pp => [pp.id, 1 / (persons.length || 1)]))
+        let added = 0
+        for (const r of rows) {
+          if (!r || !r.date || !(r.amount > 0)) continue
+          const mk = r.date.slice(0, 7)
+          const m = doc.months[mk] ?? materialise(doc.template, mk)
+          if (r.type === 'credit') {
+            m.income = [...m.income, { id: uid('inc'), source: r.name || 'Income', entity: owner, amount: r.amount, src: 'manual' } as IncomeItem]
+          } else {
+            const it: Item = {
+              id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
+              paidBy: asCommon ? 'common' : owner,
+              alloc: asCommon ? { mode: 'split', shares: { ...equalShares } } : { mode: 'single', who: owner },
+              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual',
+            }
+            m.items = [...m.items, it]
+          }
+          doc.months[mk] = m
+          added++
+        }
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, added, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       default:
