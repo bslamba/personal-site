@@ -605,6 +605,52 @@ body.gate-locked { overflow: hidden; }
 .toc-list li { margin: 0; }
 .toc-sub { padding-left: 0.875rem; }
 
+/* ---------- slim scrollbar for popups ----------
+   The site-wide scrollbar (red thumb, paper track) is built for the page
+   edge. Inside a rounded popup it reads as a foreign object hanging off the
+   corner. This one floats inside the popup instead: transparent track held
+   clear of the rounded corners, and a thin thumb inset from the edge that
+   firms up when you reach for it.
+
+   Colours come from --slim-thumb / --slim-thumb-hover so a themed area can
+   tint it (the vault sets them to its lavender). The vault's popups pick
+   this up by selector; anything else opts in with .slim-scroll. */
+.slim-scroll,
+.vg-lb > .vg-card {
+  --slim-thumb: rgba(20, 20, 30, 0.22);
+  --slim-thumb-hover: rgba(20, 20, 30, 0.42);
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.vg .slim-scroll,
+.vg-lb > .vg-card {
+  --slim-thumb: rgba(109, 75, 216, 0.28);
+  --slim-thumb-hover: rgba(109, 75, 216, 0.6);
+}
+/* Firefox has no scrollbar pseudo-elements; Chromium ignores the pseudo-
+   elements once these standard properties are set, so only give them to
+   browsers that can't take the finer-grained version below. */
+@supports not selector(::-webkit-scrollbar) {
+  .slim-scroll,
+  .vg-lb > .vg-card { scrollbar-width: thin; scrollbar-color: var(--slim-thumb) transparent; }
+}
+.slim-scroll::-webkit-scrollbar,
+.vg-lb > .vg-card::-webkit-scrollbar { width: 10px; height: 10px; }
+.slim-scroll::-webkit-scrollbar-track,
+.vg-lb > .vg-card::-webkit-scrollbar-track { background: transparent; margin-block: 18px; }
+.slim-scroll::-webkit-scrollbar-thumb,
+.vg-lb > .vg-card::-webkit-scrollbar-thumb {
+  background-color: var(--slim-thumb);
+  background-clip: padding-box;
+  border: 3px solid transparent;   /* insets the visible thumb from the edge */
+  border-radius: 999px;
+  min-height: 36px;
+}
+.slim-scroll::-webkit-scrollbar-thumb:hover,
+.vg-lb > .vg-card::-webkit-scrollbar-thumb:hover { background-color: var(--slim-thumb-hover); border-width: 2px; }
+.slim-scroll::-webkit-scrollbar-corner,
+.vg-lb > .vg-card::-webkit-scrollbar-corner { background: transparent; }
+
 .toc-link {
   display: block;
   font-family: var(--font-heading);
@@ -2065,6 +2111,9 @@ body:has(.vg-member) > footer { display: none !important; }
 
 /* Lightbox / slideshow */
 .vg-lb { position: fixed; inset: 0; z-index: 60; background: rgba(20,14,40,0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: grid; place-items: center; padding: 1.5rem; }
+/* Every vault popup scrolls inside itself rather than running off a short
+   screen; its scrollbar is the slim one defined with .slim-scroll. */
+.vg-lb > .vg-card { max-height: min(92vh, calc(100dvh - 3rem)); overflow-y: auto; }
 .vg-lb-stage { position: relative; width: min(1100px, 96vw); height: min(80vh, 900px); }
 .vg-slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1s ease; display: grid; place-items: center; }
 .vg-slide[data-on="true"] { opacity: 1; }

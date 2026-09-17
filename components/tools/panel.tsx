@@ -298,7 +298,7 @@ export function DetailView({ data, onClose, accent = '#5AC8FA' }: {
           </span>
         </div>
 
-        <div className="overflow-y-auto px-3 pb-4">
+        <div className="slim-scroll overflow-y-auto px-3 pb-4">
           <div className="lg-rowhead sticky top-0 z-10 mb-1 flex items-center gap-2 px-3 py-2">
             {data.columns.map((c, i) => (
               <button

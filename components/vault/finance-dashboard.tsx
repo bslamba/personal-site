@@ -235,7 +235,7 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
 
   return (
     <div className="vg-lb" onClick={onClose}>
-      <div className="vg-card vg-pad" style={{ width: 'min(460px, 96vw)', maxHeight: '92vh', overflowY: 'auto', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
+      <div className="vg-card vg-pad" style={{ width: 'min(460px, 96vw)', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <p className="vg-sec" style={{ margin: 0 }}>{isEmi ? 'EMI / Loan' : isAnnual ? 'Yearly item' : 'Expense'}</p>
           <button className="vg-icobtn" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
