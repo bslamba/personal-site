@@ -525,9 +525,13 @@ export function totals(m: MonthData, entities: Entity[]): Totals {
   for (const it of m.items) {
     const amt = it.amount || 0
     expense += amt
-    const sh = shares(it)
-    for (const [eid, frac] of Object.entries(sh)) add(byEntity, eid, amt * frac)
+    // What each entity BEARS: an expense paid from the common account is borne
+    // by the Lamba Household pool, not split onto the individuals. (The earners
+    // only fund the common SHORTFALL — handled in the settlement, not here.)
+    const bsh = bearerShares(it)
+    for (const [eid, frac] of Object.entries(bsh)) add(byEntity, eid, amt * frac)
 
+    const sh = shares(it)
     // settlement only when a PERSON paid (common pool = already shared)
     if (persons.has(it.paidBy)) {
       for (const [eid, frac] of Object.entries(sh)) {
