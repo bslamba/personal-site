@@ -123,9 +123,18 @@ export interface Envelope {
   name: string
   members: string[]        // entity ids that BEAR (share) this envelope's costs
   system?: boolean         // the auto "Lamba Household" envelope
+  personalOf?: string      // the entity id whose private Personal envelope this is
 }
 
 export const HOUSEHOLD = 'household'
+
+/** The stable id of an entity's Personal envelope — "My Dashboard" for that profile. */
+export const personalEnvId = (entityId: string) => `personal:${entityId}`
+
+/** The Personal envelope belonging to a given entity, if any. */
+export function personalEnvelopeOf(envelopes: Envelope[] | undefined, entityId: string): Envelope | undefined {
+  return (envelopes ?? []).find(e => e.personalOf === entityId)
+}
 
 /** Seed the starting envelopes from whatever entities exist. */
 export function seedEnvelopes(entities: Entity[]): Envelope[] {
@@ -138,6 +147,11 @@ export function seedEnvelopes(entities: Entity[]): Envelope[] {
     const isBrothers = (a.id === 'bhawneet' && b.id === 'gurneet') || (a.id === 'gurneet' && b.id === 'bhawneet')
     envs.push({ id: uid('env'), name: isBrothers ? 'Brothers' : `${a.name} & ${b.name}`, members: [a.id, b.id] })
   }
+  // Every person gets their own private Personal envelope — this is what "My
+  // Dashboard" shows: anything tagged to it, plus any expense borne entirely
+  // by that one person (a personal regular expense or EMI), via the bearer
+  // fallback in itemInEnvelope below.
+  for (const p of persons) envs.push({ id: personalEnvId(p.id), name: `${p.name}’s Personal`, members: [p.id], personalOf: p.id })
   return envs
 }
 
@@ -354,6 +368,11 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!doc.settlements || typeof doc.settlements !== 'object') doc.settlements = {}
     if (!Array.isArray(doc.reminders)) doc.reminders = []
     if (!Array.isArray(doc.envelopes) || doc.envelopes.length === 0) doc.envelopes = seedEnvelopes(doc.entities)
+    // Backfill a Personal envelope for any person who doesn't have one yet
+    // (older docs, or a member added after envelopes were first seeded).
+    for (const p of doc.entities.filter(e => e.kind === 'person')) {
+      if (!doc.envelopes.some(env => env.personalOf === p.id)) doc.envelopes.push({ id: personalEnvId(p.id), name: `${p.name}’s Personal`, members: [p.id], personalOf: p.id })
+    }
     // Backfill family roles for the seeded members if none were set yet.
     const DEFAULT_ROLES: Record<string, string> = { papa: 'Father', bhawneet: 'Son', gurneet: 'Son' }
     for (const e of doc.entities) if (e.kind === 'person' && !e.role && DEFAULT_ROLES[e.id]) e.role = DEFAULT_ROLES[e.id]
@@ -567,11 +586,14 @@ function minTransfers(bal: Record<string, number>): { from: string; to: string; 
 // ----- classification for the month sub-tabs --------------------
 export type Bucket = 'common' | 'emi' | 'personal'
 export function classify(it: Item, entities: Entity[]): Bucket {
-  if (it.kind === 'emi') return 'emi'
   const persons = new Set(entities.filter(e => e.kind === 'person').map(e => e.id))
   const sh = Object.entries(shares(it)).filter(([, f]) => f > 0.001)
-  // borne 100% by a single person → personal; anything shared or touching the pool → common
+  // Borne 100% by a single person → personal, regardless of kind — a personal
+  // EMI/regular expense belongs on that person's own Personal envelope, not
+  // the shared household EMI/Common lists. Anything split (or common-touching)
+  // that is itself an EMI still sits in the household's EMI bucket.
   if (sh.length === 1 && persons.has(sh[0][0])) return 'personal'
+  if (it.kind === 'emi') return 'emi'
   return 'common'
 }
 

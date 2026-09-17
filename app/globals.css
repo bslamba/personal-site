@@ -1866,6 +1866,12 @@ body:has(.bday-root) .wa-float { display: none !important; }
 
 /* ===== BIRTHDAY END ===== */
 
+/* The finance dashboard ships its own app bar (Shell) — tabs plus
+   sign-out — once you're logged in, so the site's black nav bar
+   (Profile / Experience / Journal / Tools) has no business on top of it. */
+body:has(.vg-root) { padding-top: 0; }
+body:has(.vg-root) > header.brand-bar { display: none !important; }
+
 /* ============================================================
    VAULT — iPhone frosted-glass theme (landing, finance, photos)
    Self-contained: every rule is scoped under .vg so it never

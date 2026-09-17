@@ -27,6 +27,7 @@ import {
   emptyBudget, categoryOf, detectCategory, isPersonalTo,
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
+  personalEnvId,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -501,7 +502,7 @@ function Shell({ children, saveState, me, tabs, activeTab, onTab }: {
 }) {
   const firstName = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
-    <div className="vg">
+    <div className="vg vg-root">
       <IdleLogout />
       <div className="vg-wrap">
         <div className="vg-appbar">
@@ -734,15 +735,18 @@ const DASH = 'dashboard'
 
 // A dropdown of the envelopes this viewer belongs to, with "My Dashboard"
 // first. Sits to the right of the month navigation.
-function EnvelopeSelect({ envelopes, value, onChange }: {
-  envelopes: Envelope[]; value: string; onChange: (id: string) => void
+function EnvelopeSelect({ envelopes, value, onChange, includeDash = true }: {
+  envelopes: Envelope[]; value: string; onChange: (id: string) => void; includeDash?: boolean
 }) {
+  // Personal envelopes are surfaced as their own named entries (e.g. "Gurneet's
+  // Personal") rather than duplicated under a generic "My Dashboard" option —
+  // except for the viewer's own, which "My Dashboard" IS (see includeDash).
   const ordered = [...envelopes].sort((a, b) => (a.system ? 0 : 1) - (b.system ? 0 : 1))
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <WalletCards className="h-4 w-4" style={{ color: 'var(--vg-accent)' }} />
       <select className="vg-select" value={value} onChange={e => onChange(e.target.value)} style={{ maxWidth: 240, fontWeight: 600 }} aria-label="View">
-        <option value={DASH}>My Dashboard</option>
+        {includeDash && <option value={DASH}>My Dashboard</option>}
         {ordered.map(env => <option key={env.id} value={env.id}>{env.name}</option>)}
       </select>
     </div>
@@ -929,14 +933,16 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
 }) {
   const [bucket, setBucket] = useState<'common' | 'emi'>('common')
   const [pbucket, setPbucket] = useState<'regular' | 'emi'>('regular')
-  const [env, setEnv] = useState<string>(DASH)
+  // Super has no "My Dashboard" of their own — each person's Personal
+  // envelope (their My Dashboard) is just another envelope to pick from.
+  const [env, setEnv] = useState<string>(HOUSEHOLD)
   const [reading, setReading] = useState(false)
   const [receiptWarn, setReceiptWarn] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const entities = doc.entities
   const envs = visibleEnvelopes(doc, null)                 // super sees every envelope
-  const isDash = env === DASH
-  const curEnv = isDash ? undefined : (envs.find(e => e.id === env) ?? envs[0])
+  const isDash = false
+  const curEnv = envs.find(e => e.id === env) ?? envs[0]
   const isHousehold = !isDash && (!curEnv || curEnv.system)
 
   useEffect(() => { if (!doc.months[k]) patchMonth(k, m => m) /* eslint-disable-next-line */ }, [k])
@@ -1004,10 +1010,6 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   const commonIncome = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
   const commonExpenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
 
-  const setInc = (id: string, patch: Partial<IncomeItem>) => patchMonth(k, mm => ({ ...mm, income: mm.income.map(i => i.id === id ? { ...i, ...patch } : i) }))
-  const delInc = (id: string) => patchMonth(k, mm => ({ ...mm, income: mm.income.filter(i => i.id !== id) }))
-  const addInc = () => patchMonth(k, mm => ({ ...mm, income: [...mm.income, { id: uid('inc'), source: 'Income', entity: firstPerson(entities), amount: 0, src: 'manual' as const }] }))
-
   const cats = byCategory(m).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
   const bears = entities.map(e => ({ label: e.name, value: t.byEntity[e.id] ?? 0, color: e.color })).filter(p => p.value > 0)
   const settleTxt = t.transfers.length === 0 ? 'All settled — nobody owes anyone.' : ''
@@ -1021,7 +1023,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
             <span className="lbl">{monthLabel(k)}</span>
             <button className="vg-icobtn" onClick={() => step(1)} aria-label="Next month"><ChevronRight className="h-4 w-4" /></button>
           </div>
-          <EnvelopeSelect envelopes={envs} value={env} onChange={setEnv} />
+          <EnvelopeSelect envelopes={envs} value={env} onChange={setEnv} includeDash={false} />
         </div>
         <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
       </div>
@@ -1040,7 +1042,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
         </>}
       </div>
 
-      {!isDash && !isHousehold && curEnv && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} />}
+      {!isDash && !isHousehold && curEnv && !curEnv.personalOf && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
@@ -1074,30 +1076,6 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
 
       <div className="vg-grid2">
         {isHousehold && <CommonIncomeCard doc={doc} k={k} entities={entities} me={{ role: 'super', entityId: null }} action={action} />}
-        {isDash && (
-        <div className="vg-card vg-pad">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <p className="vg-sec" style={{ margin: 0 }}>Income · all sources</p>
-            <button className="vg-btn vg-btn-primary" onClick={addInc}><Plus className="h-4 w-4" /> Add</button>
-          </div>
-          <div className="vg-tablewrap">
-            <table className="vg-table" style={{ minWidth: 360 }}>
-              <thead><tr><th>Source</th><th>Who</th><th className="num">Amount</th><th style={{ width: 40 }}></th></tr></thead>
-              <tbody>
-                {m.income.map(i => (
-                  <tr key={i.id}>
-                    <td><input className="vg-input" value={i.source} onChange={e => setInc(i.id, { source: e.target.value })} /></td>
-                    <td><select className="vg-select" value={i.entity} onChange={e => setInc(i.id, { entity: e.target.value })}>{entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}</select></td>
-                    <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(i.amount)} onChange={e => setInc(i.id, { amount: num(e.target.value) })} /></td>
-                    <td><button className="vg-icobtn" onClick={() => delInc(i.id)}><Trash2 className="h-4 w-4" /></button></td>
-                  </tr>
-                ))}
-                {m.income.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No income yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        )}
 
         <div className="vg-card vg-pad">
           <p className="vg-sec">Where it goes</p>
@@ -1393,7 +1371,14 @@ interface PUser { username: string; name: string; role: 'super' | 'member'; enti
 function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
   const upd = (id: string, patch: Partial<Entity>) => patchDoc(d => ({ ...d, entities: d.entities.map(e => e.id === id ? { ...e, ...patch } : e) }))
   const del = (id: string) => patchDoc(d => ({ ...d, entities: d.entities.filter(e => e.id !== id) }))
-  const add = () => patchDoc(d => ({ ...d, entities: [...d.entities, { id: uid('ent'), name: 'New member', kind: 'person', canPay: false, earning: false, isLiability: true, color: ENTITY_COLORS[d.entities.length % ENTITY_COLORS.length] }] }))
+  const add = () => patchDoc(d => {
+    const id = uid('ent')
+    return {
+      ...d,
+      entities: [...d.entities, { id, name: 'New member', kind: 'person', canPay: false, earning: false, isLiability: true, color: ENTITY_COLORS[d.entities.length % ENTITY_COLORS.length] }],
+      envelopes: [...(d.envelopes ?? []), { id: personalEnvId(id), name: 'New member’s Personal', members: [id], personalOf: id }],
+    }
+  })
 
   const [users, setUsers] = useState<PUser[]>([])
   const [flash, setFlash] = useState<{ username: string; password: string } | null>(null)
@@ -1544,7 +1529,8 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
 // ---------- Envelopes (super manages) ---------------------------
 function EnvelopesCard({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
   const persons = doc.entities.filter(e => e.kind === 'person')
-  const envs = doc.envelopes ?? []
+  // Personal envelopes are auto-managed (one per person) — not shown here.
+  const envs = (doc.envelopes ?? []).filter(e => !e.personalOf)
   const setName = (id: string, name: string) => patchDoc(d => ({ ...d, envelopes: (d.envelopes ?? []).map(e => e.id === id ? { ...e, name } : e) }))
   const toggleMember = (id: string, member: string) => patchDoc(d => ({ ...d, envelopes: (d.envelopes ?? []).map(e => e.id === id ? { ...e, members: e.members.includes(member) ? e.members.filter(m => m !== member) : [...e.members, member] } : e) }))
   const add = () => patchDoc(d => ({ ...d, envelopes: [...(d.envelopes ?? []), { id: uid('env'), name: 'New envelope', members: [] }] }))
@@ -1556,7 +1542,7 @@ function EnvelopesCard({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: 
         <p className="vg-sec" style={{ margin: 0 }}><WalletCards className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Envelopes</p>
         <button className="vg-btn vg-btn-primary" onClick={add}><Plus className="h-4 w-4" /> New envelope</button>
       </div>
-      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 0 }}>An envelope groups people who share a set of expenses (e.g. <b>Lamba Household</b>, <b>Brothers</b>, <b>Gurneet &amp; Mehak</b>). An expense assigned to an envelope splits equally among its members. Only members (and you) can see a private envelope&rsquo;s expenses.</p>
+      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 0 }}>An envelope groups people who share a set of expenses (e.g. <b>Lamba Household</b>, <b>Brothers</b>, <b>Gurneet &amp; Mehak</b>). An expense assigned to an envelope splits equally among its members. Only members (and you) can see a private envelope&rsquo;s expenses. Every person also gets an automatic private <b>Personal</b> envelope (their <b>My Dashboard</b>) — not listed here since it&rsquo;s managed for you.</p>
       <div style={{ display: 'grid', gap: '0.7rem' }}>
         {envs.map(env => (
           <div key={env.id} className="vg-card" style={{ padding: '0.8rem 0.9rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
@@ -2016,12 +2002,15 @@ function SettlementTab({ doc, me, k, setKey, action }: {
         {Object.keys(s.ledger).length > 0 && (
           <details style={{ marginTop: '0.9rem' }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--vg-accent)', fontSize: '0.85rem' }}>Show the full calculation — why these amounts?</summary>
-            <div style={{ marginTop: '0.7rem', display: 'grid', gap: '0.8rem', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))' }}>
-              {s.contributors.length > 0 && s.shortfall > 0 && (
-                <div style={{ gridColumn: '1 / -1', fontSize: '0.82rem', padding: '0.5rem 0.7rem', background: 'rgba(109,75,216,0.06)', borderRadius: 8 }}>
-                  <b>Common account:</b> earned {INR(s.commonIncome)} − spent {INR(s.commonExpenses)} = <b style={{ color: 'var(--vg-neg)' }}>−{INR(s.shortfall)}</b> shortfall, split into {INR(s.perContributor)} each.
-                </div>
-              )}
+            {s.contributors.length > 0 && s.shortfall > 0 && (
+              <div style={{ marginTop: '0.7rem', fontSize: '0.82rem', padding: '0.5rem 0.7rem', background: 'rgba(109,75,216,0.06)', borderRadius: 8 }}>
+                <b>Common account:</b> earned {INR(s.commonIncome)} − spent {INR(s.commonExpenses)} = <b style={{ color: 'var(--vg-neg)' }}>−{INR(s.shortfall)}</b> shortfall, split into {INR(s.perContributor)} each.
+              </div>
+            )}
+            {/* A plain grid (no full-span sibling) so auto-fit correctly collapses
+                any unused tracks and the cards stretch to fill the row — instead
+                of being squeezed into a corner by phantom empty columns. */}
+            <div style={{ marginTop: '0.7rem', display: 'grid', gap: '0.8rem', gridTemplateColumns: `repeat(${Math.max(1, Math.min(3, Object.keys(s.ledger).length))}, minmax(0, 1fr))` }}>
               {Object.entries(s.ledger).map(([eid, lines]) => {
                 const netv = s.net[eid] ?? 0
                 return (
@@ -2359,10 +2348,13 @@ function memberNewItem(bucket: Bucket, entities: Entity[], entityId: string): It
   return it
 }
 
-// Editable, private per-profile income for a single month.
-function MemberIncomeCard({ rows, monthKey: mk, onSave }: {
+// Editable, private per-profile income for a single month. On My Dashboard
+// this is where the calculation lands: personal spend is deducted from My
+// income right here, so you see what's left over.
+function MemberIncomeCard({ rows, monthKey: mk, onSave, personalSpend }: {
   rows: IncomeItem[]; monthKey: string
   onSave: (rows: { id: string; source: string; amount: number }[]) => void
+  personalSpend?: number
 }) {
   const [draft, setDraft] = useState<{ id: string; source: string; amount: number }[]>(() => rows.map(r => ({ id: r.id, source: r.source, amount: r.amount })))
   const [dirty, setDirty] = useState(false)
@@ -2371,6 +2363,7 @@ function MemberIncomeCard({ rows, monthKey: mk, onSave }: {
   const add = () => { setDraft(d => [...d, { id: uid('inc'), source: 'Salary', amount: 0 }]); setDirty(true) }
   const del = (id: string) => { setDraft(d => d.filter(r => r.id !== id)); setDirty(true) }
   const total = draft.reduce((a, b) => a + (Number(b.amount) || 0), 0)
+  const left = personalSpend != null ? total - personalSpend : null
   return (
     <div className="vg-card vg-pad">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -2395,6 +2388,12 @@ function MemberIncomeCard({ rows, monthKey: mk, onSave }: {
           </tbody>
         </table>
       </div>
+      {left != null && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.7rem', paddingTop: '0.6rem', borderTop: '1px solid var(--vg-line)' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--vg-ink-soft)' }}>− Personal expenses ({INR(personalSpend ?? 0)}) ={' '}<b>{left >= 0 ? 'Left' : 'Over by'}</b></span>
+          <b style={{ fontVariantNumeric: 'tabular-nums' }} className={left >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(left))}</b>
+        </div>
+      )}
       <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>Private to your profile — no one else, including the family admin, can see this.</p>
     </div>
   )
@@ -2419,14 +2418,23 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
   const bal = t.netBalance[entityId] ?? 0
   const envs = visibleEnvelopes(doc, entityId)             // only the envelopes this member belongs to
   const isDash = env === DASH
-  const curEnv = isDash ? undefined : (envs.find(e => e.id === env) ?? envs[0])
+  // "My Dashboard" IS this profile's Personal envelope — selecting it resolves
+  // straight to that envelope, so everything below (the item list, the income
+  // card, the envelope-impact math) is driven by the same envelope engine as
+  // any other envelope, just scoped to items this person alone bears.
+  const myPersonalEnv = envs.find(e => e.personalOf === entityId)
+  const curEnv = isDash ? myPersonalEnv : (envs.find(e => e.id === env) ?? envs[0])
   const isHousehold = !isDash && (!curEnv || curEnv.system)
 
   const household = envs.find(e => e.system)
   const hhItems = m.items.filter(it => itemInEnvelope(it, household ?? ({ id: HOUSEHOLD, name: 'Lamba Household', members: [], system: true } as Envelope)))
   const hhRows = hhItems.filter(it => classify(it, entities) === bucket)
   const envItems = curEnv ? m.items.filter(it => itemInEnvelope(it, curEnv)) : m.items
-  const personalItems = m.items.filter(it => classify(it, entities) === 'personal')
+  // On My Dashboard, envItems IS the personal-envelope set — split by kind for
+  // the Regular expense / EMIs sub-tabs (a personal EMI now lives here, not
+  // under the household EMI list).
+  const personalItems = envItems
+  const personalTotal = personalItems.reduce((s, it) => s + (it.amount || 0), 0)
   const pRows = personalItems.filter(it => (pbucket === 'emi' ? it.kind === 'emi' : it.kind !== 'emi'))
   const rows = isDash ? pRows : isHousehold ? hhRows : envItems
   const counts = { common: 0, emi: 0 }
@@ -2490,7 +2498,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
             <span className="lbl">{monthLabel(k)}</span>
             <button className="vg-icobtn" onClick={() => step(1)}><ChevronRight className="h-4 w-4" /></button>
           </div>
-          <EnvelopeSelect envelopes={envs} value={env} onChange={setEnv} />
+          <EnvelopeSelect envelopes={envs.filter(e => e.personalOf !== entityId)} value={env} onChange={setEnv} />
         </div>
         <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
       </div>
@@ -2538,7 +2546,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
       {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
 
       <div className="vg-grid2">
-        {isDash && <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k}
+        {isDash && <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k} personalSpend={personalTotal}
           onSave={rows => action({ action: 'setMonthIncome', monthKey: k, income: rows })} />}
         {isHousehold && <CommonIncomeCard doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
         <div className="vg-card vg-pad">
@@ -2599,7 +2607,10 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
       {tab === 'budget' && <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
-      {tab === 'setup' && <MemberSetup doc={doc} entityId={entityId} openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })} onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })} />}
+      {tab === 'setup' && <MemberSetup doc={doc} entityId={entityId} envelopes={doc.envelopes ?? []}
+        openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })}
+        onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })}
+        onSaveIncome={rows => action({ action: 'setTemplateIncome', income: rows })} />}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} />}
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
@@ -2771,11 +2782,17 @@ function ImportTab({ doc, me, onImport }: {
 }
 
 // ---------- Member: Setup (edits route through approval) --------
-function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
-  doc: FinanceDoc; entityId: string
+// Same tables and columns as the super's Budget (Setup) page, including the
+// Envelope column and the Recurring income table — the difference is purely
+// who can write: an item that's only yours applies straight away, anything
+// common or shared is sent to the tagged person to approve first.
+function MemberSetup({ doc, entityId, envelopes, openTemplate, onRemove, onSaveIncome }: {
+  doc: FinanceDoc; entityId: string; envelopes: Envelope[]
   openTemplate: (item: Item, section: 'monthly' | 'emis' | 'annual', op: 'add' | 'update') => void
   onRemove: (item: Item, section: 'monthly' | 'emis' | 'annual') => void
+  onSaveIncome: (rows: { id: string; source: string; amount: number }[]) => void
 }) {
+  const envName = (id?: string) => envelopes.find(e => e.id === (id ?? HOUSEHOLD))?.name ?? 'Lamba Household'
   const mkNew = (section: 'monthly' | 'emis' | 'annual'): Item => {
     const base = { id: uid(section), name: '', amount: 0, paidBy: entityId, alloc: { mode: 'single', who: entityId } as Alloc, envelope: HOUSEHOLD }
     if (section === 'emis') return { ...base, kind: 'emi', startDate: monthKey() + '-01', endDate: null }
@@ -2792,7 +2809,7 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
       <div className="vg-tablewrap">
         <table className="vg-table" style={{ minWidth: 560 }}>
           <thead><tr>
-            <th>Item</th><th>Paid by</th><th>Shared</th>
+            <th>Item</th><th>Envelope</th><th>Paid by</th><th>Shared</th>
             <th className="num">{section === 'annual' ? 'Amount/yr' : 'Amount'}</th>
             {section === 'emis' && <><th style={{ width: 100 }}>Starts</th><th style={{ width: 100 }}>Ends</th></>}
             {section === 'annual' && <th style={{ width: 140 }}>Appears in month</th>}
@@ -2804,6 +2821,7 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
               return (
                 <tr key={it.id}>
                   <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}{!mine && <span className="vg-chip" style={{ marginLeft: 6 }}>shared</span>}</td>
+                  <td><span className="vg-chip" style={{ fontSize: '0.72rem' }}>{envName(it.envelope)}</span></td>
                   <td><span className="vg-chip" style={{ background: entColor(doc.entities, it.paidBy) + '22', color: entColor(doc.entities, it.paidBy) }}>{entName(doc.entities, it.paidBy)}</span></td>
                   <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, doc.entities)}</td>
                   <td className="num">{INR(it.amount)}</td>
@@ -2821,7 +2839,7 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
                 </tr>
               )
             })}
-            {doc.template[section].length === 0 && <tr><td colSpan={section === 'emis' ? 7 : section === 'annual' ? 6 : 5} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
+            {doc.template[section].length === 0 && <tr><td colSpan={section === 'emis' ? 8 : section === 'annual' ? 7 : 6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -2839,7 +2857,62 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
         <Section title="Monthly recurring" section="monthly" />
         <Section title="EMIs & loans" section="emis" />
         <Section title="Yearly items" section="annual" />
+        <MemberRecurringIncome doc={doc} entityId={entityId} onSave={onSaveIncome} />
       </div>
     </>
+  )
+}
+
+// Recurring income, same table as the super's Budget page: your own rows are
+// private and apply straight away; the common baseline is a household
+// decision, so it's shown but only the family admin can change it here.
+function MemberRecurringIncome({ doc, entityId, onSave }: {
+  doc: FinanceDoc; entityId: string
+  onSave: (rows: { id: string; source: string; amount: number }[]) => void
+}) {
+  const mine = () => doc.template.income.filter(i => i.entity === entityId).map(r => ({ id: r.id, source: r.source, amount: r.amount }))
+  const common = doc.template.income.filter(i => i.entity === 'common')
+  const [draft, setDraft] = useState(mine)
+  useEffect(() => { setDraft(mine()) /* eslint-disable-next-line */ }, [doc])
+  const dirty = JSON.stringify(draft) !== JSON.stringify(mine())
+  const set = (id: string, patch: Partial<{ source: string; amount: number }>) => setDraft(d => d.map(r => r.id === id ? { ...r, ...patch } : r))
+  const add = () => setDraft(d => [...d, { id: uid('inc'), source: 'Salary', amount: 0 }])
+  const del = (id: string) => setDraft(d => d.filter(r => r.id !== id))
+
+  return (
+    <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+        <p className="vg-sec" style={{ margin: 0 }}>Recurring income</p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="vg-btn" onClick={add}><Plus className="h-4 w-4" /> Add</button>
+          <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={() => onSave(draft.map(r => ({ ...r, amount: Number(r.amount) || 0 })))}><Check className="h-4 w-4" /> Save</button>
+        </div>
+      </div>
+      <div className="vg-tablewrap">
+        <table className="vg-table" style={{ minWidth: 360 }}>
+          <thead><tr><th>Source</th><th>Who</th><th className="num">Amount</th><th style={{ width: 40 }}></th></tr></thead>
+          <tbody>
+            {common.map(i => (
+              <tr key={i.id}>
+                <td>{i.source}</td>
+                <td><span className="vg-chip">Common</span></td>
+                <td className="num">{INR(i.amount)}</td>
+                <td></td>
+              </tr>
+            ))}
+            {draft.map(r => (
+              <tr key={r.id}>
+                <td><input className="vg-input" value={r.source} onChange={e => set(r.id, { source: e.target.value })} /></td>
+                <td><span className="vg-chip" style={{ background: entColor(doc.entities, entityId) + '22', color: entColor(doc.entities, entityId) }}>{entName(doc.entities, entityId)}</span></td>
+                <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(r.amount)} onChange={e => set(r.id, { amount: num(e.target.value) })} /></td>
+                <td><button className="vg-icobtn" onClick={() => del(r.id)}><Trash2 className="h-4 w-4" /></button></td>
+              </tr>
+            ))}
+            {common.length === 0 && draft.length === 0 && <tr><td colSpan={4} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No recurring income.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Your own rows are private and save straight away. The common baseline is set by the family admin.</p>
+    </div>
   )
 }

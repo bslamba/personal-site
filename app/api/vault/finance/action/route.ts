@@ -144,6 +144,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
+      case 'setTemplateIncome': {
+        // A member manages only their OWN recurring-income template rows —
+        // private data, so (like setMonthIncome) it's applied directly, never
+        // proposed. The common recurring-income baseline stays super-only,
+        // edited from the Budget/Setup tab.
+        if (isSuper || !actor) return NextResponse.json({ error: 'Members only' }, { status: 403 })
+        const incoming = ((body as unknown as { income?: { id?: string; source?: string; amount?: number }[] }).income ?? [])
+          .map(r => ({ id: r.id || uid('inc'), source: r.source || 'Income', amount: Number(r.amount) || 0, entity: actor }))
+        doc.template.income = [...doc.template.income.filter(i => i.entity !== actor), ...incoming]
+        audit('apply', 'Recurring income updated', { personal: true, parties: [actor] })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
       case 'setBudget': {
         if (!body.budget) return NextResponse.json({ error: 'No budget' }, { status: 400 })
         const who = actor ?? 'su'
