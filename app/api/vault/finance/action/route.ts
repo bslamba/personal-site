@@ -154,7 +154,7 @@ export async function POST(request: Request) {
       }
 
       case 'importRows': {
-        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string; shareWith?: string; sharePct?: number; tags?: string[] }
+        interface Row { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string; shareWith?: string; sharePct?: number; tags?: string[]; envelope?: string }
         const rows = (body as unknown as { rows?: Row[] }).rows ?? []
         const wantOwner = (body as unknown as { owner?: string }).owner
         // "Paid from" = the logged-in profile (or, for super, the chosen person).
@@ -194,7 +194,7 @@ export async function POST(request: Request) {
             const it: Item = {
               id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
               paidBy: owner, alloc: { mode: 'split', shares: { [owner]: 1 - pct, [shareWith]: pct } },
-              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref, tags,
+              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref, tags, envelope: r.envelope || 'household',
             }
             const pr: Proposal = {
               id: uid('prop'), item: it, monthKey: mk,
@@ -212,7 +212,7 @@ export async function POST(request: Request) {
             const it: Item = {
               id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
               paidBy: owner, alloc: { mode: 'single', who: owner },
-              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref, tags,
+              category: r.category || undefined, note: r.note || undefined, date: r.date, src: 'manual', ref: r.ref, tags, envelope: r.envelope || 'household',
             }
             m.items = [...m.items, it]
             doc.months[mk] = m

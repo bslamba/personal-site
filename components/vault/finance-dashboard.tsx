@@ -15,7 +15,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale,
+  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -25,6 +25,7 @@ import {
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
   emptyBudget, categoryOf, detectCategory, isPersonalTo,
   computeSettlement, type SettleTransfer,
+  type Envelope, envelopeShares, HOUSEHOLD,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -92,11 +93,17 @@ function shareSummary(it: Item, entities: Entity[]): string {
   return parts.join(' · ') || '—'
 }
 
-function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true }: {
+function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true, envelopes = [] }: {
   item: Item; entities: Entity[]; categories: Category[]; onAddCategory: (name: string, color: string) => void
   onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void; allowNewCategory?: boolean
+  envelopes?: Envelope[]
 }) {
   const [d, setD] = useState<Item>(() => structuredClone(item))
+  const pickEnvelope = (envId: string) => {
+    const env = envelopes.find(e => e.id === envId)
+    const sh = envelopeShares(env)
+    setD(x => ({ ...x, envelope: envId, alloc: Object.keys(sh).length ? { mode: 'split', shares: sh } : x.alloc }))
+  }
   const [custom, setCustom] = useState(false)
   const [custName, setCustName] = useState('')
   const [custColor, setCustColor] = useState('#6d4bd8')
@@ -179,6 +186,16 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
           </div>
         )}
 
+        {envelopes.length > 0 && (
+          <div style={{ marginTop: '0.9rem' }}>
+            <label className="vg-lbl">Envelope</label>
+            <select className="vg-select" value={d.envelope ?? HOUSEHOLD} onChange={e => pickEnvelope(e.target.value)}>
+              {envelopes.map(env => <option key={env.id} value={env.id}>{env.name}</option>)}
+            </select>
+            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.3rem' }}>Picking an envelope splits it equally among its members — you can still adjust the % below.</p>
+          </div>
+        )}
+
         <div style={{ marginTop: '0.9rem' }}>
           <label className="vg-lbl">How is it shared?</label>
           <div className="vg-tabs" style={{ marginTop: '0.3rem' }}>
@@ -239,9 +256,9 @@ function firstPerson(entities: Entity[]): string {
 function newItem(bucket: Bucket, entities: Entity[]): Item {
   const persons = entities.filter(e => e.kind === 'person')
   const equal: Alloc = { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / (persons.length || 1)])) }
-  if (bucket === 'emi') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null, src: 'manual' }
-  if (bucket === 'personal') { const p = firstPerson(entities); return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: p, alloc: { mode: 'single', who: p }, src: 'manual' } }
-  return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: entities.find(e => e.kind === 'common')?.id ?? 'common', alloc: equal, src: 'manual' }
+  if (bucket === 'emi') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null, src: 'manual', envelope: HOUSEHOLD }
+  if (bucket === 'personal') { const p = firstPerson(entities); return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: p, alloc: { mode: 'single', who: p }, src: 'manual', envelope: HOUSEHOLD } }
+  return { id: uid('one'), name: '', amount: 0, kind: 'oneoff', paidBy: entities.find(e => e.kind === 'common')?.id ?? 'common', alloc: equal, src: 'manual', envelope: HOUSEHOLD }
 }
 function fileToB64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -341,7 +358,7 @@ export default function FinanceDashboard() {
 
       {editing && (
         <ExpenseEditor
-          item={editing.item} entities={doc.entities}
+          item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []}
           categories={doc.categories} onAddCategory={addCategory}
           onSave={it => { editing.commit(it); setEditing(null) }}
           onClose={() => setEditing(null)}
@@ -1176,7 +1193,47 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
         </div>
         <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Every profile needs an email — it&rsquo;s where the one-time reset code is sent. New logins get the default password <b>Qwerty@123</b>. Only you (super) can create or reset logins.</p>
       </div>
+
+      <EnvelopesCard doc={doc} patchDoc={patchDoc} />
     </>
+  )
+}
+
+// ---------- Envelopes (super manages) ---------------------------
+function EnvelopesCard({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
+  const persons = doc.entities.filter(e => e.kind === 'person')
+  const envs = doc.envelopes ?? []
+  const setName = (id: string, name: string) => patchDoc(d => ({ ...d, envelopes: (d.envelopes ?? []).map(e => e.id === id ? { ...e, name } : e) }))
+  const toggleMember = (id: string, member: string) => patchDoc(d => ({ ...d, envelopes: (d.envelopes ?? []).map(e => e.id === id ? { ...e, members: e.members.includes(member) ? e.members.filter(m => m !== member) : [...e.members, member] } : e) }))
+  const add = () => patchDoc(d => ({ ...d, envelopes: [...(d.envelopes ?? []), { id: uid('env'), name: 'New envelope', members: [] }] }))
+  const del = (id: string) => patchDoc(d => ({ ...d, envelopes: (d.envelopes ?? []).filter(e => e.id !== id) }))
+
+  return (
+    <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: '0.6rem' }}>
+        <p className="vg-sec" style={{ margin: 0 }}><WalletCards className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Envelopes</p>
+        <button className="vg-btn vg-btn-primary" onClick={add}><Plus className="h-4 w-4" /> New envelope</button>
+      </div>
+      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 0 }}>An envelope groups people who share a set of expenses (e.g. <b>Lamba Household</b>, <b>Brothers</b>, <b>Gurneet &amp; Mehak</b>). An expense assigned to an envelope splits equally among its members. Only members (and you) can see a private envelope&rsquo;s expenses.</p>
+      <div style={{ display: 'grid', gap: '0.7rem' }}>
+        {envs.map(env => (
+          <div key={env.id} className="vg-card" style={{ padding: '0.8rem 0.9rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="vg-input" value={env.name} onChange={e => setName(env.id, e.target.value)} style={{ maxWidth: 240, fontWeight: 600 }} />
+              {env.system ? <span className="vg-chip">household</span> : <button className="vg-icobtn" title="Delete envelope" onClick={() => del(env.id)}><Trash2 className="h-4 w-4" /></button>}
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              {persons.map(p => (
+                <label key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.85rem' }}>
+                  <input type="checkbox" checked={env.members.includes(p.id)} onChange={() => toggleMember(env.id, p.id)} />
+                  <span className="vg-dot" style={{ background: p.color }} />{p.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -1228,9 +1285,9 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, current
     const persons = entities.filter(e => e.kind === 'person')
     const equal: Alloc = { mode: 'split', shares: Object.fromEntries(persons.map(p => [p.id, 1 / (persons.length || 1)])) }
     const common = entities.find(e => e.kind === 'common')?.id ?? 'common'
-    if (sec === 'emis') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null }
-    if (sec === 'annual') return { id: uid('yr'), name: '', amount: 0, kind: 'annual', paidBy: common, alloc: equal, dueDate: monthKey() + '-01' }
-    return { id: uid('mon'), name: '', amount: 0, kind: 'monthly', paidBy: common, alloc: equal }
+    if (sec === 'emis') return { id: uid('emi'), name: '', amount: 0, kind: 'emi', paidBy: firstPerson(entities), alloc: equal, startDate: monthKey() + '-01', endDate: null, envelope: HOUSEHOLD }
+    if (sec === 'annual') return { id: uid('yr'), name: '', amount: 0, kind: 'annual', paidBy: common, alloc: equal, dueDate: monthKey() + '-01', envelope: HOUSEHOLD }
+    return { id: uid('mon'), name: '', amount: 0, kind: 'monthly', paidBy: common, alloc: equal, envelope: HOUSEHOLD }
   }
 
   const Section = ({ title, sec }: { title: string; sec: Sec }) => (
@@ -2257,7 +2314,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
 
       {editing && (
-        <ExpenseEditor item={editing.item} entities={doc.entities} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
+        <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
           onSave={it => { editing.onSave(it); setEditing(null) }} onClose={() => setEditing(null)} />
       )}
     </Shell>
@@ -2265,10 +2322,10 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
 }
 
 // ---------- Import from bank statement --------------------------
-type ImpRow = StatementRow & { shareWith?: string; sharePct?: number; tags?: string }
+type ImpRow = StatementRow & { shareWith?: string; sharePct?: number; tags?: string; envelope?: string }
 function ImportTab({ doc, me, onImport }: {
   doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
-  onImport: (rows: { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string; shareWith?: string; sharePct?: number; tags?: string[] }[], owner: string) => Promise<{ added?: number; proposed?: number; skipped?: number } | null | void> | void
+  onImport: (rows: { date: string; name: string; amount: number; type: 'debit' | 'credit'; category?: string; note?: string; ref?: string; shareWith?: string; sharePct?: number; tags?: string[]; envelope?: string }[], owner: string) => Promise<{ added?: number; proposed?: number; skipped?: number } | null | void> | void
 }) {
   const [rows, setRows] = useState<ImpRow[]>([])
   const [fileName, setFileName] = useState('')
@@ -2308,6 +2365,7 @@ function ImportTab({ doc, me, onImport }: {
       shareWith: r.type === 'debit' ? r.shareWith : undefined,
       sharePct: r.type === 'debit' ? r.sharePct : undefined,
       tags: r.tags ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+      envelope: r.envelope || HOUSEHOLD,
     }))
     const res = await onImport(payload, owner)
     setDone(res && res.added != null ? res.added : payload.length)
@@ -2363,6 +2421,7 @@ function ImportTab({ doc, me, onImport }: {
                   <th className="num" style={{ width: 92 }}>Amount</th>
                   <th style={{ width: 96 }}>Paid from</th>
                   <th style={{ width: 240 }}>Split</th>
+                  <th style={{ width: 140 }}>Envelope</th>
                   <th style={{ width: 130 }}>Remark</th>
                   <th style={{ width: 120 }}>Tag / event</th>
                 </tr></thead>
@@ -2397,6 +2456,11 @@ function ImportTab({ doc, me, onImport }: {
                             </div>
                           ) : <span className="vg-muted" style={{ fontSize: '0.8rem' }}>income</span>}
                         </td>
+                        <td>
+                          {isDebit
+                            ? <select className="vg-select" value={r.envelope ?? HOUSEHOLD} onChange={e => upd(r.id, { envelope: e.target.value })}>{(doc.envelopes ?? []).map(env => <option key={env.id} value={env.id}>{env.name}</option>)}</select>
+                            : <span className="vg-muted" style={{ fontSize: '0.8rem' }}>—</span>}
+                        </td>
                         <td><input className="vg-input" value={r.note} placeholder="optional" onChange={e => upd(r.id, { note: e.target.value })} /></td>
                         <td><input className="vg-input" value={r.tags ?? ''} placeholder="e.g. Ooty 2026" onChange={e => upd(r.id, { tags: e.target.value })} /></td>
                       </tr>
@@ -2422,7 +2486,7 @@ function MemberSetup({ doc, entityId, openTemplate, onRemove }: {
   onRemove: (item: Item, section: 'monthly' | 'emis' | 'annual') => void
 }) {
   const mkNew = (section: 'monthly' | 'emis' | 'annual'): Item => {
-    const base = { id: uid(section), name: '', amount: 0, paidBy: entityId, alloc: { mode: 'single', who: entityId } as Alloc }
+    const base = { id: uid(section), name: '', amount: 0, paidBy: entityId, alloc: { mode: 'single', who: entityId } as Alloc, envelope: HOUSEHOLD }
     if (section === 'emis') return { ...base, kind: 'emi', startDate: monthKey() + '-01', endDate: null }
     if (section === 'annual') return { ...base, kind: 'annual', dueDate: monthKey() + '-15' }
     return { ...base, kind: 'monthly' }

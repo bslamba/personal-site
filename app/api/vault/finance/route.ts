@@ -97,6 +97,7 @@ export async function PUT(request: Request) {
     // Personal reminders are stripped from the super view — re-merge them, and
     // keep stored reminders as the source of truth (managed via the action API).
     body.doc.reminders = stored?.reminders ?? body.doc.reminders ?? []
+    body.doc.envelopes = body.doc.envelopes ?? stored?.envelopes
     if (stored) {
       for (const [k, m] of Object.entries(body.doc.months)) {
         const priv = stored.months[k] ? stored.months[k].income.filter(i => i.entity !== 'common') : []

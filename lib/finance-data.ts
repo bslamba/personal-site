@@ -54,6 +54,7 @@ export interface Item {
   src?: 'template' | 'manual'   // template-derived vs manually added in a month
   ref?: string                 // stable fingerprint of an imported bank txn (for de-dup)
   tags?: string[]              // free-form event tags (e.g. "Ooty 2026"), independent of category
+  envelope?: string            // which envelope this expense belongs to (default household)
 }
 
 export interface IncomeItem {
@@ -111,6 +112,37 @@ export interface Settlement {
   carry?: CarryItem[]                        // outstanding carried in from earlier months
 }
 
+export interface Envelope {
+  id: string
+  name: string
+  members: string[]        // entity ids that BEAR (share) this envelope's costs
+  system?: boolean         // the auto "Lamba Household" envelope
+}
+
+export const HOUSEHOLD = 'household'
+
+/** Seed the starting envelopes from whatever entities exist. */
+export function seedEnvelopes(entities: Entity[]): Envelope[] {
+  const persons = entities.filter(e => e.kind === 'person')
+  const earners = persons.filter(e => e.earning)
+  const household: Envelope = { id: HOUSEHOLD, name: 'Lamba Household', members: (earners.length ? earners : persons).map(e => e.id), system: true }
+  const envs: Envelope[] = [household]
+  for (let i = 0; i < persons.length; i++) for (let j = i + 1; j < persons.length; j++) {
+    const a = persons[i], b = persons[j]
+    const isBrothers = (a.id === 'bhawneet' && b.id === 'gurneet') || (a.id === 'gurneet' && b.id === 'bhawneet')
+    envs.push({ id: uid('env'), name: isBrothers ? 'Brothers' : `${a.name} & ${b.name}`, members: [a.id, b.id] })
+  }
+  return envs
+}
+
+/** Equal share fractions among an envelope's members. */
+export function envelopeShares(env: Envelope | undefined): Record<string, number> {
+  const mem = env?.members ?? []
+  if (mem.length === 0) return {}
+  const f = 1 / mem.length
+  return Object.fromEntries(mem.map(m => [m, f]))
+}
+
 export interface Reminder {
   id: string
   label: string
@@ -137,6 +169,7 @@ export interface FinanceDoc {
   auditLog?: AuditEntry[]
   settlements?: Record<string, Settlement>
   reminders?: Reminder[]
+  envelopes?: Envelope[]
   updatedAt: string
 }
 
@@ -230,15 +263,17 @@ export function seedTemplate(): Template {
 }
 
 export function seedDoc(): FinanceDoc {
+  const entities = seedEntities()
   return {
     version: 2,
-    entities: seedEntities(),
+    entities,
     template: seedTemplate(),
     months: {},
     savings: [],
     categories: seedCategories(),
     proposals: [],
     budgets: seedBudgets(),
+    envelopes: seedEnvelopes(entities),
     updatedAt: new Date().toISOString(),
   }
 }
@@ -278,6 +313,11 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.auditLog)) doc.auditLog = []
     if (!doc.settlements || typeof doc.settlements !== 'object') doc.settlements = {}
     if (!Array.isArray(doc.reminders)) doc.reminders = []
+    if (!Array.isArray(doc.envelopes) || doc.envelopes.length === 0) doc.envelopes = seedEnvelopes(doc.entities)
+    // Every existing expense belongs to the household envelope until moved.
+    const stamp = (it: Item) => { if (!it.envelope) it.envelope = HOUSEHOLD }
+    doc.template.monthly.forEach(stamp); doc.template.emis.forEach(stamp); doc.template.annual.forEach(stamp)
+    for (const m of Object.values(doc.months)) m.items.forEach(stamp)
     if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
     return doc
   }
@@ -545,7 +585,8 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   const proposals = (doc.proposals ?? []).filter(p => p.proposedBy === e || p.approvers.includes(e))
   const auditLog = (doc.auditLog ?? []).filter(a => a.actor === e || (a.parties ?? []).includes(e))
   const reminders = (doc.reminders ?? []).filter(r => r.scope === 'common' || r.owner === e || (r.notify ?? []).includes(e))
-  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements, reminders }
+  const envelopes = (doc.envelopes ?? []).filter(env => env.system || env.members.includes(e))
+  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements, reminders, envelopes }
 }
 
 /** Apply an add/update/delete to a template section. */
