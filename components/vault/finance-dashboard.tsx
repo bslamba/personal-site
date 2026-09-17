@@ -25,7 +25,7 @@ import {
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
   emptyBudget, categoryOf, detectCategory, isPersonalTo,
   computeSettlement, type SettleTransfer,
-  type Envelope, envelopeShares, HOUSEHOLD,
+  type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -618,6 +618,68 @@ function ProfileTab({ me, onSaved }: { me?: MeLite & { email?: string }; onSaved
   )
 }
 
+// ---------- Envelope pieces -------------------------------------
+// A horizontal bar of the envelopes this viewer belongs to. Sits above the
+// month's Common / EMI / Personal sub-tabs. Household is always first.
+function EnvelopeBar({ envelopes, value, onChange }: {
+  envelopes: Envelope[]; value: string; onChange: (id: string) => void
+}) {
+  if (envelopes.length <= 1) return null
+  const ordered = [...envelopes].sort((a, b) => (a.system ? 0 : 1) - (b.system ? 0 : 1))
+  return (
+    <div className="vg-envbar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.1rem' }}>
+      {ordered.map(env => (
+        <button key={env.id} className="vg-envtab" data-on={value === env.id} onClick={() => onChange(env.id)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.5rem 0.9rem', borderRadius: 999,
+            border: '1px solid var(--vg-border, rgba(0,0,0,0.1))', cursor: 'pointer', fontSize: '0.86rem', fontWeight: 600,
+            background: value === env.id ? 'linear-gradient(135deg,#6d4bd8,#4b7bec)' : 'rgba(255,255,255,0.6)',
+            color: value === env.id ? '#fff' : 'inherit',
+          }}>
+          {env.system ? <WalletCards className="h-4 w-4" /> : <TagIcon className="h-4 w-4" />}
+          {env.name}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// Per-envelope impact strip: what this envelope costs, each member's share,
+// and who should pay whom to settle it. Shown inside This-month for the
+// non-household (pair / group) envelopes.
+function EnvelopeImpact({ items, entities, env, viewer }: {
+  items: Item[]; entities: Entity[]; env: Envelope; viewer?: string | null
+}) {
+  const t = totals({ items, income: [], note: '' } as MonthData, entities)
+  const total = items.reduce((s, it) => s + (it.amount || 0), 0)
+  const members = env.members.map(id => ({ id, name: entName(entities, id), color: entColor(entities, id), value: t.byEntity[id] ?? 0 }))
+  return (
+    <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+      <p className="vg-sec" style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 6 }}><Scale className="h-4 w-4" /> How “{env.name}” affects each of you</p>
+      <div className="vg-kpis" style={{ marginBottom: '0.9rem' }}>
+        <Kpi label="Envelope total" value={INR(total)} info="Everything assigned to this envelope this month, added up." />
+        {members.map(m => (
+          <Kpi key={m.id} label={`${m.name}'s share`} small value={INR(m.value)} info="This person's equal share of the envelope's costs." />
+        ))}
+      </div>
+      {t.transfers.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {t.transfers.map((tr, i) => {
+            const mine = viewer && (tr.from === viewer || tr.to === viewer)
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: 12, background: mine ? 'rgba(109,75,216,0.10)' : 'rgba(255,255,255,0.55)' }}>
+                <span><b style={{ color: entColor(entities, tr.from) }}>{entName(entities, tr.from)}</b> <span className="vg-muted">pays</span> <b style={{ color: entColor(entities, tr.to) }}>{entName(entities, tr.to)}</b></span>
+                <b style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(tr.amount)}</b>
+              </div>
+            )
+          })}
+        </div>
+      ) : <p className="vg-muted" style={{ margin: 0 }}>All square — nobody owes anyone in this envelope.</p>}
+      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Only money one person paid from their own account creates a debt here; anything paid from Common is already shared.</p>
+    </div>
+  )
+}
+
 // ---------- Month tab -------------------------------------------
 function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   doc: FinanceDoc; k: string; setKey: (k: string) => void
@@ -626,10 +688,14 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
 }) {
   const [bucket, setBucket] = useState<Bucket>('common')
+  const [env, setEnv] = useState<string>(HOUSEHOLD)
   const [reading, setReading] = useState(false)
   const [receiptWarn, setReceiptWarn] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const entities = doc.entities
+  const envs = visibleEnvelopes(doc, null)                 // super sees every envelope
+  const curEnv = envs.find(e => e.id === env) ?? envs[0]
+  const isHousehold = !curEnv || curEnv.system
 
   useEffect(() => { if (!doc.months[k]) patchMonth(k, m => m) /* eslint-disable-next-line */ }, [k])
 
@@ -642,7 +708,11 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   const delItem = (id: string) => patchMonth(k, mm => ({ ...mm, items: mm.items.filter(x => x.id !== id) }))
   const togglePaid = (id: string, v: boolean) => patchMonth(k, mm => ({ ...mm, items: mm.items.map(x => x.id === id ? { ...x, paid: v } : x) }))
 
-  const openNew = (b: Bucket) => openEditor({ item: newItem(b, entities), commit: addToMonth })
+  const openNew = (b: Bucket) => {
+    const it = newItem(b, entities)
+    if (curEnv && !curEnv.system) { it.envelope = curEnv.id; it.alloc = { mode: 'split', shares: envelopeShares(curEnv) } }
+    openEditor({ item: it, commit: addToMonth })
+  }
   const openEdit = (it: Item) => openEditor({ item: it, commit: updItem, remove: () => delItem(it.id) })
 
   async function onReceipt(files: FileList | null) {
@@ -673,9 +743,12 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
     openEditor({ item: it, commit: addToMonth })
   }
 
-  const rows = m.items.filter(it => classify(it, entities) === bucket)
+  // Items belonging to the selected envelope. The household envelope keeps its
+  // Common / EMI / Personal sub-tabs; a pair/group envelope shows a single list.
+  const envItems = curEnv ? m.items.filter(it => itemInEnvelope(it, curEnv)) : m.items
+  const rows = isHousehold ? envItems.filter(it => classify(it, entities) === bucket) : envItems
   const counts = { common: 0, emi: 0, personal: 0 } as Record<Bucket, number>
-  m.items.forEach(it => { counts[classify(it, entities)]++ })
+  envItems.forEach(it => { counts[classify(it, entities)]++ })
 
   const setInc = (id: string, patch: Partial<IncomeItem>) => patchMonth(k, mm => ({ ...mm, income: mm.income.map(i => i.id === id ? { ...i, ...patch } : i) }))
   const delInc = (id: string) => patchMonth(k, mm => ({ ...mm, income: mm.income.filter(i => i.id !== id) }))
@@ -703,19 +776,26 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
         <Kpi label="Settle up" small value={t.transfers.length ? `${t.transfers.length} transfer${t.transfers.length > 1 ? 's' : ''}` : 'All square'} info="Because one person often pays for shared things, this works out who should pay whom so everyone ends up even. The exact payments are in the Settlement tab." />
       </div>
 
-      {bucket === 'common' && <CommonAccountBar doc={doc} k={k} me={{ role: 'super', entityId: null }} action={action} />}
+      <EnvelopeBar envelopes={envs} value={curEnv?.id ?? HOUSEHOLD} onChange={setEnv} />
+
+      {isHousehold && bucket === 'common' && <CommonAccountBar doc={doc} k={k} me={{ role: 'super', entityId: null }} action={action} />}
+      {!isHousehold && curEnv && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
-          <div className="vg-subtabs">
-            <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
-            <button className="vg-subtab" data-on={bucket === 'emi'} onClick={() => setBucket('emi')}>EMI<span className="vg-count">{counts.emi}</span></button>
-            <button className="vg-subtab" data-on={bucket === 'personal'} onClick={() => setBucket('personal')}>Personal<span className="vg-count">{counts.personal}</span></button>
-          </div>
+          {isHousehold ? (
+            <div className="vg-subtabs">
+              <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
+              <button className="vg-subtab" data-on={bucket === 'emi'} onClick={() => setBucket('emi')}>EMI<span className="vg-count">{counts.emi}</span></button>
+              <button className="vg-subtab" data-on={bucket === 'personal'} onClick={() => setBucket('personal')}>Personal<span className="vg-count">{counts.personal}</span></button>
+            </div>
+          ) : (
+            <p className="vg-sec" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}><TagIcon className="h-4 w-4" /> {curEnv?.name} · {envItems.length} item{envItems.length === 1 ? '' : 's'}</p>
+          )}
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
-            <button className="vg-btn vg-btn-primary" onClick={() => openNew(bucket)}><Plus className="h-4 w-4" /> Add</button>
+            <button className="vg-btn vg-btn-primary" onClick={() => openNew(isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
         {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
@@ -738,7 +818,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing in {bucket} this month. Use <b>Add</b> or snap a <b>Receipt</b>.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing in {isHousehold ? bucket : (curEnv?.name ?? 'this envelope')} this month. Use <b>Add</b> or snap a <b>Receipt</b>.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -2129,6 +2209,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
   openEditor: (e: { item: Item; onSave: (it: Item) => void }) => void
 }) {
   const [bucket, setBucket] = useState<Bucket>('common')
+  const [env, setEnv] = useState<string>(HOUSEHOLD)
   const [reading, setReading] = useState(false)
   const [receiptWarn, setReceiptWarn] = useState<string | null>(null)
   const [reasonPrompt, setReasonPrompt] = useState<{ title: string; onConfirm: (reason: string) => void } | null>(null)
@@ -2138,16 +2219,24 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
   const t = totals(m, entities)
   const step = (d: number) => { const [y, mo] = k.split('-').map(Number); setKey(monthKey(new Date(y, mo - 1 + d, 1))) }
   const bal = t.netBalance[entityId] ?? 0
+  const envs = visibleEnvelopes(doc, entityId)             // only the envelopes this member belongs to
+  const curEnv = envs.find(e => e.id === env) ?? envs[0]
+  const isHousehold = !curEnv || curEnv.system
 
-  const rows = m.items.filter(it => classify(it, entities) === bucket)
+  const envItems = curEnv ? m.items.filter(it => itemInEnvelope(it, curEnv)) : m.items
+  const rows = isHousehold ? envItems.filter(it => classify(it, entities) === bucket) : envItems
   const counts = { common: 0, emi: 0, personal: 0 } as Record<Bucket, number>
-  m.items.forEach(it => { counts[classify(it, entities)]++ })
+  envItems.forEach(it => { counts[classify(it, entities)]++ })
   const cats = byCategory(m).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
   const bears = entities.map(e => ({ label: e.name, value: t.byEntity[e.id] ?? 0, color: e.color })).filter(p => p.value > 0)
   // Items already awaiting an edit decision — locked from a second edit.
   const underReview = new Set((doc.proposals ?? []).filter(p => p.monthEdit || (p.template && p.template.op !== 'add')).map(p => p.item?.id))
 
-  const openAdd = (b: Bucket) => openEditor({ item: memberNewItem(b, entities, entityId), onSave: it => action({ action: 'propose', item: it, monthKey: k }) })
+  const openAdd = (b: Bucket) => {
+    const it = memberNewItem(b, entities, entityId)
+    if (curEnv && !curEnv.system) { it.envelope = curEnv.id; it.alloc = { mode: 'split', shares: envelopeShares(curEnv) } }
+    openEditor({ item: it, onSave: x => action({ action: 'propose', item: x, monthKey: k }) })
+  }
   const openEdit = (it: Item) => {
     const mine = isPersonalTo(it, entityId, entities)
     if (mine) { openEditor({ item: it, onSave: x => action({ action: 'proposeMonthEdit', item: x, monthKey: k, op: 'update' }) }); return }
@@ -2203,19 +2292,26 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
         <Kpi label="Common + shared" value={INR(t.expense)} info="Total of everything you can see: common household costs and anything shared with you." />
       </div>
 
-      {bucket === 'common' && <CommonAccountBar doc={doc} k={k} me={{ role: 'member', entityId }} action={action} />}
+      <EnvelopeBar envelopes={envs} value={curEnv?.id ?? HOUSEHOLD} onChange={setEnv} />
+
+      {isHousehold && bucket === 'common' && <CommonAccountBar doc={doc} k={k} me={{ role: 'member', entityId }} action={action} />}
+      {!isHousehold && curEnv && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} viewer={entityId} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
-          <div className="vg-subtabs">
-            <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
-            <button className="vg-subtab" data-on={bucket === 'emi'} onClick={() => setBucket('emi')}>EMI<span className="vg-count">{counts.emi}</span></button>
-            <button className="vg-subtab" data-on={bucket === 'personal'} onClick={() => setBucket('personal')}>Personal<span className="vg-count">{counts.personal}</span></button>
-          </div>
+          {isHousehold ? (
+            <div className="vg-subtabs">
+              <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
+              <button className="vg-subtab" data-on={bucket === 'emi'} onClick={() => setBucket('emi')}>EMI<span className="vg-count">{counts.emi}</span></button>
+              <button className="vg-subtab" data-on={bucket === 'personal'} onClick={() => setBucket('personal')}>Personal<span className="vg-count">{counts.personal}</span></button>
+            </div>
+          ) : (
+            <p className="vg-sec" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}><TagIcon className="h-4 w-4" /> {curEnv?.name} · {envItems.length} item{envItems.length === 1 ? '' : 's'}</p>
+          )}
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
-            <button className="vg-btn vg-btn-primary" onClick={() => openAdd(bucket)}><Plus className="h-4 w-4" /> Add</button>
+            <button className="vg-btn vg-btn-primary" onClick={() => openAdd(isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
         {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
@@ -2242,7 +2338,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
                   </tr>
                 )
               })}
-              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing in {bucket} this month. Use <b>Add</b> or snap a <b>Receipt</b>.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing in {isHousehold ? bucket : (curEnv?.name ?? 'this envelope')} this month. Use <b>Add</b> or snap a <b>Receipt</b>.</td></tr>}
             </tbody>
           </table>
         </div>

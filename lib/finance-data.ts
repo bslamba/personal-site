@@ -143,6 +143,34 @@ export function envelopeShares(env: Envelope | undefined): Record<string, number
   return Object.fromEntries(mem.map(m => [m, f]))
 }
 
+/** The set of entities that BEAR an item's cost (share fraction > 0). */
+export function bearersOf(it: Item): string[] {
+  const sh = shares(it)
+  return Object.keys(sh).filter(id => (sh[id] ?? 0) > 0.001)
+}
+
+/**
+ * Whether an item shows under a given envelope tab. An item always shows under
+ * the envelope it is assigned to; additionally a NON-system envelope surfaces
+ * any item whose bearers exactly match its members — so a 50/50 EMI kept in the
+ * Lamba Household envelope still appears in the Brothers envelope, where the
+ * owed-share settlement between the two is shown.
+ */
+export function itemInEnvelope(it: Item, env: Envelope): boolean {
+  if ((it.envelope ?? HOUSEHOLD) === env.id) return true
+  if (env.system) return false
+  const bearers = bearersOf(it).sort()
+  const mem = [...env.members].sort()
+  return bearers.length > 0 && bearers.length === mem.length && bearers.every((b, i) => b === mem[i])
+}
+
+/** The envelopes a given viewer may see: system household + any they belong to. */
+export function visibleEnvelopes(doc: FinanceDoc, entityId: string | null | undefined): Envelope[] {
+  const all = doc.envelopes ?? []
+  if (!entityId) return all
+  return all.filter(env => env.system || env.members.includes(entityId))
+}
+
 export interface Reminder {
   id: string
   label: string
