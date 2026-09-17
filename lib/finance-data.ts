@@ -80,6 +80,8 @@ export interface MonthData {
   items: Item[]
   income: IncomeItem[]
   note?: string
+  commonCarryIn?: number   // common-account surplus carried forward from the previous month
+  deletedTemplate?: string[]   // template item keys (kind|name) removed for this month only
 }
 
 export interface Template {
