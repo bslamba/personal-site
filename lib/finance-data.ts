@@ -155,6 +155,12 @@ export function bearersOf(it: Item): string[] {
   return Object.keys(sh).filter(id => (sh[id] ?? 0) > 0.001)
 }
 
+/** How an item is BORNE for display: an expense paid from the common account is
+ *  borne by the common pool (Lamba Household), not split onto individuals. */
+export function bearerShares(it: Item): Record<string, number> {
+  return it.paidBy === 'common' ? { common: 1 } : shares(it)
+}
+
 /**
  * Whether an item shows under a given envelope tab. An item always shows under
  * the envelope it is assigned to; additionally a NON-system envelope surfaces
