@@ -20,6 +20,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function FinancePage() {
   const jar = await cookies()
-  if (!(await getSession(jar.get(VAULT_COOKIE)?.value))) redirect('/vault/login')
-  return <FinanceDashboard />
+  const session = await getSession(jar.get(VAULT_COOKIE)?.value)
+  if (!session) redirect('/vault/login')
+  // The role is passed through so the shell knows, on the very first paint,
+  // whether to drop the site footer — before the doc has loaded.
+  return <FinanceDashboard initialRole={session.r} />
 }

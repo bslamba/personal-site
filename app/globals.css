@@ -1872,6 +1872,11 @@ body:has(.bday-root) .wa-float { display: none !important; }
 body:has(.vg-root) { padding-top: 0; }
 body:has(.vg-root) > header.brand-bar { display: none !important; }
 
+/* A member's profile is the finance app and nothing else, so the site
+   footer goes too. The super keeps it — the vault is one stop of many
+   for them. */
+body:has(.vg-member) > footer { display: none !important; }
+
 /* ============================================================
    VAULT — iPhone frosted-glass theme (landing, finance, photos)
    Self-contained: every rule is scoped under .vg so it never

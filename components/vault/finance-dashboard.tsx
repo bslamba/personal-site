@@ -382,7 +382,7 @@ function fileToB64(file: File): Promise<string> {
 type Tab = 'month' | 'settle' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
-export default function FinanceDashboard() {
+export default function FinanceDashboard({ initialRole }: { initialRole?: 'super' | 'member' }) {
   const [doc, setDoc] = useState<FinanceDoc | null>(null)
   const [tab, setTab] = useState<Tab>('month')
   const [key, setKey] = useState<string>(monthKey())
@@ -430,7 +430,7 @@ export default function FinanceDashboard() {
     try { const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json().catch(() => ({})); if (d.doc) setDoc(d.doc as FinanceDoc); return d } catch { return null }
   }, [])
 
-  if (!doc || !me) return <Shell><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
+  if (!doc || !me) return <Shell role={initialRole}><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
 
   if (me.role === 'member') return <MemberDashboard initialDoc={doc} entityId={me.entityId ?? ''} profile={me} />
 
@@ -492,17 +492,18 @@ function Avatar({ me, size = 30 }: { me?: MeLite; size?: number }) {
 }
 
 interface ShellTab { id: string; label: string; icon: typeof Wallet }
-function Shell({ children, saveState, me, tabs, activeTab, onTab }: {
+function Shell({ children, saveState, me, tabs, activeTab, onTab, role }: {
   children: React.ReactNode
   saveState?: 'idle' | 'saving' | 'saved'
   me?: MeLite
   tabs?: ShellTab[]
   activeTab?: string
   onTab?: (id: string) => void
+  role?: MeLite['role']          // known before `me` loads, for the wrapper class only
 }) {
   const firstName = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
-    <div className="vg vg-root">
+    <div className={`vg vg-root${(me?.role ?? role) === 'member' ? ' vg-member' : ''}`}>
       <IdleLogout />
       <div className="vg-wrap">
         <div className="vg-appbar">
