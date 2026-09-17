@@ -53,6 +53,8 @@ export interface Item {
   category?: string            // explicit category name; blank = auto from the item name
   date?: string | null         // transaction date (YYYY-MM-DD), e.g. from a receipt or statement
   src?: 'template' | 'manual'   // template-derived vs manually added in a month
+  tmplId?: string              // for a template-derived month item: the id of the Budget template item it came from (so a per-month edit can override just this month)
+  override?: boolean           // a template item deliberately edited FOR THIS MONTH ONLY (does not change the Budget)
   ref?: string                 // stable fingerprint of an imported bank txn (for de-dup)
   tags?: string[]              // free-form event tags (e.g. "Ooty 2026"), independent of category
   envelope?: string            // which envelope this expense belongs to (default household)
@@ -81,6 +83,7 @@ export interface MonthData {
   income: IncomeItem[]
   note?: string
   commonCarryIn?: number   // common-account surplus carried forward from the previous month
+  commonDisposition?: 'transfer' | 'carry'   // what was decided about this month's common surplus
   deletedTemplate?: string[]   // template item keys (kind|name) removed for this month only
 }
 
@@ -389,7 +392,7 @@ export function emiActive(it: Item, key: string): boolean {
 }
 
 const clone = (it: Item): Item => ({
-  ...it, id: uid(it.kind), paid: false, src: 'template',
+  ...it, id: uid(it.kind), tmplId: it.id, paid: false, src: 'template',
   alloc: it.alloc.mode === 'split' ? { mode: 'split', shares: { ...it.alloc.shares } } : { ...it.alloc },
 })
 
@@ -407,14 +410,66 @@ export function monthView(doc: FinanceDoc, key: string): MonthData {
   const fresh = materialise(doc.template, key)
   const stored = doc.months[key]
   if (!stored) return fresh
-  // Recurring items ALWAYS reflect the current Setup template (single source
-  // of truth) so Setup and every month view stay in sync. We only carry over
-  // the month's own manual one-offs and the paid-flags on recurring items.
-  const paidNames = new Set(stored.items.filter(i => i.src === 'template' && i.paid).map(i => `${i.kind}|${i.name}`))
-  const items = fresh.items.map(it => (paidNames.has(`${it.kind}|${it.name}`) ? { ...it, paid: true } : it))
+  // Recurring items come from the current Setup/Budget template (single source
+  // of truth), BUT a month may override any recurring item just for itself
+  // (change amount, split, paid, envelope, …) or delete it for that month —
+  // without touching the template. Overrides are matched by the template item's
+  // id (tmplId); a fallback to kind|name keeps older data working.
+  const overById = new Map<string, Item>()
+  const overByName = new Map<string, Item>()
+  for (const i of stored.items) {
+    if (i.src !== 'template' || !i.override) continue   // only DELIBERATE per-month edits pin
+    if (i.tmplId) overById.set(i.tmplId, i)
+    else overByName.set(`${i.kind}|${i.name}`, i)
+  }
+  // paid flags survive even without a full override (matched by tmplId, then name).
+  const paidKeys = new Set(stored.items.filter(i => i.src === 'template' && i.paid).map(i => i.tmplId ?? `${i.kind}|${i.name}`))
+  const deleted = new Set(stored.deletedTemplate ?? [])
+  const items = fresh.items
+    .filter(it => !(it.tmplId && deleted.has(it.tmplId)))
+    .map(it => {
+      const ov = (it.tmplId && overById.get(it.tmplId)) || overByName.get(`${it.kind}|${it.name}`)
+      // Keep the freshly-materialised id and tmplId; take everything the month
+      // deliberately overrode (amount, name, alloc, paidBy, envelope, paid, note…).
+      let out: Item = ov ? { ...it, ...ov, id: it.id, tmplId: it.tmplId, src: 'template' } : it
+      if (!ov && paidKeys.has(it.tmplId ?? `${it.kind}|${it.name}`)) out = { ...out, paid: true }
+      return out
+    })
   const manual = stored.items.filter(i => i.src === 'manual')
   const manualIncome = stored.income.filter(i => i.src === 'manual')
-  return { items: [...items, ...manual], income: [...fresh.income, ...manualIncome], note: stored.note }
+  // A per-month common-income row (manual, entity 'common') overrides the
+  // template's common income for that month; other income stacks on top.
+  const hasManualCommon = manualIncome.some(i => i.entity === 'common')
+  const freshIncome = hasManualCommon ? fresh.income.filter(i => i.entity !== 'common') : fresh.income
+  return { items: [...items, ...manual], income: [...freshIncome, ...manualIncome], note: stored.note, commonCarryIn: stored.commonCarryIn }
+}
+
+/** Upsert a per-month override for a template-derived item (matched by tmplId,
+ *  falling back to kind|name), leaving the Budget template untouched. */
+export function putMonthOverride(month: MonthData, it: Item): MonthData {
+  const key = it.tmplId ?? `${it.kind}|${it.name}`
+  const same = (x: Item) => x.src === 'template' && ((x.tmplId && it.tmplId && x.tmplId === it.tmplId) || (!x.tmplId && !it.tmplId && `${x.kind}|${x.name}` === key))
+  const others = month.items.filter(x => !same(x))
+  return { ...month, items: [...others, { ...it, src: 'template', override: true }] }
+}
+
+/** Set the paid flag on a template-derived item for this month, using a light
+ *  marker (does not pin the item's other fields to this month). */
+export function setMonthPaid(month: MonthData, it: Item, v: boolean): MonthData {
+  const key = it.tmplId ?? `${it.kind}|${it.name}`
+  const idx = month.items.findIndex(x => x.src === 'template' && (x.tmplId ? x.tmplId === it.tmplId : `${x.kind}|${x.name}` === key))
+  if (idx >= 0) { const items = month.items.slice(); items[idx] = { ...items[idx], paid: v }; return { ...month, items } }
+  return { ...month, items: [...month.items, { ...it, src: 'template', paid: v, override: false }] }
+}
+
+/** Delete a template-derived item for this month only (never the template). */
+export function deleteMonthTemplate(month: MonthData, it: Item): MonthData {
+  const id = it.tmplId
+  if (!id) return { ...month, items: month.items.filter(x => x.id !== it.id) }  // stray
+  const deletedTemplate = Array.from(new Set([...(month.deletedTemplate ?? []), id]))
+  // also drop any stored override for it
+  const items = month.items.filter(x => !(x.src === 'template' && x.tmplId === id))
+  return { ...month, deletedTemplate, items }
 }
 
 /** Re-apply the template's recurring items to a month, keeping that
@@ -607,7 +662,7 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   const keep = (it: Item) => isCommon(it, doc.entities) || involves(it, e)
   const months: Record<string, MonthData> = {}
   for (const [k, m] of Object.entries(doc.months)) {
-    months[k] = { items: m.items.filter(keep), income: m.income.filter(i => i.entity === e || i.entity === 'common'), note: m.note }
+    months[k] = { items: m.items.filter(keep), income: m.income.filter(i => i.entity === e || i.entity === 'common'), note: m.note, commonCarryIn: m.commonCarryIn, commonDisposition: m.commonDisposition, deletedTemplate: m.deletedTemplate }
   }
   const template: Template = {
     monthly: doc.template.monthly.filter(keep),
@@ -635,19 +690,18 @@ export function applyTemplateOp(doc: FinanceDoc, section: 'monthly' | 'emis' | '
 export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
   if (pr.incomeEdit) { setCommonIncome(doc, pr.incomeEdit.monthKey, pr.incomeEdit.amount); return }
   if (pr.template) { applyTemplateOp(doc, pr.template.section, pr.template.op, pr.item); return }
-  const m = doc.months[pr.monthKey] ?? materialise(doc.template, pr.monthKey)
+  const m = doc.months[pr.monthKey] ?? { items: [], income: [], note: '' }
   if (pr.monthEdit) {
-    if (pr.monthEdit.op === 'delete') m.items = m.items.filter(x => x.id !== pr.item.id)
-    else m.items = m.items.map(x => (x.id === pr.item.id ? pr.item : x))
+    if (pr.monthEdit.op === 'delete') doc.months[pr.monthKey] = pr.item.src === 'template' ? deleteMonthTemplate(m, pr.item) : { ...m, items: m.items.filter(x => x.id !== pr.item.id) }
+    else doc.months[pr.monthKey] = pr.item.src === 'template' ? putMonthOverride(m, pr.item) : { ...m, items: m.items.map(x => (x.id === pr.item.id ? pr.item : x)) }
   } else {
-    m.items = [...m.items, { ...pr.item, src: 'manual' as const }]
+    doc.months[pr.monthKey] = { ...m, items: [...m.items, { ...pr.item, src: 'manual' as const }] }
   }
-  doc.months[pr.monthKey] = m
 }
 
 /** Set the common-account income for a month to a single "rent" row. */
 export function setCommonIncome(doc: FinanceDoc, monthKey: string, amount: number) {
-  const m = doc.months[monthKey] ?? materialise(doc.template, monthKey)
+  const m = doc.months[monthKey] ?? { items: [], income: [], note: '' }
   const others = m.income.filter(i => i.entity !== 'common')
   m.income = [...others, { id: uid('inc'), source: 'Common account income (rent)', entity: 'common', amount: Math.max(0, amount), src: 'manual' as const }]
   doc.months[monthKey] = m

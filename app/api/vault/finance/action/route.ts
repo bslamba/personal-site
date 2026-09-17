@@ -20,7 +20,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid,
-         setCommonIncome, computeSettlement,
+         setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget, type Entity } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
 
@@ -29,9 +29,16 @@ export const dynamic = 'force-dynamic'
 
 const entName = (doc: FinanceDoc, id: string | null) => (id ? doc.entities.find(e => e.id === id)?.name : null) ?? 'Super'
 const addToMonth = (doc: FinanceDoc, monthKey: string, it: Item) => {
-  const m = doc.months[monthKey] ?? materialise(doc.template, monthKey)
+  const m = doc.months[monthKey] ?? { items: [], income: [], note: '' }
   m.items = [...m.items, { ...it, src: 'manual' as const }]
   doc.months[monthKey] = m
+}
+// Apply a per-month edit: a template item overrides only this month; a manual
+// one-off is edited in place. Never touches the Budget template.
+const applyMonthEdit = (doc: FinanceDoc, mk: string, item: Item, op: 'update' | 'delete') => {
+  const m = doc.months[mk] ?? { items: [], income: [], note: '' }
+  if (op === 'delete') doc.months[mk] = item.src === 'template' ? deleteMonthTemplate(m, item) : { ...m, items: m.items.filter(x => x.id !== item.id) }
+  else doc.months[mk] = item.src === 'template' ? putMonthOverride(m, item) : { ...m, items: m.items.map(x => (x.id === item.id ? item : x)) }
 }
 
 export async function POST(request: Request) {
@@ -208,7 +215,7 @@ export async function POST(request: Request) {
           } else {
             // Personal expense: parked on the owner's profile, applied directly.
             // Not part of any shared calculation.
-            const m = doc.months[mk] ?? materialise(doc.template, mk)
+            const m = doc.months[mk] ?? { items: [], income: [], note: '' }
             const it: Item = {
               id: uid('imp'), name: r.name || 'Expense', amount: r.amount, kind: 'oneoff',
               paidBy: owner, alloc: { mode: 'single', who: owner },
@@ -233,9 +240,7 @@ export async function POST(request: Request) {
         const applyNow = isSuper || personal
         const label = `${op === 'delete' ? 'Remove' : 'Change'} · ${shortName(item)}`
         if (applyNow) {
-          const m = doc.months[monthKey2] ?? materialise(doc.template, monthKey2)
-          m.items = op === 'delete' ? m.items.filter(x => x.id !== item.id) : m.items.map(x => (x.id === item.id ? item : x))
-          doc.months[monthKey2] = m
+          applyMonthEdit(doc, monthKey2, item, op)
           audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
@@ -243,9 +248,7 @@ export async function POST(request: Request) {
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const ap = approversFor(item, actor, doc.entities)
         if (ap.approvers.length === 0) {
-          const m = doc.months[monthKey2] ?? materialise(doc.template, monthKey2)
-          m.items = op === 'delete' ? m.items.filter(x => x.id !== item.id) : m.items.map(x => (x.id === item.id ? item : x))
-          doc.months[monthKey2] = m
+          applyMonthEdit(doc, monthKey2, item, op)
           audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
@@ -337,6 +340,42 @@ export async function POST(request: Request) {
         audit('propose', `Common income → ${amount}`, { monthKey: mk, reason, proposalId: pr.id, parties: [actor, approver] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'setCommonDisposition': {
+        // Decide what to do with this month's common-account surplus:
+        //  'transfer' → pay each earner their equal share as personal income (My Dashboard);
+        //  'carry'    → roll the surplus into next month's common income;
+        //  'none'     → undo either. Super-controlled (a common-account decision).
+        if (!isSuper) return NextResponse.json({ error: 'Only the family admin can settle the common account.' }, { status: 403 })
+        const bt = body as unknown as { monthKey?: string; mode?: 'transfer' | 'carry' | 'none' }
+        const mk = bt.monthKey || monthKey()
+        const mode = bt.mode ?? 'none'
+        const mv = monthView(doc, mk)
+        const commonIncome = mv.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0) + (doc.months[mk]?.commonCarryIn ?? 0)
+        const commonExpenses = mv.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
+        const surplus = commonIncome - commonExpenses
+        const earners = doc.entities.filter(e => e.kind === 'person' && e.earning)
+        const per = earners.length ? surplus / earners.length : 0
+        const m = doc.months[mk] ?? { items: [], income: [], note: '' }
+        // Clear any prior payout rows for this month, and reset next month's carry from this month.
+        m.income = m.income.filter(i => !(i.ref && i.ref.startsWith(`csurplus:${mk}:`)))
+        const [yy, mm] = mk.split('-').map(Number); const nextKey = monthKey(new Date(yy, mm, 1))
+        if (doc.months[nextKey]) doc.months[nextKey].commonCarryIn = 0
+        if (mode === 'transfer' && surplus > 0.5) {
+          for (const e of earners) m.income = [...m.income, { id: uid('inc'), source: 'Common surplus payout', entity: e.id, amount: per, src: 'manual', ref: `csurplus:${mk}:${e.id}` }]
+          m.commonDisposition = 'transfer'
+        } else if (mode === 'carry' && surplus > 0.5) {
+          const nm = doc.months[nextKey] ?? { items: [], income: [], note: '' }
+          nm.commonCarryIn = surplus; doc.months[nextKey] = nm
+          m.commonDisposition = 'carry'
+        } else {
+          delete m.commonDisposition
+        }
+        doc.months[mk] = m
+        audit('apply', `Common surplus · ${mode}`, { monthKey: mk })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       case 'settlePay': {

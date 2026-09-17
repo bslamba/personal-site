@@ -22,6 +22,7 @@ import {
   type SavingItem, type Alloc, type Bucket, type Template, type Category,
   type EntityBudget, type PlannedItem, type Proposal,
   seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
+  putMonthOverride, deleteMonthTemplate, setMonthPaid,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
   emptyBudget, categoryOf, detectCategory, isPersonalTo,
   computeSettlement, type SettleTransfer,
@@ -413,7 +414,10 @@ export default function FinanceDashboard() {
 
   const patchDoc = useCallback((fn: (d: FinanceDoc) => FinanceDoc) => setDoc(d => (d ? fn(structuredClone(d) as FinanceDoc) : d)), [])
   const patchMonth = useCallback((k: string, fn: (m: MonthData) => MonthData) => {
-    setDoc(d => { if (!d) return d; const nd = structuredClone(d) as FinanceDoc; nd.months[k] = fn(nd.months[k] ?? materialise(nd.template, k)); return nd })
+    // A stored month holds only this month's OVERRIDES, manual items, income,
+    // deletions and note — never a full snapshot — so Budget changes keep
+    // flowing through monthView for anything not deliberately edited here.
+    setDoc(d => { if (!d) return d; const nd = structuredClone(d) as FinanceDoc; nd.months[k] = fn(nd.months[k] ?? { items: [], income: [], note: '' }); return nd })
   }, [])
 
   const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
@@ -795,45 +799,66 @@ function EnvelopeImpact({ items, entities, env, viewer }: {
 // split equally among the earners as an amount each owes into the common
 // account; a surplus is split equally as an amount each may take out (or carry
 // forward). (The transfer / carry-forward actions land in the next update.)
-function CommonReconcile({ doc, k, entities }: { doc: FinanceDoc; k: string; entities: Entity[] }) {
+function CommonReconcile({ doc, k, entities, me, action }: {
+  doc: FinanceDoc; k: string; entities: Entity[]
+  me: { role: 'super' | 'member'; entityId: string | null }
+  action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
+}) {
   const m = monthView(doc, k)
   const income = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
   const carryIn = doc.months[k]?.commonCarryIn ?? 0
   const expenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
-  const diff = income + carryIn - expenses
+  const diff = income - expenses          // income already includes carried-forward via monthView income? no — add carryIn:
+  const net = income + carryIn - expenses
   const earners = entities.filter(e => e.kind === 'person' && e.earning)
-  const per = earners.length ? Math.abs(diff) / earners.length : 0
+  const per = earners.length ? Math.abs(net) / earners.length : 0
+  const disp = doc.months[k]?.commonDisposition
+  const nextLabel = (() => { const [y, mo] = k.split('-').map(Number); return monthLabel(monthKey(new Date(y, mo, 1))) })()
+  void diff
   return (
     <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
       <p className="vg-sec" style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 6 }}><Scale className="h-4 w-4" /> Common account — where it nets out</p>
       <div className="vg-tablewrap">
         <table className="vg-table" style={{ minWidth: 360 }}>
           <tbody>
-            <tr><td>Common income{carryIn ? ' (incl. carried forward)' : ''}</td><td className="num vg-pos">{INR(income + carryIn)}</td></tr>
+            {carryIn > 0.5 && <tr><td>Carried forward from last month</td><td className="num vg-pos">{INR(carryIn)}</td></tr>}
+            <tr><td>Common income</td><td className="num vg-pos">{INR(income)}</td></tr>
             <tr><td>Common spending</td><td className="num">− {INR(expenses)}</td></tr>
             <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
-              <td style={{ fontWeight: 700 }}>{diff >= 0 ? 'Surplus in the common account' : 'Shortfall to top up'}</td>
-              <td className="num" style={{ fontWeight: 800 }}><b className={diff >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(diff))}</b></td>
+              <td style={{ fontWeight: 700 }}>{net >= 0 ? 'Surplus in the common account' : 'Shortfall to top up'}</td>
+              <td className="num" style={{ fontWeight: 800 }}><b className={net >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(net))}</b></td>
             </tr>
           </tbody>
         </table>
       </div>
-      {Math.abs(diff) > 0.5 && earners.length > 0 && (
+      {Math.abs(net) > 0.5 && earners.length > 0 && (
         <div style={{ marginTop: '0.9rem' }}>
           <p className="vg-muted" style={{ fontSize: '0.82rem', margin: '0 0 0.5rem' }}>
-            {diff < 0
-              ? <>Spending is more than what came in — each earner tops up an equal share into the common account:</>
-              : <>More came in than went out — each earner can take an equal share out (or carry it forward to next month):</>}
+            {net < 0
+              ? <>Spending is more than what came in — each earner tops up an equal share into the common account (settle it in the <b>Settlement</b> tab):</>
+              : <>More came in than went out — each earner can take an equal share out, or carry the whole surplus to next month:</>}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {earners.map(e => (
               <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0.5rem 0.8rem', borderRadius: 12, background: 'rgba(255,255,255,0.6)', minWidth: 190 }}>
-                <span><b style={{ color: e.color }}>{e.name}</b> <span className="vg-muted">{diff < 0 ? 'owes common' : 'can take out'}</span></span>
-                <b style={{ fontVariantNumeric: 'tabular-nums', color: diff < 0 ? 'var(--vg-neg)' : 'var(--vg-pos)' }}>{INR(per)}</b>
+                <span><b style={{ color: e.color }}>{e.name}</b> <span className="vg-muted">{net < 0 ? 'owes common' : 'can take out'}</span></span>
+                <b style={{ fontVariantNumeric: 'tabular-nums', color: net < 0 ? 'var(--vg-neg)' : 'var(--vg-pos)' }}>{INR(per)}</b>
               </div>
             ))}
           </div>
-          <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>{diff < 0 ? 'Shown as an outstanding amount owed to the Lamba Household account.' : 'Transfer-out (adds to My Dashboard income) or carry-forward to next month — coming in the next update.'}</p>
+          {net > 0.5 && me.role === 'super' && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.8rem', alignItems: 'center' }}>
+              <button className="vg-btn vg-btn-primary" data-on={disp === 'transfer'} onClick={() => action({ action: 'setCommonDisposition', monthKey: k, mode: disp === 'transfer' ? 'none' : 'transfer' })}>
+                <Check className="h-4 w-4" /> {disp === 'transfer' ? 'Taken out (undo)' : 'Transfer out to earners'}
+              </button>
+              <button className="vg-btn" data-on={disp === 'carry'} onClick={() => action({ action: 'setCommonDisposition', monthKey: k, mode: disp === 'carry' ? 'none' : 'carry' })}>
+                <ChevronRight className="h-4 w-4" /> {disp === 'carry' ? `Carrying to ${nextLabel} (undo)` : `Carry forward to ${nextLabel}`}
+              </button>
+            </div>
+          )}
+          {disp === 'transfer' && <p className="vg-pos" style={{ fontSize: '0.78rem', marginTop: '0.6rem' }}><Check className="h-4 w-4" style={{ display: 'inline', verticalAlign: '-3px' }} /> Paid out — added as income on each earner’s My Dashboard.</p>}
+          {disp === 'carry' && <p className="vg-muted" style={{ fontSize: '0.78rem', marginTop: '0.6rem' }}>Carried forward — added to {nextLabel}’s common income.</p>}
+          {net < 0 && <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>Shown as an outstanding amount owed to the Lamba Household account.</p>}
         </div>
       )}
     </div>
@@ -861,21 +886,23 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
 
   useEffect(() => { if (!doc.months[k]) patchMonth(k, m => m) /* eslint-disable-next-line */ }, [k])
 
-  const m = doc.months[k] ?? materialise(doc.template, k)
+  const m = monthView(doc, k)
   const t = totals(m, entities)
   const step = (delta: number) => { const [y, mo] = k.split('-').map(Number); setKey(monthKey(new Date(y, mo - 1 + delta, 1))) }
 
-  const addToMonth = (it: Item) => patchMonth(k, mm => ({ ...mm, items: [...mm.items, it] }))
-  const updItem = (it: Item) => patchMonth(k, mm => ({ ...mm, items: mm.items.map(x => x.id === it.id ? it : x) }))
-  const delItem = (id: string) => patchMonth(k, mm => ({ ...mm, items: mm.items.filter(x => x.id !== id) }))
-  const togglePaid = (id: string, v: boolean) => patchMonth(k, mm => ({ ...mm, items: mm.items.map(x => x.id === id ? { ...x, paid: v } : x) }))
+  const addToMonth = (it: Item) => patchMonth(k, mm => ({ ...mm, items: [...mm.items, { ...it, src: 'manual' as const }] }))
+  // A recurring (template) item edited here overrides just this month; a manual
+  // one-off is edited in place.
+  const updItem = (it: Item) => patchMonth(k, mm => it.src === 'template' ? putMonthOverride(mm, it) : ({ ...mm, items: mm.items.map(x => x.id === it.id ? it : x) }))
+  const delItem = (it: Item) => patchMonth(k, mm => it.src === 'template' ? deleteMonthTemplate(mm, it) : ({ ...mm, items: mm.items.filter(x => x.id !== it.id) }))
+  const togglePaid = (it: Item, v: boolean) => patchMonth(k, mm => it.src === 'template' ? setMonthPaid(mm, it, v) : ({ ...mm, items: mm.items.map(x => x.id === it.id ? { ...x, paid: v } : x) }))
 
   const openNew = (b: Bucket) => {
     const it = newItem(b, entities)
     if (curEnv && !curEnv.system) { it.envelope = curEnv.id; it.alloc = { mode: 'split', shares: envelopeShares(curEnv) } }
     openEditor({ item: it, commit: addToMonth })
   }
-  const openEdit = (it: Item) => openEditor({ item: it, commit: updItem, remove: () => delItem(it.id) })
+  const openEdit = (it: Item) => openEditor({ item: it, commit: updItem, remove: () => delItem(it) })
 
   async function onReceipt(files: FileList | null) {
     if (!files || !files[0]) return
@@ -984,11 +1011,11 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
         {isDash && <p className="vg-muted" style={{ fontSize: '0.78rem', margin: '0 0 0.7rem' }}>Your personal expenses — money borne entirely by one person. Common and shared items live under the <b>Lamba Household</b> and the other envelopes.</p>}
         {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
         <ExpenseTable rows={rows} entities={entities} shareCols={shareColumns(rows, entities)}
-          onEdit={openEdit} onDelete={it => delItem(it.id)} onTogglePaid={(it, v) => togglePaid(it.id, v)}
+          onEdit={openEdit} onDelete={delItem} onTogglePaid={togglePaid}
           emptyLabel={`Nothing in ${isDash ? (pbucket === 'emi' ? 'personal EMIs' : 'personal expenses') : isHousehold ? bucket : (curEnv?.name ?? 'this envelope')}. Use Add or snap a Receipt.`} />
       </div>
 
-      {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} />}
+      {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} me={{ role: 'super', entityId: null }} action={action} />}
 
       <div className="vg-grid2">
         <div className="vg-card vg-pad">
@@ -2458,7 +2485,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
         <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Adding or changing a common/shared item sends it to the tagged person to approve; your own personal ones apply straight away.</p>
       </div>
 
-      {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} />}
+      {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
 
       <div className="vg-grid2">
         <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k}
