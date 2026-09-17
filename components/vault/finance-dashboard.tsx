@@ -310,11 +310,10 @@ export default function FinanceDashboard() {
     { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'tags', label: 'Tags', icon: TagIcon },
-    { id: 'budget', label: 'Budget', icon: Target },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
     { id: 'entities', label: 'Entities', icon: Users },
-    { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
+    { id: 'setup', label: 'Budget', icon: Target },
   ]
 
   const setupTemplate = setupDraft ?? doc.template
@@ -1679,6 +1678,41 @@ function SettlementTab({ doc, me, k, setKey, action }: {
             </table>
           </div>
         )}
+
+        {Object.keys(s.ledger).length > 0 && (
+          <details style={{ marginTop: '0.9rem' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--vg-accent)', fontSize: '0.85rem' }}>Show the full calculation — why these amounts?</summary>
+            <div style={{ marginTop: '0.7rem', display: 'grid', gap: '0.8rem', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))' }}>
+              {s.contributors.length > 0 && s.shortfall > 0 && (
+                <div style={{ gridColumn: '1 / -1', fontSize: '0.82rem', padding: '0.5rem 0.7rem', background: 'rgba(109,75,216,0.06)', borderRadius: 8 }}>
+                  <b>Common account:</b> earned {INR(s.commonIncome)} − spent {INR(s.commonExpenses)} = <b style={{ color: 'var(--vg-neg)' }}>−{INR(s.shortfall)}</b> shortfall, split into {INR(s.perContributor)} each.
+                </div>
+              )}
+              {Object.entries(s.ledger).map(([eid, lines]) => {
+                const netv = s.net[eid] ?? 0
+                return (
+                  <div key={eid} className="vg-card" style={{ padding: '0.7rem 0.85rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
+                    <p style={{ margin: '0 0 0.4rem', fontWeight: 700 }}><span className="vg-dot" style={{ background: entColor(entities, eid), marginRight: 6 }} />{entName(entities, eid)}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {lines.map((ln, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8rem' }}>
+                          <span className="vg-muted" style={{ flex: 1 }}>{ln.label}</span>
+                          <span style={{ fontVariantNumeric: 'tabular-nums', color: ln.amount >= 0 ? 'var(--vg-pos)' : 'var(--vg-neg)', fontWeight: 600 }}>{ln.amount >= 0 ? '+' : '−'}{INR(Math.abs(ln.amount))}</span>
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.85rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
+                        <b>Net</b>
+                        <b style={{ fontVariantNumeric: 'tabular-nums', color: netv >= 0 ? 'var(--vg-pos)' : 'var(--vg-neg)' }}>{netv >= 0 ? 'owed ' : 'owes '}{INR(Math.abs(netv))}</b>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>Each person&rsquo;s pluses (others&rsquo; shares of what they paid) and minuses (their share of what others paid, plus the common shortfall) net to the figure above — those nets are what the transfers settle.</p>
+          </details>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.9rem', gap: 8, flexWrap: 'wrap' }}>
           <p className="vg-muted" style={{ fontSize: '0.75rem', margin: 0, maxWidth: 560 }}>Upload the payment screenshot as proof when someone pays. When you close the month, anything still unpaid is carried into next month with a reference back to here.</p>
           {s.closed
@@ -2202,9 +2236,8 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
     { id: 'year', label: 'Year', icon: Wallet },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'savings', label: 'My Savings', icon: PiggyBank },
-    { id: 'budget', label: 'Budget', icon: Target },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
-    { id: 'setup', label: 'Setup', icon: SlidersHorizontal },
+    { id: 'setup', label: 'Budget', icon: Target },
     { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing },
   ] as ShellTab[]
 
@@ -2325,7 +2358,7 @@ function ImportTab({ doc, me, onImport }: {
             <div className="vg-tablewrap">
               <table className="vg-table" style={{ minWidth: 1040 }}>
                 <thead><tr>
-                  <th style={{ width: 30 }}></th><th style={{ width: 62 }}>Date</th><th>Payee</th>
+                  <th style={{ width: 30 }}><input type="checkbox" title="Select / clear all" checked={rows.length > 0 && rows.every(r => r.include)} ref={el => { if (el) el.indeterminate = rows.some(r => r.include) && !rows.every(r => r.include) }} onChange={e => setAll(e.target.checked)} /></th><th style={{ width: 62 }}>Date</th><th>Payee</th>
                   <th style={{ width: 140 }}>Category</th><th style={{ width: 52 }}>In/Out</th>
                   <th className="num" style={{ width: 92 }}>Amount</th>
                   <th style={{ width: 96 }}>Paid from</th>

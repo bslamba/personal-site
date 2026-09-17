@@ -330,7 +330,17 @@ export function materialise(template: Template, key: string): MonthData {
 }
 
 export function monthView(doc: FinanceDoc, key: string): MonthData {
-  return doc.months[key] ?? materialise(doc.template, key)
+  const fresh = materialise(doc.template, key)
+  const stored = doc.months[key]
+  if (!stored) return fresh
+  // Recurring items ALWAYS reflect the current Setup template (single source
+  // of truth) so Setup and every month view stay in sync. We only carry over
+  // the month's own manual one-offs and the paid-flags on recurring items.
+  const paidNames = new Set(stored.items.filter(i => i.src === 'template' && i.paid).map(i => `${i.kind}|${i.name}`))
+  const items = fresh.items.map(it => (paidNames.has(`${it.kind}|${it.name}`) ? { ...it, paid: true } : it))
+  const manual = stored.items.filter(i => i.src === 'manual')
+  const manualIncome = stored.income.filter(i => i.src === 'manual')
+  return { items: [...items, ...manual], income: [...fresh.income, ...manualIncome], note: stored.note }
 }
 
 /** Re-apply the template's recurring items to a month, keeping that
@@ -570,6 +580,7 @@ export function setCommonIncome(doc: FinanceDoc, monthKey: string, amount: numbe
 
 // ---------- Monthly settlement ----------------------------------
 export interface SettleTransfer { key: string; from: string; to: string; amount: number; kind: 'common' | 'peer' | 'carry'; fromMonth?: string; note?: string }
+export interface LedgerLine { label: string; amount: number }  // + = owed to them, - = they owe
 export interface SettleView {
   commonIncome: number
   commonExpenses: number
@@ -580,12 +591,15 @@ export interface SettleView {
   paid: Record<string, SettlementProof>
   closed: boolean
   outstanding: number
+  ledger: Record<string, LedgerLine[]>   // per-entity itemised working
+  net: Record<string, number>            // per-entity net (>0 owed to them)
 }
 
 export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
   const m = monthView(doc, mk)
   const entities = doc.entities
   const persons = entities.filter(e => e.kind === 'person')
+  const personIds = new Set(persons.map(e => e.id))
   const t = totals(m, entities)
   const commonIncome = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
   const commonExpenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
@@ -602,10 +616,28 @@ export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
   const st = doc.settlements?.[mk]
   ;(st?.carry ?? []).forEach(c => transfers.push({ key: `carry:${c.id}`, from: c.from, to: c.to, amount: c.amount, kind: 'carry', fromMonth: c.fromMonth, note: c.note }))
 
+  // Itemised working, per entity — explains where each net figure comes from.
+  const ledger: Record<string, LedgerLine[]> = {}
+  const net: Record<string, number> = {}
+  const push = (eid: string, label: string, amount: number) => { (ledger[eid] ??= []).push({ label, amount }); net[eid] = (net[eid] ?? 0) + amount }
+  const nm = (id: string) => entities.find(e => e.id === id)?.name ?? id
+  for (const it of m.items) {
+    if (!personIds.has(it.paidBy)) continue    // common-paid handled via shortfall
+    const sh = shares(it)
+    for (const [eid, frac] of Object.entries(sh)) {
+      if (eid === it.paidBy || !personIds.has(eid)) continue
+      const owed = (it.amount || 0) * frac
+      if (owed < 0.5) continue
+      push(it.paidBy, `${it.name || 'Expense'}: ${nm(eid)}'s ${Math.round(frac * 100)}% share (you paid)`, +owed)
+      push(eid, `${it.name || 'Expense'}: your ${Math.round(frac * 100)}% share (${nm(it.paidBy)} paid)`, -owed)
+    }
+  }
+  if (perContributor > 0.5) contributors.forEach(c => push(c, `Common-account shortfall — your ${Math.round(100 / contributors.length)}% of ₹${Math.round(shortfall)}`, -perContributor))
+
   const paid = st?.paid ?? {}
   const closed = !!st?.closed
   const outstanding = transfers.filter(tr => !paid[tr.key]).reduce((s, tr) => s + tr.amount, 0)
-  return { commonIncome, commonExpenses, shortfall, contributors, perContributor, transfers, paid, closed, outstanding }
+  return { commonIncome, commonExpenses, shortfall, contributors, perContributor, transfers, paid, closed, outstanding, ledger, net }
 }
 
 // ============================================================
