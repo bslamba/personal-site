@@ -10,7 +10,7 @@
 // hand-drawn SVG — no chart dependency.
 // ============================================================
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
@@ -2401,30 +2401,56 @@ function MemberIncomeCard({ rows, monthKey: mk, onSave, personalSpend }: {
 }
 
 // ---------- My Dashboard: where the income actually goes --------
-// One profile's income for the month, then every envelope that charges
-// against it, with the working shown line by line.
+// Income for the month, then every envelope that charges against it. Pick an
+// envelope along the top to see exactly what it costs you, what you fronted,
+// and how it has moved over the last six months.
 //
 // An expense paid from the common account is funded by that account's own
-// earnings, so it never reaches a salary — only a shortfall the common
-// account could not cover does, and that gets its own line under the
-// household. Each expense is charged under exactly ONE envelope so the rows
-// add up to the total.
-function IncomeImpactCard({ doc, entityId, k, envs }: {
-  doc: FinanceDoc; entityId: string; k: string; envs: Envelope[]
-}) {
+// earnings, so it never reaches a salary; only a shortfall it could not cover
+// does, as its own line under the household. Each expense is charged under
+// exactly ONE envelope, so the parts add up to the whole.
+interface ImpactLine {
+  id: string
+  name: string
+  full: number          // the whole expense
+  frac: number          // the part of it you bear
+  mine: number          // full × frac
+  paidBy: string        // '' for the common-account top-up, which nobody "paid"
+}
+interface ImpactGroup {
+  id: string
+  name: string
+  color: string
+  lines: ImpactLine[]
+  charged: number       // total charged to you
+  full: number          // what those expenses cost in total, all bearers together
+  youPaid: number       // what actually left your account
+}
+interface Impact {
+  income: number
+  incomeRows: IncomeItem[]
+  groups: ImpactGroup[]
+  charged: number
+  left: number
+  commonIncome: number
+  commonExpenses: number
+  shortfall: number
+}
+
+function computeImpact(doc: FinanceDoc, entityId: string, k: string, envs: Envelope[]): Impact {
   const entities = doc.entities
   const m = monthView(doc, k)
   const s = computeSettlement(doc, k)
   const incomeRows = m.income.filter(i => i.entity === entityId)
-  const totalIncome = incomeRows.reduce((a, b) => a + (b.amount || 0), 0)
+  const income = incomeRows.reduce((a, b) => a + (b.amount || 0), 0)
   const householdEnv = envs.find(e => e.system)
   const householdId = householdEnv?.id ?? HOUSEHOLD
 
   const myFrac = (it: Item) => shares(it)[entityId] ?? 0
-  // The envelope an expense is charged under: the one it is filed in, or —
-  // for anything left sitting in the household — the envelope whose members
-  // are exactly the people bearing it, so a 50/50 EMI is charged under
-  // "Brothers" rather than the household it happens to be filed in.
+  // The envelope an expense is charged under: the one it is filed in, or — for
+  // anything left sitting in the household — the envelope whose members are
+  // exactly the people bearing it, so a 50/50 EMI is charged under "Brothers"
+  // rather than the household it happens to be filed in.
   const homeOf = (it: Item): Envelope | undefined => {
     const filed = envs.find(e => e.id === (it.envelope ?? HOUSEHOLD))
     if (filed && !filed.system) return filed
@@ -2432,111 +2458,270 @@ function IncomeImpactCard({ doc, entityId, k, envs }: {
     const exact = envs.find(e => !e.system && e.members.length === bearers.length && [...e.members].sort().every((x, i) => x === bearers[i]))
     return exact ?? filed
   }
+  const colorOf = (env?: Envelope) => {
+    if (env?.personalOf) return entColor(entities, env.personalOf)
+    if (!env || env.system) return '#6d4bd8'
+    const i = envs.filter(e => !e.system && !e.personalOf).findIndex(e => e.id === env.id)
+    return PALETTE[(i + 1) % PALETTE.length]
+  }
 
-  interface Group { id: string; name: string; color: string; lines: { label: string; amount: number }[]; total: number }
-  const groups = new Map<string, Group>()
-  const groupFor = (env: Envelope | undefined): Group => {
+  const groups = new Map<string, ImpactGroup>()
+  const groupFor = (env: Envelope | undefined): ImpactGroup => {
     const id = env?.id ?? householdId
     const found = groups.get(id)
     if (found) return found
-    const g: Group = {
-      id, name: env?.name ?? 'Lamba Household',
-      color: env?.personalOf ? entColor(entities, env.personalOf) : 'var(--vg-accent)',
-      lines: [], total: 0,
-    }
+    const g: ImpactGroup = { id, name: env?.name ?? 'Lamba Household', color: colorOf(env), lines: [], charged: 0, full: 0, youPaid: 0 }
     groups.set(id, g)
     return g
   }
 
   for (const it of m.items) {
-    if (it.paidBy === 'common') continue                 // the common account's own money
-    const amount = (it.amount || 0) * myFrac(it)
-    if (amount < 0.5) continue
+    if (it.paidBy === 'common') continue              // the common account's own money
+    const frac = myFrac(it)
+    const mine = (it.amount || 0) * frac
+    if (mine < 0.5) continue
     const g = groupFor(homeOf(it))
-    const pct = Math.round(myFrac(it) * 100)
-    const who = it.paidBy === entityId ? 'you paid' : `${entName(entities, it.paidBy)} paid`
-    g.lines.push({ label: `${it.name || 'Expense'} · ${pct >= 100 ? 'all yours' : `your ${pct}%`} (${who})`, amount: -amount })
-    g.total -= amount
+    g.lines.push({ id: it.id, name: it.name || 'Expense', full: it.amount || 0, frac, mine, paidBy: it.paidBy })
+    g.charged += mine
+    g.full += it.amount || 0
+    if (it.paidBy === entityId) g.youPaid += it.amount || 0
   }
 
   const topUp = s.contributors.includes(entityId) ? s.perContributor : 0
   if (topUp > 0.5) {
     const g = groupFor(householdEnv)
-    g.lines.push({ label: `Common account came up ${INR(s.shortfall)} short — your equal share to pay in`, amount: -topUp })
-    g.total -= topUp
+    g.lines.push({ id: 'topup', name: 'Common account top-up — your equal share of what it fell short', full: s.shortfall, frac: s.contributors.length ? 1 / s.contributors.length : 1, mine: topUp, paidBy: '' })
+    g.charged += topUp
+    g.full += s.shortfall
   }
 
-  const rank = (g: Group) => (envs.find(e => e.id === g.id)?.personalOf ? 0 : g.id === householdId ? 2 : 1)
-  const blocks = [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
-  const charged = blocks.reduce((a, g) => a + g.total, 0)          // negative
-  const left = totalIncome + charged
+  for (const g of groups.values()) g.lines.sort((a, b) => b.mine - a.mine)
+  const rank = (g: ImpactGroup) => (envs.find(e => e.id === g.id)?.personalOf ? 0 : g.id === householdId ? 2 : 1)
+  const ordered = [...groups.values()].sort((a, b) => rank(a) - rank(b) || b.charged - a.charged)
+  const charged = ordered.reduce((a, g) => a + g.charged, 0)
+  return { income, incomeRows, groups: ordered, charged, left: income - charged, commonIncome: s.commonIncome, commonExpenses: s.commonExpenses, shortfall: s.shortfall }
+}
+
+const IMPACT_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
+  doc: FinanceDoc; entityId: string; k: string; envs: Envelope[]
+  onPickMonth?: (k: string) => void
+}) {
+  const [sel, setSel] = useState<string>('all')
+  const entities = doc.entities
+  const imp = computeImpact(doc, entityId, k, envs)
+  const cur = sel === 'all' ? undefined : imp.groups.find(g => g.id === sel)
+  const pctOf = (v: number) => (imp.income > 0 ? (v / imp.income) * 100 : 0)
+  const fmtPct = (v: number) => `${pctOf(v) >= 10 ? Math.round(pctOf(v)) : pctOf(v).toFixed(1)}%`
+
+  // The same working for the last six months, so a month can be read in context
+  // rather than in isolation. Derived from the doc, so it is cheap to redo.
+  const trend = useMemo(() => {
+    const [y, mo] = k.split('-').map(Number)
+    return Array.from({ length: 6 }, (_, i) => {
+      const key = monthKey(new Date(y, mo - 1 - (5 - i), 1))
+      const past = computeImpact(doc, entityId, key, visibleEnvelopes(doc, entityId))
+      const g = sel === 'all' ? null : past.groups.find(x => x.id === sel)
+      return { k: key, charged: sel === 'all' ? past.charged : (g?.charged ?? 0), income: past.income }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, entityId, k, sel])
+  const trendMax = Math.max(1, ...trend.map(t => t.charged))
+  const trendAvg = trend.reduce((a, t) => a + t.charged, 0) / (trend.length || 1)
+  const thisMonth = trend[trend.length - 1]?.charged ?? 0
+  const vsAvg = trendAvg > 0.5 ? ((thisMonth - trendAvg) / trendAvg) * 100 : 0
+
+  const net = cur ? cur.youPaid - cur.charged : 0
+  const nm = (id: string) => entName(entities, id)
+
+  const bar = (value: number, of: number, color: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'rgba(120,99,190,0.12)', overflow: 'hidden' }}>
+        <span style={{ display: 'block', height: '100%', width: `${of > 0 ? Math.min(100, (value / of) * 100) : 0}%`, background: color, borderRadius: 999 }} />
+      </span>
+      <b style={{ fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums', minWidth: 46, textAlign: 'right', color: 'var(--vg-ink-soft)' }}>
+        {of > 0 ? `${Math.round((value / of) * 100)}%` : '—'}
+      </b>
+    </div>
+  )
 
   return (
     <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-      <p className="vg-sec" style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Scale className="h-4 w-4" /> What each envelope does to your income
-      </p>
-
-      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
-        <Kpi label="My income" value={INR(totalIncome)} cls="vg-pos" info="Everything recorded as yours this month — salary and anything else, including a payout from the common account." />
-        <Kpi label="Charged to me" value={INR(Math.abs(charged))} info="Your share of every expense that reaches your own money, across all envelopes." />
-        <Kpi label={left >= 0 ? 'Left over' : 'Short by'} value={INR(Math.abs(left))} cls={left >= 0 ? 'vg-pos' : 'vg-neg'} info="Your income minus everything charged to you this month." />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <p className="vg-sec" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Scale className="h-4 w-4" /> What each envelope does to your income
+        </p>
+        <span className="vg-muted" style={{ fontSize: '0.8rem' }}>{monthLabel(k)}</span>
       </div>
 
-      <div style={{ display: 'grid', gap: '0.8rem', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-        {incomeRows.length > 0 && (
-          <div className="vg-card" style={{ padding: '0.7rem 0.85rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
-            <p style={{ margin: '0 0 0.4rem', fontWeight: 700 }}><span className="vg-dot" style={{ background: 'var(--vg-pos)', marginRight: 6 }} />Money in</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              {incomeRows.map(i => (
-                <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8rem' }}>
-                  <span className="vg-muted" style={{ flex: 1 }}>{i.source}</span>
-                  <span className="vg-pos" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>+{INR(i.amount)}</span>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.85rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
-                <b>Total income</b>
-                <b className="vg-pos" style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(totalIncome)}</b>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {blocks.map(g => (
-          <div key={g.id} className="vg-card" style={{ padding: '0.7rem 0.85rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
-            <p style={{ margin: '0 0 0.4rem', fontWeight: 700 }}><span className="vg-dot" style={{ background: g.color, marginRight: 6 }} />{g.name}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              {g.lines.map((ln, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8rem' }}>
-                  <span className="vg-muted" style={{ flex: 1 }}>{ln.label}</span>
-                  <span className="vg-neg" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>−{INR(Math.abs(ln.amount))}</span>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.85rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
-                <b>Charged to you</b>
-                <b className="vg-neg" style={{ fontVariantNumeric: 'tabular-nums' }}>−{INR(Math.abs(g.total))}</b>
-              </div>
-            </div>
-          </div>
+      {/* Pick an envelope — each tab carries its own headline figure, so the
+          comparison is there before you click anything. */}
+      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', margin: '0.9rem 0 1.2rem' }}>
+        <button className="vg-envtab" data-on={!cur} onClick={() => setSel('all')}>
+          <span className="t">Everything</span>
+          <span className="v">{INR(imp.charged)}</span>
+          <span className="s">{fmtPct(imp.charged)} of income</span>
+        </button>
+        {imp.groups.map(g => (
+          <button key={g.id} className="vg-envtab" data-on={cur?.id === g.id} onClick={() => setSel(g.id)}>
+            <span className="t"><i className="vg-dot" style={{ background: g.color }} /> {g.name}</span>
+            <span className="v">{INR(g.charged)}</span>
+            <span className="s">{fmtPct(g.charged)} of income</span>
+          </button>
         ))}
       </div>
 
-      {blocks.length === 0 && <p className="vg-muted" style={{ margin: '0.4rem 0 0' }}>Nothing is charged to you this month — your whole income stays with you.</p>}
+      {!cur ? (
+        <>
+          <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+            <Kpi label="My income" value={INR(imp.income)} cls="vg-pos" info="Everything recorded as yours this month — salary and anything else, including a payout from the common account." />
+            <Kpi label="Charged to me" value={INR(imp.charged)} info="Your share of every expense that reaches your own money, across all envelopes." />
+            <Kpi label={imp.left >= 0 ? 'Left over' : 'Short by'} value={INR(Math.abs(imp.left))} cls={imp.left >= 0 ? 'vg-pos' : 'vg-neg'} info="Your income minus everything charged to you this month." />
+            <Kpi label="Income kept" small value={`${imp.income > 0 ? Math.max(0, Math.round((imp.left / imp.income) * 100)) : 0}%`} cls={imp.left >= 0 ? 'vg-pos' : 'vg-neg'} info="How much of this month's income is still yours after every envelope has taken its share." />
+          </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: '1rem', paddingTop: '0.7rem', borderTop: '2px solid rgba(109,75,216,0.25)' }}>
-        <span style={{ fontSize: '0.88rem' }}>
-          <b className="vg-pos">{INR(totalIncome)}</b> <span className="vg-muted">in</span> − <b className="vg-neg">{INR(Math.abs(charged))}</b> <span className="vg-muted">charged to you</span>
-        </span>
-        <span style={{ fontSize: '1.05rem' }}>
-          <span className="vg-muted" style={{ fontSize: '0.85rem' }}>{left >= 0 ? 'Left with you' : 'You are short by'} </span>
-          <b className={left >= 0 ? 'vg-pos' : 'vg-neg'} style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(Math.abs(left))}</b>
-        </span>
+          <p className="vg-sec" style={{ marginBottom: '0.5rem' }}>Where your income went</p>
+          <StackBar parts={[
+            ...imp.groups.map(g => ({ label: g.name, value: g.charged, color: g.color })),
+            ...(imp.left > 0.5 ? [{ label: 'Left with you', value: imp.left, color: '#1f9d6b' }] : []),
+          ]} />
+
+          <div className="vg-tablewrap" style={{ marginTop: '1.2rem' }}>
+            <table className="vg-table" style={{ minWidth: 640 }}>
+              <thead><tr>
+                <th>Envelope</th>
+                <th className="num" style={{ width: 70 }}>Items</th>
+                <th className="num">Full cost</th>
+                <th className="num">Charged to you</th>
+                <th style={{ width: '30%' }}>Share of your income</th>
+              </tr></thead>
+              <tbody>
+                {imp.groups.map(g => (
+                  <tr key={g.id}>
+                    <td>
+                      <button className="vg-btn-ghost" style={{ padding: 0, fontWeight: 600 }} onClick={() => setSel(g.id)}>
+                        <span className="vg-dot" style={{ background: g.color, marginRight: 6 }} />{g.name}
+                      </button>
+                    </td>
+                    <td className="num vg-muted">{g.lines.length}</td>
+                    <td className="num vg-muted">{INR(g.full)}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{INR(g.charged)}</td>
+                    <td>{bar(g.charged, imp.income, g.color)}</td>
+                  </tr>
+                ))}
+                {imp.groups.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing is charged to you this month — your whole income stays with you.</td></tr>}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                  <td style={{ fontWeight: 700, paddingTop: '0.6rem' }}>{imp.left >= 0 ? 'Left with you' : 'Short by'}</td>
+                  <td colSpan={2}></td>
+                  <td className="num" style={{ paddingTop: '0.6rem' }}><b className={imp.left >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(imp.left))}</b></td>
+                  <td style={{ paddingTop: '0.6rem' }}>{bar(Math.max(0, imp.left), imp.income, '#1f9d6b')}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {imp.incomeRows.length > 0 && (
+            <div style={{ marginTop: '1.1rem' }}>
+              <p className="vg-sec" style={{ marginBottom: '0.45rem' }}>Money in</p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {imp.incomeRows.map(i => (
+                  <span key={i.id} className="vg-chip" style={{ background: 'rgba(31,157,107,0.12)', color: 'var(--vg-pos)', fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}>
+                    {i.source} <b style={{ marginLeft: 4 }}>{INR(i.amount)}</b>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+            <Kpi label="Charged to you" value={INR(cur.charged)} cls="vg-neg" info="Your share of this envelope's expenses this month." />
+            <Kpi label="Share of your income" value={fmtPct(cur.charged)} info="What this one envelope takes out of everything you earned this month." />
+            <Kpi label="Full cost of these bills" value={INR(cur.full)} info="What these expenses cost in total, before they are split between the people sharing them." />
+            <Kpi label="You paid out" value={INR(cur.youPaid)} info="How much of this actually left your own account — which is not the same as your share of it." />
+            <Kpi label={net >= 0.5 ? 'Others owe you' : net <= -0.5 ? 'You owe' : 'Settled'} small
+              value={Math.abs(net) < 0.5 ? 'All square' : INR(Math.abs(net))}
+              cls={net >= 0.5 ? 'vg-pos' : net <= -0.5 ? 'vg-neg' : undefined}
+              info="You paid out, minus your share. Positive means you fronted more than your part and the rest is owed back to you." />
+          </div>
+
+          <div className="vg-tablewrap">
+            <table className="vg-table" style={{ minWidth: 680 }}>
+              <thead><tr>
+                <th>Expense</th>
+                <th>Paid by</th>
+                <th className="num">Full amount</th>
+                <th className="num" style={{ width: 80 }}>Your part</th>
+                <th className="num">Charged to you</th>
+                <th style={{ width: '22%' }}>Weight</th>
+              </tr></thead>
+              <tbody>
+                {cur.lines.map(ln => (
+                  <tr key={ln.id}>
+                    <td className="vg-nm" style={{ fontWeight: 600 }}>{ln.name}</td>
+                    <td>{ln.paidBy
+                      ? <span className="vg-chip" style={{ background: entColor(entities, ln.paidBy) + '22', color: entColor(entities, ln.paidBy) }}>{ln.paidBy === entityId ? 'You' : nm(ln.paidBy)}</span>
+                      : <span className="vg-muted">—</span>}</td>
+                    <td className="num vg-muted">{INR(ln.full)}</td>
+                    <td className="num vg-muted">{Math.round(ln.frac * 100)}%</td>
+                    <td className="num vg-neg" style={{ fontWeight: 700 }}>−{INR(ln.mine)}</td>
+                    <td>{bar(ln.mine, cur.charged, cur.color)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                  <td colSpan={4} style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Charged to you from {cur.name}</td>
+                  <td className="num" style={{ paddingTop: '0.6rem' }}><b className="vg-neg">−{INR(cur.charged)}</b></td>
+                  <td style={{ paddingTop: '0.6rem' }}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Six months of the same figure — one month on its own says very little. */}
+      <div style={{ marginTop: '1.4rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>{cur ? `${cur.name} — last six months` : 'Charged to you — last six months'}</p>
+          <span className="vg-muted" style={{ fontSize: '0.78rem' }}>
+            averages {INR(trendAvg)}
+            {Math.abs(vsAvg) >= 1 && <> · this month is <b className={vsAvg > 0 ? 'vg-neg' : 'vg-pos'}>{vsAvg > 0 ? 'up' : 'down'} {Math.abs(Math.round(vsAvg))}%</b> on that</>}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 150, paddingTop: 6 }}>
+          {trend.map(t => {
+            const isNow = t.k === k
+            const share = t.income > 0 ? Math.round((t.charged / t.income) * 100) : null
+            const mi = Number(t.k.slice(5, 7)) - 1
+            return (
+              <button key={t.k} onClick={() => onPickMonth?.(t.k)} title={`${monthLabel(t.k)} · ${INR(t.charged)}${share != null ? ` · ${share}% of income` : ''}`}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 0, background: 'transparent', cursor: onPickMonth ? 'pointer' : 'default', minWidth: 0, padding: 0 }}>
+                <span style={{ fontSize: 10, color: 'var(--vg-ink-soft)', fontVariantNumeric: 'tabular-nums' }}>{t.charged > 0 ? Math.round(t.charged / 1000) + 'k' : ''}</span>
+                <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 96 }}>
+                  <span style={{
+                    width: '100%', height: `${(t.charged / trendMax) * 100}%`, minHeight: t.charged > 0 ? 3 : 0, borderRadius: '7px 7px 3px 3px',
+                    background: isNow ? (cur?.color ?? '#6d4bd8') : 'rgba(120,99,190,0.28)',
+                  }} />
+                </span>
+                <span style={{ fontSize: 10, color: isNow ? 'var(--vg-accent)' : 'var(--vg-ink-faint)', fontWeight: isNow ? 700 : 500 }}>{IMPACT_MON[mi]}</span>
+                <span style={{ fontSize: 9, color: 'var(--vg-ink-faint)', fontVariantNumeric: 'tabular-nums' }}>{share != null ? `${share}%` : ''}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.5rem' }}>Each bar is what was charged to you that month; the small figure underneath is what slice of that month&rsquo;s income it took. Tap a bar to open that month.</p>
       </div>
 
-      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>
-        The <b>{householdEnv?.name ?? 'Lamba Household'}</b> account earns its own money ({INR(s.commonIncome)} this month) and paid {INR(s.commonExpenses)} of bills from it, so none of that is charged to your salary
-        {topUp > 0.5
-          ? <> — except that it fell {INR(s.shortfall)} short, and each earner pays in an equal share, which is the line above.</>
+      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '1rem', paddingTop: '0.7rem', borderTop: '1px solid var(--vg-line)' }}>
+        The <b>{envs.find(e => e.system)?.name ?? 'Lamba Household'}</b> account earns its own money ({INR(imp.commonIncome)} this month) and paid {INR(imp.commonExpenses)} of bills from it, so none of that is charged to your salary
+        {imp.shortfall > 0.5
+          ? <> — except that it fell {INR(imp.shortfall)} short, and each earner pays in an equal share.</>
           : <>. It covered itself this month, so there is nothing for you to pay in.</>}
       </p>
     </div>
@@ -2695,7 +2880,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
         <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k} personalSpend={personalTotal}
           onSave={rows => action({ action: 'setMonthIncome', monthKey: k, income: rows })} />
       </div>}
-      {isDash && <IncomeImpactCard doc={doc} entityId={entityId} k={k} envs={envs} />}
+      {isDash && <IncomeImpactCard doc={doc} entityId={entityId} k={k} envs={envs} onPickMonth={setKey} />}
 
       <div className="vg-grid2">
         {isHousehold && <CommonIncomeCard doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}

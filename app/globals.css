@@ -2090,6 +2090,17 @@ body:has(.vg-member) > footer { display: none !important; }
 .vg .vg-subtabs { display: inline-flex; gap: 0.2rem; padding: 0.22rem; border-radius: 12px; background: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.65); }
 .vg .vg-subtab { border: 0; background: transparent; color: var(--vg-ink-soft); font: inherit; font-weight: 600; font-size: 0.82rem; padding: 0.4rem 0.8rem; border-radius: 9px; cursor: pointer; }
 .vg .vg-subtab[data-on="true"] { background: #fff; color: var(--vg-accent); box-shadow: 0 4px 12px -6px rgba(109,75,216,0.5); }
+
+/* Envelope picker on My Dashboard: each tab carries its own headline figure,
+   so the envelopes can be compared before one is opened. */
+.vg .vg-envtab { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; min-width: 158px; padding: 0.6rem 0.9rem; border-radius: 14px; border: 1px solid var(--vg-line); background: rgba(255,255,255,0.55); font: inherit; text-align: left; cursor: pointer; transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.18s; }
+.vg .vg-envtab:hover { background: #fff; border-color: var(--vg-accent); transform: translateY(-1px); }
+.vg .vg-envtab .t { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 700; color: var(--vg-ink-faint); }
+.vg .vg-envtab .v { font-size: 1.15rem; font-weight: 800; color: var(--vg-ink); font-variant-numeric: tabular-nums; }
+.vg .vg-envtab .s { font-size: 0.72rem; font-weight: 600; color: var(--vg-ink-faint); }
+.vg .vg-envtab[data-on="true"] { background: linear-gradient(180deg, var(--vg-accent-2), var(--vg-accent)); border-color: transparent; box-shadow: 0 12px 24px -12px rgba(109,75,216,0.8); }
+.vg .vg-envtab[data-on="true"] .v { color: #fff; }
+.vg .vg-envtab[data-on="true"] .t, .vg .vg-envtab[data-on="true"] .s { color: rgba(255,255,255,0.85); }
 .vg .vg-count { font-size: 0.7rem; opacity: 0.7; margin-left: 0.3rem; }
 
 /* Vault — KPI info popover + EMI outlook rows */
