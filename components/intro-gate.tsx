@@ -23,8 +23,10 @@ import { usePathname } from 'next/navigation'
 // Routes that are not "the site" and must not be introduced by it.
 // /happy-birthday is opened from a link sent to one person; making
 // her click through a consultant's splash screen first would be a
-// strange way to say happy birthday.
-const NO_GATE = ['/happy-birthday']
+// strange way to say happy birthday. The vault is a private tool its
+// people sign into daily — a splash screen is just a door to shoulder
+// open every time.
+const NO_GATE = ['/happy-birthday', '/vault']
 
 const NAME_LINE_1 = 'BHAWNEET'
 const NAME_LINE_2 = 'LAMBA'
