@@ -25,6 +25,7 @@ export interface Entity {
   earning: boolean       // brings in income
   isLiability: boolean   // a dependent / liability, tracked but not earning
   color: string
+  role?: string          // family relationship label, e.g. "Father", "Son", "Daughter-in-law"
 }
 
 // How an expense's cost is shared.
@@ -211,10 +212,10 @@ export const ENTITY_COLORS = ['#4b7bec', '#b0479a', '#1f9d6b', '#e8963a', '#6d4b
 // ----- default entities ----------------------------------------
 export function seedEntities(): Entity[] {
   return [
-    { id: 'bhawneet', name: 'Bhawneet', kind: 'person', canPay: true, earning: true, isLiability: false, color: '#4b7bec' },
-    { id: 'gurneet', name: 'Gurneet', kind: 'person', canPay: true, earning: true, isLiability: false, color: '#b0479a' },
+    { id: 'bhawneet', name: 'Bhawneet', kind: 'person', canPay: true, earning: true, isLiability: false, color: '#4b7bec', role: 'Son' },
+    { id: 'gurneet', name: 'Gurneet', kind: 'person', canPay: true, earning: true, isLiability: false, color: '#b0479a', role: 'Son' },
     { id: 'common', name: 'Common', kind: 'common', canPay: true, earning: false, isLiability: false, color: '#6d4bd8' },
-    { id: 'papa', name: 'Papa', kind: 'person', canPay: true, earning: false, isLiability: false, color: '#1f9d6b' },
+    { id: 'papa', name: 'Papa', kind: 'person', canPay: true, earning: false, isLiability: false, color: '#1f9d6b', role: 'Father' },
   ]
 }
 
@@ -342,6 +343,9 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!doc.settlements || typeof doc.settlements !== 'object') doc.settlements = {}
     if (!Array.isArray(doc.reminders)) doc.reminders = []
     if (!Array.isArray(doc.envelopes) || doc.envelopes.length === 0) doc.envelopes = seedEnvelopes(doc.entities)
+    // Backfill family roles for the seeded members if none were set yet.
+    const DEFAULT_ROLES: Record<string, string> = { papa: 'Father', bhawneet: 'Son', gurneet: 'Son' }
+    for (const e of doc.entities) if (e.kind === 'person' && !e.role && DEFAULT_ROLES[e.id]) e.role = DEFAULT_ROLES[e.id]
     // Every existing expense belongs to the household envelope until moved.
     const stamp = (it: Item) => { if (!it.envelope) it.envelope = HOUSEHOLD }
     doc.template.monthly.forEach(stamp); doc.template.emis.forEach(stamp); doc.template.annual.forEach(stamp)

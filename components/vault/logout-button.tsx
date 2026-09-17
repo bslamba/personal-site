@@ -21,9 +21,8 @@ export default function VaultLogout() {
   }
 
   return (
-    <button className="vg-btn vg-signout" onClick={out} disabled={busy} aria-label="Sign out" title="Sign out">
+    <button className="vg-icobtn vg-signout" onClick={out} disabled={busy} aria-label="Sign out" title="Sign out">
       {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <LogOut className="h-4 w-4" />}
-      <span className="vg-signout-label">Sign out</span>
     </button>
   )
 }
