@@ -27,7 +27,7 @@ import {
   emptyBudget, categoryOf, detectCategory, isPersonalTo,
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
-  personalEnvId,
+  personalEnvId, bearersOf,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -2391,11 +2391,154 @@ function MemberIncomeCard({ rows, monthKey: mk, onSave, personalSpend }: {
       </div>
       {left != null && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.7rem', paddingTop: '0.6rem', borderTop: '1px solid var(--vg-line)' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--vg-ink-soft)' }}>− Personal expenses ({INR(personalSpend ?? 0)}) ={' '}<b>{left >= 0 ? 'Left' : 'Over by'}</b></span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--vg-ink-soft)' }}>− Personal expenses ({INR(personalSpend ?? 0)}) ={' '}<b>{left >= 0 ? 'Left after your own spending' : 'Over your own spending by'}</b></span>
           <b style={{ fontVariantNumeric: 'tabular-nums' }} className={left >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(left))}</b>
         </div>
       )}
       <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>Private to your profile — no one else, including the family admin, can see this.</p>
+    </div>
+  )
+}
+
+// ---------- My Dashboard: where the income actually goes --------
+// One profile's income for the month, then every envelope that charges
+// against it, with the working shown line by line.
+//
+// An expense paid from the common account is funded by that account's own
+// earnings, so it never reaches a salary — only a shortfall the common
+// account could not cover does, and that gets its own line under the
+// household. Each expense is charged under exactly ONE envelope so the rows
+// add up to the total.
+function IncomeImpactCard({ doc, entityId, k, envs }: {
+  doc: FinanceDoc; entityId: string; k: string; envs: Envelope[]
+}) {
+  const entities = doc.entities
+  const m = monthView(doc, k)
+  const s = computeSettlement(doc, k)
+  const incomeRows = m.income.filter(i => i.entity === entityId)
+  const totalIncome = incomeRows.reduce((a, b) => a + (b.amount || 0), 0)
+  const householdEnv = envs.find(e => e.system)
+  const householdId = householdEnv?.id ?? HOUSEHOLD
+
+  const myFrac = (it: Item) => shares(it)[entityId] ?? 0
+  // The envelope an expense is charged under: the one it is filed in, or —
+  // for anything left sitting in the household — the envelope whose members
+  // are exactly the people bearing it, so a 50/50 EMI is charged under
+  // "Brothers" rather than the household it happens to be filed in.
+  const homeOf = (it: Item): Envelope | undefined => {
+    const filed = envs.find(e => e.id === (it.envelope ?? HOUSEHOLD))
+    if (filed && !filed.system) return filed
+    const bearers = bearersOf(it).sort()
+    const exact = envs.find(e => !e.system && e.members.length === bearers.length && [...e.members].sort().every((x, i) => x === bearers[i]))
+    return exact ?? filed
+  }
+
+  interface Group { id: string; name: string; color: string; lines: { label: string; amount: number }[]; total: number }
+  const groups = new Map<string, Group>()
+  const groupFor = (env: Envelope | undefined): Group => {
+    const id = env?.id ?? householdId
+    const found = groups.get(id)
+    if (found) return found
+    const g: Group = {
+      id, name: env?.name ?? 'Lamba Household',
+      color: env?.personalOf ? entColor(entities, env.personalOf) : 'var(--vg-accent)',
+      lines: [], total: 0,
+    }
+    groups.set(id, g)
+    return g
+  }
+
+  for (const it of m.items) {
+    if (it.paidBy === 'common') continue                 // the common account's own money
+    const amount = (it.amount || 0) * myFrac(it)
+    if (amount < 0.5) continue
+    const g = groupFor(homeOf(it))
+    const pct = Math.round(myFrac(it) * 100)
+    const who = it.paidBy === entityId ? 'you paid' : `${entName(entities, it.paidBy)} paid`
+    g.lines.push({ label: `${it.name || 'Expense'} · ${pct >= 100 ? 'all yours' : `your ${pct}%`} (${who})`, amount: -amount })
+    g.total -= amount
+  }
+
+  const topUp = s.contributors.includes(entityId) ? s.perContributor : 0
+  if (topUp > 0.5) {
+    const g = groupFor(householdEnv)
+    g.lines.push({ label: `Common account came up ${INR(s.shortfall)} short — your equal share to pay in`, amount: -topUp })
+    g.total -= topUp
+  }
+
+  const rank = (g: Group) => (envs.find(e => e.id === g.id)?.personalOf ? 0 : g.id === householdId ? 2 : 1)
+  const blocks = [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+  const charged = blocks.reduce((a, g) => a + g.total, 0)          // negative
+  const left = totalIncome + charged
+
+  return (
+    <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+      <p className="vg-sec" style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Scale className="h-4 w-4" /> What each envelope does to your income
+      </p>
+
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <Kpi label="My income" value={INR(totalIncome)} cls="vg-pos" info="Everything recorded as yours this month — salary and anything else, including a payout from the common account." />
+        <Kpi label="Charged to me" value={INR(Math.abs(charged))} info="Your share of every expense that reaches your own money, across all envelopes." />
+        <Kpi label={left >= 0 ? 'Left over' : 'Short by'} value={INR(Math.abs(left))} cls={left >= 0 ? 'vg-pos' : 'vg-neg'} info="Your income minus everything charged to you this month." />
+      </div>
+
+      <div style={{ display: 'grid', gap: '0.8rem', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        {incomeRows.length > 0 && (
+          <div className="vg-card" style={{ padding: '0.7rem 0.85rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
+            <p style={{ margin: '0 0 0.4rem', fontWeight: 700 }}><span className="vg-dot" style={{ background: 'var(--vg-pos)', marginRight: 6 }} />Money in</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              {incomeRows.map(i => (
+                <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8rem' }}>
+                  <span className="vg-muted" style={{ flex: 1 }}>{i.source}</span>
+                  <span className="vg-pos" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>+{INR(i.amount)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.85rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
+                <b>Total income</b>
+                <b className="vg-pos" style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(totalIncome)}</b>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {blocks.map(g => (
+          <div key={g.id} className="vg-card" style={{ padding: '0.7rem 0.85rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
+            <p style={{ margin: '0 0 0.4rem', fontWeight: 700 }}><span className="vg-dot" style={{ background: g.color, marginRight: 6 }} />{g.name}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              {g.lines.map((ln, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8rem' }}>
+                  <span className="vg-muted" style={{ flex: 1 }}>{ln.label}</span>
+                  <span className="vg-neg" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>−{INR(Math.abs(ln.amount))}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.85rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
+                <b>Charged to you</b>
+                <b className="vg-neg" style={{ fontVariantNumeric: 'tabular-nums' }}>−{INR(Math.abs(g.total))}</b>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {blocks.length === 0 && <p className="vg-muted" style={{ margin: '0.4rem 0 0' }}>Nothing is charged to you this month — your whole income stays with you.</p>}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: '1rem', paddingTop: '0.7rem', borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+        <span style={{ fontSize: '0.88rem' }}>
+          <b className="vg-pos">{INR(totalIncome)}</b> <span className="vg-muted">in</span> − <b className="vg-neg">{INR(Math.abs(charged))}</b> <span className="vg-muted">charged to you</span>
+        </span>
+        <span style={{ fontSize: '1.05rem' }}>
+          <span className="vg-muted" style={{ fontSize: '0.85rem' }}>{left >= 0 ? 'Left with you' : 'You are short by'} </span>
+          <b className={left >= 0 ? 'vg-pos' : 'vg-neg'} style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(Math.abs(left))}</b>
+        </span>
+      </div>
+
+      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>
+        The <b>{householdEnv?.name ?? 'Lamba Household'}</b> account earns its own money ({INR(s.commonIncome)} this month) and paid {INR(s.commonExpenses)} of bills from it, so none of that is charged to your salary
+        {topUp > 0.5
+          ? <> — except that it fell {INR(s.shortfall)} short, and each earner pays in an equal share, which is the line above.</>
+          : <>. It covered itself this month, so there is nothing for you to pay in.</>}
+      </p>
     </div>
   )
 }
@@ -2546,9 +2689,15 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 
       {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
 
+      {/* On My Dashboard the income card and the envelope-by-envelope working
+          below it each get the full width — they are the point of the page. */}
+      {isDash && <div style={{ marginBottom: '1.1rem' }}>
+        <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k} personalSpend={personalTotal}
+          onSave={rows => action({ action: 'setMonthIncome', monthKey: k, income: rows })} />
+      </div>}
+      {isDash && <IncomeImpactCard doc={doc} entityId={entityId} k={k} envs={envs} />}
+
       <div className="vg-grid2">
-        {isDash && <MemberIncomeCard rows={m.income.filter(i => i.entity === entityId)} monthKey={k} personalSpend={personalTotal}
-          onSave={rows => action({ action: 'setMonthIncome', monthKey: k, income: rows })} />}
         {isHousehold && <CommonIncomeCard doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
         <div className="vg-card vg-pad">
           <p className="vg-sec">Where it goes</p>
