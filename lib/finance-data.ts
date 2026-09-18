@@ -1199,3 +1199,107 @@ export function sinkingFund(doc: FinanceDoc, entityId: string | null, from: stri
     })
     .sort((a, b) => a.monthsToGo - b.monthsToGo || b.annual - a.annual)
 }
+
+// ============================================================
+// Net worth and prepayment.
+//
+// The debt side of net worth is known exactly, forwards and backwards, once
+// the loans are amortised: every future balance is already determined by the
+// schedule. Savings are only ever a balance as it stands today — there is no
+// history of them — so this never pretends to a net-worth line through time,
+// only an honest debt curve and today's position against it.
+// ============================================================
+
+export interface DebtPoint { key: string; owed: number }
+
+/** What is still owed on a loan at the end of a given month. */
+export function owedAt(it: Item, k: string, schedule?: AmortRow[]): number {
+  const sched = schedule ?? amortise(it)
+  const start = (sched[0]?.month ?? it.startDate?.slice(0, 7)) || null
+  if (!start || k < start) return 0
+  if (sched.length) {
+    const upto = sched.filter(r => r.month <= k)
+    return upto.length ? upto[upto.length - 1].closing : sched[0].opening
+  }
+  // No amount borrowed recorded — the best that can be said is instalments left.
+  const months = loanMonths(it)
+  if (!months) return 0
+  return Math.max(0, months - monthsBetween(start, k)) * (it.amount || 0)
+}
+
+/** The debt curve: what is owed each month, for one person or the household. */
+export function debtOverTime(doc: FinanceDoc, entityId: string | null, back = 12, ahead = 36, from: string = monthKey()): DebtPoint[] {
+  const prepared = doc.template.emis.map(it => ({
+    it,
+    frac: entityId ? (shares(it)[entityId] ?? 0) : 1,
+    sched: amortise(it),
+  })).filter(p => p.frac > 0.001)
+  const [y, mo] = from.split('-').map(Number)
+  return Array.from({ length: back + ahead + 1 }, (_, i) => {
+    const key = monthKey(new Date(y, mo - 1 - back + i, 1))
+    const owed = prepared.reduce((a, p) => a + owedAt(p.it, key, p.sched) * p.frac, 0)
+    return { key, owed }
+  })
+}
+
+/** The month the last instalment of everything falls — when the debt ends. */
+export function debtFreeBy(doc: FinanceDoc, entityId: string | null): string | null {
+  let last: string | null = null
+  for (const it of doc.template.emis) {
+    if (entityId && (shares(it)[entityId] ?? 0) <= 0.001) continue
+    const v = loanView(it)
+    if (v.endsOn && (!last || v.endsOn > last)) last = v.endsOn
+  }
+  return last
+}
+
+export interface PrepayResult {
+  months: number             // instalments still to pay under this plan
+  endsOn: string | null
+  interest: number           // interest from here on under this plan
+  baseMonths: number         // and the same two figures if nothing changes
+  baseInterest: number
+  monthsSaved: number
+  interestSaved: number
+  clears: boolean            // false when the payment never covers the interest
+}
+
+/**
+ * What a prepayment would do, keeping the EMI the same and shortening the
+ * loan — which is where the saving comes from. `lump` is paid now, `monthly`
+ * is added to every instalment from here.
+ */
+export function simulatePrepay(it: Item, opts: { lump?: number; monthly?: number; from?: string }): PrepayResult | null {
+  const from = opts.from ?? monthKey()
+  const base = loanView(it, from)
+  if (base.estimated || !base.schedule.length) return null      // nothing to simulate against
+  const months = loanMonths(it) ?? base.schedule.length
+  const r = it.rate != null && it.rate >= 0 ? it.rate / 12 / 100 : impliedMonthlyRate(it.principal ?? 0, it.amount || 0, months)
+  if (r == null) return null
+
+  const emi = (it.amount || 0) + Math.max(0, opts.monthly ?? 0)
+  let balance = Math.max(0, (base.outstanding ?? 0) - Math.max(0, opts.lump ?? 0))
+  let interest = 0, n = 0
+  while (balance > 0.5 && n < 1200) {
+    const int = balance * r
+    if (emi <= int + 0.5) return {                               // the payment never bites
+      months: base.monthsLeft ?? 0, endsOn: base.endsOn, interest: base.remainingInterest,
+      baseMonths: base.monthsLeft ?? 0, baseInterest: base.remainingInterest,
+      monthsSaved: 0, interestSaved: 0, clears: false,
+    }
+    interest += int
+    balance = balance - (emi - int)
+    n++
+  }
+  const baseMonths = base.monthsLeft ?? 0
+  const baseInterest = base.remainingInterest
+  return {
+    months: n,
+    endsOn: n > 0 ? addMonths(from, n - 1) : from,
+    interest,
+    baseMonths, baseInterest,
+    monthsSaved: Math.max(0, baseMonths - n),
+    interestSaved: Math.max(0, baseInterest - interest),
+    clears: true,
+  }
+}

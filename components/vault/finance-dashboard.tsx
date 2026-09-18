@@ -29,6 +29,7 @@ import {
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
   personalEnvId, bearersOf, loanView, loanYear, fyOf,
   forecast, sinkingFund, upiLink, type ForecastMonth, type SinkingRow,
+  debtOverTime, debtFreeBy, simulatePrepay, type DebtPoint, type LoanView,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -3453,6 +3454,104 @@ function MemberRecurringIncome({ doc, entityId, onSave }: {
   )
 }
 
+// The debt curve. Every future balance is already fixed by the schedules, so
+// this is a statement rather than a projection — the only uncertainty is
+// whether anything is paid off early.
+function DebtCurve({ points, today }: { points: DebtPoint[]; today: string }) {
+  const max = Math.max(1, ...points.map(p => p.owed))
+  const n = Math.max(1, points.length - 1)
+  const x = (i: number) => (i / n) * 100
+  const y = (v: number) => 38 - (v / max) * 34
+  const line = points.map((p, i) => `${x(i).toFixed(2)},${y(p.owed).toFixed(2)}`).join(' ')
+  const area = `0,38 ${line} 100,38`
+  const nowIdx = Math.max(0, points.findIndex(p => p.key === today))
+  return (
+    <div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" style={{ width: '100%', height: 150, display: 'block' }} role="img" aria-label="What is owed, month by month">
+        <defs>
+          <linearGradient id="debtFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6d4bd8" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="#6d4bd8" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <polygon points={area} fill="url(#debtFade)" />
+        <polyline points={line} fill="none" stroke="#6d4bd8" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        <line x1={x(nowIdx)} y1="0" x2={x(nowIdx)} y2="38" stroke="#b0479a" strokeWidth="1" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--vg-ink-faint)' }}>
+        <span>{fmtMon(`${points[0]?.key}-01`)}</span>
+        <span style={{ color: '#b0479a', fontWeight: 700 }}>now</span>
+        <span>{fmtMon(`${points[points.length - 1]?.key}-01`)}</span>
+      </div>
+    </div>
+  )
+}
+
+// What paying extra would do. The EMI stays the same and the loan ends
+// sooner, which is where the interest saving comes from.
+function PrepayCard({ loans, asOf }: { loans: LoanView[]; asOf: string }) {
+  const usable = loans.filter(v => !v.estimated && (v.monthsLeft ?? 0) > 0)
+  const [id, setId] = useState(usable[0]?.item.id ?? '')
+  const [lump, setLump] = useState('')
+  const [monthly, setMonthly] = useState('')
+  const chosen = usable.find(v => v.item.id === id) ?? usable[0]
+  const result = chosen ? simulatePrepay(chosen.item, { lump: num(lump), monthly: num(monthly), from: asOf }) : null
+  const nothing = num(lump) <= 0 && num(monthly) <= 0
+
+  if (usable.length === 0) return null
+  return (
+    <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
+      <p className="vg-sec" style={{ marginTop: 0 }}>What if you paid extra?</p>
+      <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))' }}>
+        <div>
+          <label className="vg-lbl">Loan</label>
+          <select className="vg-select" value={chosen?.item.id ?? ''} onChange={e => setId(e.target.value)}>
+            {usable.map(v => <option key={v.item.id} value={v.item.id}>{v.item.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="vg-lbl">A lump sum now</label>
+          <input className="vg-input vg-num" inputMode="numeric" value={lump} placeholder="0" onChange={e => setLump(e.target.value)} />
+          <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
+            {[100000, 500000, 1000000].map(v => <button key={v} className="vg-btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.76rem' }} onClick={() => setLump(String(v))}>{INR(v)}</button>)}
+          </div>
+        </div>
+        <div>
+          <label className="vg-lbl">Extra every month</label>
+          <input className="vg-input vg-num" inputMode="numeric" value={monthly} placeholder="0" onChange={e => setMonthly(e.target.value)} />
+          <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
+            {[2000, 5000, 10000].map(v => <button key={v} className="vg-btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.76rem' }} onClick={() => setMonthly(String(v))}>{INR(v)}</button>)}
+          </div>
+        </div>
+      </div>
+
+      {chosen && result && (
+        <div style={{ marginTop: '1rem' }}>
+          {nothing ? (
+            <p className="vg-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+              <b>{chosen.item.name}</b> runs to {chosen.endsOn ? fmtMon(`${chosen.endsOn}-01`) : '—'} with {INR(chosen.remainingInterest)} of interest still to pay. Put a figure in above to see what paying extra would do.
+            </p>
+          ) : !result.clears ? (
+            <p className="vg-neg" style={{ fontSize: '0.85rem', margin: 0 }}>That instalment would not even cover the interest, so the loan would never clear.</p>
+          ) : (
+            <>
+              <div className="vg-kpis">
+                <Kpi label="Interest saved" value={INR(result.interestSaved)} cls="vg-pos" info="What you would not pay in interest, because the loan ends sooner." />
+                <Kpi label="Finishes earlier by" value={`${result.monthsSaved} months`} cls="vg-pos" info={`${Math.floor(result.monthsSaved / 12)} years and ${result.monthsSaved % 12} months.`} />
+                <Kpi label="Cleared by" value={result.endsOn ? fmtMon(`${result.endsOn}-01`) : '—'} info={`Instead of ${chosen.endsOn ? fmtMon(`${chosen.endsOn}-01`) : '—'}.`} />
+                <Kpi label="Interest left to pay" small value={`${INR(result.interest)} of ${INR(result.baseInterest)}`} info="What the rest of this loan would cost in interest under the new plan, against what it costs now." />
+              </div>
+              <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>
+                The EMI stays as it is and the loan simply ends sooner, which is where the saving comes from. Some lenders charge a fee on prepayment, or reduce the EMI instead of the tenure — worth checking which yours does.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------- Loans: amortisation and the tax year ----------------
 // What the loans really cost. Outstanding here is the amortised balance, not
 // EMI × instalments left — early instalments are mostly interest, so the two
@@ -3492,6 +3591,12 @@ function LoansTab({ doc, me }: {
   const needRate = live.filter(v => v.derivedZero)
   const needPrincipal = live.filter(v => v.estimated)
 
+  // Savings are private to each profile, so only the person themselves has
+  // both halves of a net worth. Super sees the debt side alone.
+  const assets = viewer ? doc.savings.filter(sv => sv.entity === viewer).reduce((a, sv) => a + (sv.balance || 0), 0) : null
+  const curve = useMemo(() => debtOverTime(doc, viewer, 6, 36, asOf), [doc, viewer, asOf])
+  const freeBy = debtFreeBy(doc, viewer)
+
   return (
     <>
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
@@ -3519,6 +3624,26 @@ function LoansTab({ doc, me }: {
           )}
         </div>
       )}
+
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>{assets != null ? 'Where you stand' : 'What is owed, over time'}</p>
+          {freeBy && <span className="vg-muted" style={{ fontSize: '0.8rem' }}>debt-free by <b>{fmtMon(`${freeBy}-01`)}</b></span>}
+        </div>
+        {assets != null && (
+          <div className="vg-kpis" style={{ margin: '0.8rem 0' }}>
+            <Kpi label="Savings" value={INR(assets)} cls="vg-pos" info="Everything in your savings pots. Private to you." />
+            <Kpi label="Owed" value={INR(outstanding)} cls="vg-neg" info="Your share of the amortised balance across every running loan." />
+            <Kpi label={assets - outstanding >= 0 ? 'Net worth' : 'Net position'} value={INR(Math.abs(assets - outstanding))} cls={assets - outstanding >= 0 ? 'vg-pos' : 'vg-neg'}
+              info="Savings minus what you owe. Negative is ordinary while a home loan is young — the house it bought is not counted here." />
+          </div>
+        )}
+        <div style={{ marginTop: assets != null ? 0 : '0.8rem' }}><DebtCurve points={curve} today={asOf} /></div>
+        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.5rem' }}>
+          Every future balance is already set by the loan schedules, so the line to the right of <b>now</b> is what will happen if nothing is paid off early.
+          {assets == null && ' Savings are private to each profile, so a net worth can only be seen on a profile itself.'}
+        </p>
+      </div>
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <p className="vg-sec" style={{ marginTop: 0 }}>Running loans</p>
@@ -3632,6 +3757,8 @@ function LoansTab({ doc, me }: {
           Interest is split the way the loan is split, so a 50/50 home loan gives each person half to claim. Only home-loan interest is deductible — this table does not judge which of these count, it just does the arithmetic.
         </p>
       </div>
+
+      <PrepayCard loans={live} asOf={asOf} />
     </>
   )
 }
