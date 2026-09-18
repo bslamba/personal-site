@@ -47,6 +47,7 @@ export interface Item {
   dueDate?: string | null     // annual
   principal?: number | null
   tenure?: number | null
+  rate?: number | null         // annual interest %, when known — otherwise derived from principal/EMI/tenure
   paid?: boolean
   note?: string
   receiptKey?: string | null
@@ -882,4 +883,176 @@ export function detectCategory(name: string): string {
   const n = (name || '').toLowerCase()
   for (const [re, cat] of CAT_RULES) if (re.test(n)) return cat
   return 'Other'
+}
+
+// ============================================================
+// Loans: real amortisation, and interest by financial year.
+//
+// A reducing-balance loan is not EMI × months remaining. Early EMIs are
+// almost all interest, so the outstanding principal falls far more slowly
+// than a straight-line guess suggests — and it is the interest figure, split
+// per person per financial year, that matters at tax time.
+//
+// Most loans here already carry principal, EMI and tenure, which is enough
+// to recover the interest rate, so nothing extra has to be typed in. A rate
+// can be set explicitly on the item when it is known, or when the EMI has
+// been revised and the derived figure would be wrong.
+// ============================================================
+
+export interface AmortRow {
+  month: string          // YYYY-MM the instalment falls in
+  opening: number
+  emi: number
+  interest: number
+  principal: number
+  closing: number
+}
+
+export interface LoanView {
+  item: Item
+  months: number | null          // tenure, given or derived from the dates
+  monthsPaid: number
+  monthsLeft: number | null
+  annualRate: number | null      // null when it could not be established
+  rateDerived: boolean           // true when recovered from principal/EMI/tenure
+  // A derived rate of exactly 0% means the instalments only add up to the
+  // recorded principal. That is a real 0% scheme — or, more often, a
+  // principal recorded as the TOTAL PAYABLE. Worth querying either way.
+  derivedZero: boolean
+  schedule: AmortRow[]           // empty when the loan cannot be amortised
+  estimated: boolean             // true when falling back to EMI × months left
+  outstanding: number | null
+  paidInterest: number
+  paidPrincipal: number
+  remainingInterest: number
+  totalInterest: number
+  endsOn: string | null          // YYYY-MM of the last instalment
+}
+
+/** Months from one month key to another, inclusive of both ends. */
+function monthsBetween(a: string, b: string): number {
+  const [ay, am] = a.split('-').map(Number)
+  const [by, bm] = b.split('-').map(Number)
+  return (by - ay) * 12 + (bm - am) + 1
+}
+const addMonths = (key: string, n: number) => {
+  const [y, m] = key.split('-').map(Number)
+  return monthKey(new Date(y, m - 1 + n, 1))
+}
+
+/**
+ * The monthly rate implied by a reducing-balance loan, found by bisection on
+ *   EMI = P·r·(1+r)^n / ((1+r)^n − 1)
+ * which rises monotonically with r. Returns 0 for an interest-free plan (the
+ * instalments only add up to the principal) and null when the numbers cannot
+ * describe a loan at all.
+ */
+export function impliedMonthlyRate(principal: number, emi: number, months: number): number | null {
+  if (!(principal > 0) || !(emi > 0) || !(months > 0)) return null
+  if (emi * months <= principal + 0.5) return 0          // interest-free instalments
+  if (emi <= principal / months) return null             // never repays
+  const pay = (r: number) => { const f = Math.pow(1 + r, months); return principal * r * f / (f - 1) }
+  let lo = 0, hi = 0.05                                  // up to 60% a year
+  while (pay(hi) < emi && hi < 1) hi *= 2
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2
+    if (pay(mid) < emi) lo = mid; else hi = mid
+  }
+  return (lo + hi) / 2
+}
+
+/** How many instalments this loan runs for, from tenure or its dates. */
+export function loanMonths(it: Item): number | null {
+  if (it.tenure && it.tenure > 0) return it.tenure
+  if (it.startDate && it.endDate) return Math.max(1, monthsBetween(it.startDate.slice(0, 7), it.endDate.slice(0, 7)))
+  return null
+}
+
+/** The full instalment-by-instalment schedule. Empty when the loan lacks the
+ *  principal or tenure needed to work one out. */
+export function amortise(it: Item): AmortRow[] {
+  const months = loanMonths(it)
+  const principal = it.principal ?? 0
+  const emi = it.amount || 0
+  if (!months || !(principal > 0) || !(emi > 0) || !it.startDate) return []
+  const r = it.rate != null && it.rate >= 0 ? it.rate / 12 / 100 : impliedMonthlyRate(principal, emi, months)
+  if (r == null) return []
+  const start = it.startDate.slice(0, 7)
+  const rows: AmortRow[] = []
+  let balance = principal
+  for (let i = 0; i < months && balance > 0.5; i++) {
+    const interest = balance * r
+    // The final instalment settles the balance exactly — real lenders round
+    // the last payment, and it keeps the schedule adding up to the principal.
+    const due = i === months - 1 ? balance + interest : Math.min(emi, balance + interest)
+    const principalPart = due - interest
+    const closing = Math.max(0, balance - principalPart)
+    rows.push({ month: addMonths(start, i), opening: balance, emi: due, interest, principal: principalPart, closing })
+    balance = closing
+  }
+  return rows
+}
+
+/** Everything worth knowing about a loan as of a given month. Falls back to
+ *  the straight-line estimate when it cannot be amortised, and says so. */
+export function loanView(it: Item, asOf: string = monthKey()): LoanView {
+  const months = loanMonths(it)
+  const schedule = amortise(it)
+  const start = it.startDate ? it.startDate.slice(0, 7) : null
+  const elapsed = start ? Math.max(0, monthsBetween(start, asOf)) : 0
+  const monthsPaid = months ? Math.min(elapsed, months) : elapsed
+
+  if (schedule.length === 0) {
+    // No principal or tenure: all we can honestly say is EMI × instalments left.
+    const monthsLeft = months != null ? Math.max(0, months - monthsPaid) : null
+    return {
+      item: it, months, monthsPaid, monthsLeft, annualRate: null, rateDerived: false, derivedZero: false,
+      schedule, estimated: true,
+      outstanding: monthsLeft != null ? (it.amount || 0) * monthsLeft : null,
+      paidInterest: 0, paidPrincipal: 0, remainingInterest: 0, totalInterest: 0,
+      endsOn: it.endDate ? it.endDate.slice(0, 7) : (start && months ? addMonths(start, months - 1) : null),
+    }
+  }
+
+  const done = schedule.filter(r => r.month <= asOf)
+  const left = schedule.filter(r => r.month > asOf)
+  const r = it.rate != null && it.rate >= 0
+    ? it.rate / 100
+    : (impliedMonthlyRate(it.principal ?? 0, it.amount || 0, months ?? schedule.length) ?? 0) * 12
+  return {
+    item: it, months, monthsPaid: done.length, monthsLeft: left.length,
+    annualRate: r * 100, rateDerived: it.rate == null, derivedZero: it.rate == null && r < 0.0001,
+    schedule, estimated: false,
+    outstanding: done.length ? done[done.length - 1].closing : (it.principal ?? 0),
+    paidInterest: done.reduce((a, x) => a + x.interest, 0),
+    paidPrincipal: done.reduce((a, x) => a + x.principal, 0),
+    remainingInterest: left.reduce((a, x) => a + x.interest, 0),
+    totalInterest: schedule.reduce((a, x) => a + x.interest, 0),
+    endsOn: schedule[schedule.length - 1]?.month ?? null,
+  }
+}
+
+/** The Indian financial year a month falls in, as '2026-27' (April to March). */
+export function fyOf(key: string): string {
+  const [y, m] = key.split('-').map(Number)
+  const start = m >= 4 ? y : y - 1
+  return `${start}-${String((start + 1) % 100).padStart(2, '0')}`
+}
+/** The months of a financial year, in order. */
+export function fyMonths(fy: string): string[] {
+  const start = Number(fy.slice(0, 4))
+  return Array.from({ length: 12 }, (_, i) => addMonths(`${start}-04`, i))
+}
+
+/** What a loan costs in one financial year, and each person's share of it. */
+export function loanYear(it: Item, fy: string): { interest: number; principal: number; paid: number; byEntity: Record<string, { interest: number; principal: number }> } {
+  const rows = amortise(it).filter(r => fyOf(r.month) === fy)
+  const interest = rows.reduce((a, x) => a + x.interest, 0)
+  const principal = rows.reduce((a, x) => a + x.principal, 0)
+  const byEntity: Record<string, { interest: number; principal: number }> = {}
+  for (const [id, frac] of Object.entries(shares(it))) {
+    if (frac <= 0.001) continue
+    byEntity[id] = { interest: interest * frac, principal: principal * frac }
+  }
+  return { interest, principal, paid: rows.reduce((a, x) => a + x.emi, 0), byEntity }
 }

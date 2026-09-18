@@ -15,7 +15,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards,
+  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards, Landmark,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -27,7 +27,7 @@ import {
   emptyBudget, categoryOf, detectCategory, isPersonalTo, entityReferences,
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
-  personalEnvId, bearersOf,
+  personalEnvId, bearersOf, loanView, loanYear, fyOf,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -276,10 +276,21 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
         </div>
 
         {isEmi && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
-            <div><label className="vg-lbl">Start</label><input type="date" className="vg-input" value={d.startDate ?? ''} onChange={e => set({ startDate: e.target.value || null })} /></div>
-            <div><label className="vg-lbl">End</label><input type="date" className="vg-input" value={d.endDate ?? ''} onChange={e => set({ endDate: e.target.value || null })} /></div>
-          </div>
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+              <div><label className="vg-lbl">Start</label><input type="date" className="vg-input" value={d.startDate ?? ''} onChange={e => set({ startDate: e.target.value || null })} /></div>
+              <div><label className="vg-lbl">End</label><input type="date" className="vg-input" value={d.endDate ?? ''} onChange={e => set({ endDate: e.target.value || null })} /></div>
+            </div>
+            {/* The amount borrowed, the tenure and the EMI are enough to
+                recover the interest rate, which is what the Loans page
+                amortises. A rate can be given instead when it is known. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+              <div><label className="vg-lbl">Amount borrowed</label><input className="vg-input vg-num" inputMode="numeric" value={d.principal != null ? String(d.principal) : ''} placeholder="optional" onChange={e => set({ principal: e.target.value ? num(e.target.value) : null })} /></div>
+              <div><label className="vg-lbl">Tenure (months)</label><input className="vg-input vg-num" inputMode="numeric" value={d.tenure != null ? String(d.tenure) : ''} placeholder="optional" onChange={e => set({ tenure: e.target.value ? num(e.target.value) : null })} /></div>
+              <div><label className="vg-lbl">Rate % / year</label><input className="vg-input vg-num" inputMode="decimal" value={d.rate != null ? String(d.rate) : ''} placeholder="auto" onChange={e => set({ rate: e.target.value ? num(e.target.value) : null })} /></div>
+            </div>
+            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.3rem' }}>Give the amount actually borrowed (not the total of all the instalments) and the rate is worked out for you. Set a rate yourself if the EMI has been revised since.</p>
+          </>
         )}
         {isAnnual && (
           <div style={{ marginTop: '0.6rem' }}>
@@ -391,7 +402,7 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'settle' | 'year' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
+type Tab = 'month' | 'settle' | 'year' | 'loans' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard({ initialRole }: { initialRole?: 'super' | 'member' }) {
@@ -478,6 +489,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
     { id: 'month', label: 'This month', icon: CalendarDays },
     { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
+    { id: 'loans', label: 'Loans', icon: Landmark },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
@@ -500,6 +512,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={runAction} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
+      {tab === 'loans' && <LoansTab doc={doc} me={{ role: 'super', entityId: null }} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => runAction({ action: kind, id })} onRevoke={id => runAction({ action: 'revoke', id })} />}
       {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner) => runAction({ action: 'importRows', rows, owner })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
@@ -2980,7 +2993,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 // ---------- Member dashboard ------------------------------------
 function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'settle' | 'year' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
+  const [tab, setTab] = useState<'month' | 'settle' | 'year' | 'loans' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
   const [budgetView, setBudgetView] = useState<BudgetView>('recurring')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
@@ -3005,6 +3018,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
     { id: 'month', label: 'This month', icon: CalendarDays },
     { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
+    { id: 'loans', label: 'Loans', icon: Landmark },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'savings', label: 'My Savings', icon: PiggyBank },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
@@ -3020,6 +3034,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={action} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
+      {tab === 'loans' && <LoansTab doc={doc} me={me} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
       {tab === 'setup' && (
         <>
@@ -3335,5 +3350,188 @@ function MemberRecurringIncome({ doc, entityId, onSave }: {
       </div>
       <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Your own rows are private and save straight away. The common baseline is set by the family admin.</p>
     </div>
+  )
+}
+
+// ---------- Loans: amortisation and the tax year ----------------
+// What the loans really cost. Outstanding here is the amortised balance, not
+// EMI × instalments left — early instalments are mostly interest, so the two
+// differ enormously on a long loan. The financial-year table is the figure
+// needed at tax time, split the way the loan itself is split.
+function LoansTab({ doc, me }: {
+  doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
+}) {
+  const asOf = monthKey()
+  const entities = doc.entities
+  const loans = doc.template.emis
+  const views = useMemo(() => loans.map(it => loanView(it, asOf)).sort((a, b) => (b.outstanding ?? 0) - (a.outstanding ?? 0)), [loans, asOf])
+  const years = useMemo(() => {
+    const set = new Set<string>([fyOf(asOf)])
+    for (const v of views) for (const r of v.schedule) set.add(fyOf(r.month))
+    return [...set].sort()
+  }, [views, asOf])
+  const [fy, setFy] = useState(fyOf(asOf))
+
+  // A member sees the loans through their own share; super sees the whole.
+  const viewer = me.role === 'member' ? me.entityId : null
+  const frac = (it: Item) => (viewer ? (shares(it)[viewer] ?? 0) : 1)
+  const persons = entities.filter(e => e.kind === 'person')
+  const sharers = persons.filter(p => loans.some(it => (shares(it)[p.id] ?? 0) > 0.001))
+
+  const live = views.filter(v => (v.monthsLeft ?? 1) > 0)
+  const settled = views.filter(v => (v.monthsLeft ?? 1) <= 0)
+
+  const outstanding = live.reduce((a, v) => a + (v.outstanding ?? 0) * frac(v.item), 0)
+  const perMonth = live.reduce((a, v) => a + (v.item.amount || 0) * frac(v.item), 0)
+  const toPay = live.reduce((a, v) => a + v.remainingInterest * frac(v.item), 0)
+  const yearRows = loans.map(it => ({ it, y: loanYear(it, fy) })).filter(r => r.y.interest > 0.5 || r.y.principal > 0.5)
+  const fyInterest = yearRows.reduce((a, r) => a + r.y.interest * frac(r.it), 0)
+  const fyPrincipal = yearRows.reduce((a, r) => a + r.y.principal * frac(r.it), 0)
+  // Two different gaps, with two different fixes — and neither is worth
+  // raising about a loan that is already paid off.
+  const needRate = live.filter(v => v.derivedZero)
+  const needPrincipal = live.filter(v => v.estimated)
+
+  return (
+    <>
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <Kpi label={viewer ? 'Your outstanding' : 'Outstanding'} value={INR(outstanding)} cls="vg-neg"
+          info="What is still owed on the principal today, worked out instalment by instalment — not the EMI multiplied by the instalments left, which is much larger because it includes all the future interest." />
+        <Kpi label={viewer ? 'Your EMIs a month' : 'EMIs a month'} value={INR(perMonth)} info="Everything going out on loan instalments each month." />
+        <Kpi label="Interest this year" value={INR(fyInterest)} cls="vg-neg" info={`Interest falling in FY ${fy} — the figure that matters for a home-loan deduction.`} />
+        <Kpi label="Principal this year" value={INR(fyPrincipal)} info={`How much of FY ${fy}'s instalments actually reduce what you owe.`} />
+        <Kpi label="Interest still to come" small value={INR(toPay)} info="Interest remaining across the rest of every running loan, if each is paid to term." />
+      </div>
+
+      {(needRate.length > 0 || needPrincipal.length > 0) && (
+        <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', borderLeft: '3px solid var(--vg-accent)' }}>
+          {needRate.length > 0 && (
+            <p style={{ margin: 0, color: '#241b40', fontSize: '0.9rem' }}>
+              <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
+              <b>{needRate.map(v => v.item.name).join(', ')}</b> {needRate.length === 1 ? 'shows' : 'show'} no interest, because the recorded amount borrowed is exactly the instalments added up — so it looks like the <b>total payable</b> rather than the sum actually borrowed. Open the loan on the Budget page and correct the amount, or set the <b>rate</b> directly.
+            </p>
+          )}
+          {needPrincipal.length > 0 && (
+            <p style={{ margin: needRate.length > 0 ? '0.6rem 0 0' : 0, color: '#241b40', fontSize: '0.9rem' }}>
+              <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
+              <b>{needPrincipal.map(v => v.item.name).join(', ')}</b> {needPrincipal.length === 1 ? 'has' : 'have'} no amount borrowed or tenure recorded, so only EMI × instalments left can be shown — which overstates what is owed. Add those on the Budget page to get the real balance.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <p className="vg-sec" style={{ marginTop: 0 }}>Running loans</p>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 820 }}>
+            <thead><tr>
+              <th>Loan</th>
+              <th className="num" style={{ width: 92 }}>EMI</th>
+              <th className="num" style={{ width: 70 }}>Rate</th>
+              <th className="num">Outstanding</th>
+              <th className="num">Interest paid</th>
+              <th style={{ width: '22%' }}>Principal repaid</th>
+              <th style={{ width: 96 }}>Ends</th>
+            </tr></thead>
+            <tbody>
+              {live.map(v => {
+                const f = frac(v.item)
+                const borrowed = v.item.principal ?? 0
+                const repaid = borrowed > 0 ? v.paidPrincipal / borrowed : 0
+                return (
+                  <tr key={v.item.id}>
+                    <td>
+                      <span className="vg-nm" style={{ fontWeight: 600 }}>{v.item.name}</span>
+                      {f > 0 && f < 0.999 && <span className="vg-chip" style={{ marginLeft: 6 }}>your {Math.round(f * 100)}%</span>}
+                      {v.estimated && <span className="vg-chip" style={{ marginLeft: 6, background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>estimate</span>}
+                    </td>
+                    <td className="num">{INR((v.item.amount || 0) * f)}</td>
+                    <td className="num vg-muted">{v.annualRate != null ? `${v.annualRate.toFixed(2)}%` : '—'}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{v.outstanding != null ? INR(v.outstanding * f) : '—'}</td>
+                    <td className="num vg-neg">{v.paidInterest > 0 ? INR(v.paidInterest * f) : '—'}</td>
+                    <td>
+                      {borrowed > 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'rgba(120,99,190,0.12)', overflow: 'hidden' }}>
+                            <span style={{ display: 'block', height: '100%', width: `${Math.min(100, repaid * 100)}%`, borderRadius: 999, background: 'linear-gradient(90deg,#a06be0,#6d4bd8)' }} />
+                          </span>
+                          <b style={{ fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right', color: 'var(--vg-ink-soft)' }}>{Math.round(repaid * 100)}%</b>
+                        </div>
+                      ) : <span className="vg-muted" style={{ fontSize: '0.76rem' }}>no principal recorded</span>}
+                    </td>
+                    <td className="vg-muted" style={{ fontSize: '0.8rem' }}>
+                      {v.endsOn ? fmtMon(`${v.endsOn}-01`) : 'Open'}
+                      {v.monthsLeft != null && <span style={{ display: 'block', fontSize: '0.72rem' }}>{v.monthsLeft} left</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+              {live.length === 0 && <tr><td colSpan={7} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No running loans.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {settled.length > 0 && (
+          <p className="vg-muted" style={{ fontSize: '0.78rem', marginTop: '0.7rem' }}>
+            Paid off: {settled.map(v => v.item.name).join(', ')}.
+          </p>
+        )}
+        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>
+          Rates are worked back from the amount borrowed, the EMI and the tenure, so they are the rate those three imply. A loan marked <b>estimate</b> has no principal or tenure recorded, so only EMI × instalments left can be shown for it.
+        </p>
+      </div>
+
+      <div className="vg-card vg-pad">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>Interest by financial year</p>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span className="vg-muted" style={{ fontSize: '0.78rem' }}>April to March</span>
+            <select className="vg-select" value={fy} onChange={e => setFy(e.target.value)} style={{ maxWidth: 140, fontWeight: 600 }} aria-label="Financial year">
+              {years.map(y => <option key={y} value={y}>FY {y}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 640 }}>
+            <thead><tr>
+              <th>Loan</th>
+              <th className="num">Paid in the year</th>
+              <th className="num">Interest</th>
+              <th className="num">Principal</th>
+              {!viewer && sharers.map(p => <th key={p.id} className="num" style={{ color: p.color }}>{p.name}&rsquo;s interest</th>)}
+            </tr></thead>
+            <tbody>
+              {yearRows.map(({ it, y }) => (
+                <tr key={it.id}>
+                  <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name}</td>
+                  <td className="num vg-muted">{INR(y.paid * frac(it))}</td>
+                  <td className="num vg-neg" style={{ fontWeight: 600 }}>{INR(y.interest * frac(it))}</td>
+                  <td className="num">{INR(y.principal * frac(it))}</td>
+                  {!viewer && sharers.map(p => <td key={p.id} className="num vg-muted">{y.byEntity[p.id] ? INR(y.byEntity[p.id].interest) : '—'}</td>)}
+                </tr>
+              ))}
+              {yearRows.length === 0 && <tr><td colSpan={4 + (viewer ? 0 : sharers.length)} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing falls in this year.</td></tr>}
+            </tbody>
+            {yearRows.length > 0 && (
+              <tfoot>
+                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                  <td style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Total</td>
+                  <td className="num" style={{ paddingTop: '0.6rem' }}>{INR(yearRows.reduce((a, r) => a + r.y.paid * frac(r.it), 0))}</td>
+                  <td className="num vg-neg" style={{ fontWeight: 800, paddingTop: '0.6rem' }}>{INR(fyInterest)}</td>
+                  <td className="num" style={{ fontWeight: 700, paddingTop: '0.6rem' }}>{INR(fyPrincipal)}</td>
+                  {!viewer && sharers.map(p => (
+                    <td key={p.id} className="num" style={{ fontWeight: 700, color: p.color, paddingTop: '0.6rem' }}>
+                      {INR(yearRows.reduce((a, r) => a + (r.y.byEntity[p.id]?.interest ?? 0), 0))}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.7rem' }}>
+          Interest is split the way the loan is split, so a 50/50 home loan gives each person half to claim. Only home-loan interest is deductible — this table does not judge which of these count, it just does the arithmetic.
+        </p>
+      </div>
+    </>
   )
 }
