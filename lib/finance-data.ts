@@ -318,7 +318,7 @@ export function migrate(raw: unknown): FinanceDoc {
     // the old "apply to which months" save; monthView has always ignored them,
     // so they are dropped here rather than carried around for ever.
     for (const m of Object.values(doc.months)) {
-      m.items = m.items.filter(it => it.src === 'manual' || it.override || it.paid)
+      m.items = m.items.filter(it => it.src !== 'template' || it.override || it.paid)
     }
     // Every existing expense belongs to the household envelope until moved.
     const stamp = (it: Item) => { if (!it.envelope) it.envelope = HOUSEHOLD }
@@ -388,8 +388,13 @@ export function monthView(doc: FinanceDoc, key: string): MonthData {
       if (!ov && paidKeys.has(it.tmplId ?? `${it.kind}|${it.name}`)) out = { ...out, paid: true }
       return out
     })
-  const manual = stored.items.filter(i => i.src === 'manual')
-  const manualIncome = stored.income.filter(i => i.src === 'manual')
+  // Anything stored against the month that did not come from the template is
+  // the month's own. Requiring src === 'manual' meant a row saved without that
+  // marker was silently dropped, and the money with it — five months of salary
+  // had gone missing that way. Overrides carry src 'template' and are applied
+  // above, so excluding them here is right.
+  const manual = stored.items.filter(i => i.src !== 'template')
+  const manualIncome = stored.income.filter(i => i.src !== 'template')
   // A per-month common-income row (manual, entity 'common') overrides the
   // template's common income for that month; other income stacks on top.
   const hasManualCommon = manualIncome.some(i => i.entity === 'common')
@@ -601,9 +606,13 @@ export function isPersonalTo(it: Item, entityId: string, entities: Entity[]): bo
 /** Who must approve a proposed expense, and whether all or any of them. */
 export function approversFor(it: Item, actor: string, entities: Entity[]): { approvers: string[]; mode: 'all' | 'any' } {
   const persons = new Set(entities.filter(e => e.kind === 'person').map(e => e.id))
-  const earners = entities.filter(e => e.kind === 'person' && (e.earning || e.canPay)).map(e => e.id)
   if (isCommon(it, entities)) {
-    return { approvers: earners.filter(id => id !== actor), mode: 'any' }
+    // Whoever funds the common account's shortfall is who gets a say in what
+    // it spends. Having an account of your own is not the same as paying for
+    // this, and the settlement only ever charges earners.
+    const earners = entities.filter(e => e.kind === 'person' && e.earning).map(e => e.id)
+    const pool = earners.length ? earners : entities.filter(e => e.kind === 'person').map(e => e.id)
+    return { approvers: pool.filter(id => id !== actor), mode: 'any' }
   }
   const charged = participantsOf(it).filter(id => persons.has(id) && id !== actor)
   return { approvers: charged, mode: 'all' }
@@ -1432,8 +1441,11 @@ export function reconcile(expected: Item[], rows: StatementLike[], owner: string
     const best = hits[0]
     used.add(best.row.id)
     matched.push({ row: best.row, item: it, score: best.score, amountDiff: best.amountDiff })
-    // A second debit of nearly the same amount, in the same month, is worth a look.
-    const alsoExact = hits.slice(1).filter(c => Math.abs(c.amountDiff) < 0.51 && !used.has(c.row.id))
+    // A second debit of the same amount only means something for a bill that is
+    // the same every month. Shopping twice for the same amount is a
+    // coincidence; paying an instalment twice is a mistake worth catching.
+    const fixed = it.kind === 'emi' || it.kind === 'annual'
+    const alsoExact = fixed ? hits.slice(1).filter(c => Math.abs(c.amountDiff) < 0.51 && !used.has(c.row.id)) : []
     if (alsoExact.length) {
       alsoExact.forEach(c => used.add(c.row.id))
       duplicates.push({ item: it, rows: [best.row, ...alsoExact.map(c => c.row)] })
