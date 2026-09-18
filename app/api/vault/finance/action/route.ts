@@ -19,7 +19,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
-import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid, paymentsFor,
+import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid, paymentsFor, isUpiId,
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
@@ -158,6 +158,18 @@ export async function POST(request: Request) {
           .map(r => ({ id: r.id || uid('inc'), source: r.source || 'Income', amount: Number(r.amount) || 0, entity: actor }))
         doc.template.income = [...doc.template.income.filter(i => i.entity !== actor), ...incoming]
         audit('apply', 'Recurring income updated', { personal: true, parties: [actor] })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'setUpi': {
+        // Your own UPI id, so the others can settle with you in one tap.
+        // Super manages everyone's from the Entities tab instead.
+        if (isSuper || !actor) return NextResponse.json({ error: 'Set these from the Entities tab' }, { status: 403 })
+        const raw = String((body as unknown as { upi?: string }).upi ?? '').trim()
+        if (raw && !isUpiId(raw)) return NextResponse.json({ error: 'That does not look like a UPI id — they are shaped like name@bank.' }, { status: 400 })
+        doc.entities = doc.entities.map(e => (e.id === actor ? { ...e, upi: raw || undefined } : e))
+        audit('apply', raw ? 'UPI id updated' : 'UPI id removed', { personal: true, parties: [actor] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }

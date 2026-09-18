@@ -787,11 +787,16 @@ export function paymentsFor(st: Settlement | undefined, key: string, amount: num
   return old ? [{ id: `legacy:${key}`, amount, proofKey: old.key || undefined, by: old.by, at: old.at }] : []
 }
 
+/** Whether a string looks like a UPI id (name@bank). */
+export function isUpiId(v: string | undefined | null): boolean {
+  return /^[\w.\-]{2,}@[\w.\-]{2,}$/.test((v || '').trim())
+}
+
 /** A UPI deep link: opens the payer's UPI app with everything filled in.
  *  Returns null when we have no UPI id to pay into. */
 export function upiLink(payee: Entity | undefined, amount: number, note: string): string | null {
   const vpa = (payee?.upi || '').trim()
-  if (!vpa || !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(vpa)) return null
+  if (!isUpiId(vpa)) return null
   const q = new URLSearchParams({
     pa: vpa, pn: payee!.name, am: Math.max(0, amount).toFixed(2), cu: 'INR', tn: note.slice(0, 50),
   })

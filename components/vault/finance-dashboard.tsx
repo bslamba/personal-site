@@ -28,7 +28,7 @@ import {
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
   personalEnvId, bearersOf, loanView, loanYear, fyOf,
-  forecast, sinkingFund, upiLink, type ForecastMonth, type SinkingRow,
+  forecast, sinkingFund, upiLink, isUpiId, type ForecastMonth, type SinkingRow,
   debtOverTime, debtFreeBy, simulatePrepay, type DebtPoint, type LoanView,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
@@ -1500,7 +1500,10 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
                   <td>{e.kind === 'person'
                     ? <input className="vg-input" list="vg-roles" placeholder="e.g. Father" value={e.role ?? ''} onChange={ev => upd(e.id, { role: ev.target.value })} />
                     : <span className="vg-muted" style={{ fontSize: '0.8rem' }}>Shared pool</span>}</td>
-                  <td><input className="vg-input" placeholder="name@bank" value={e.upi ?? ''} onChange={ev => upd(e.id, { upi: ev.target.value.trim() })} /></td>
+                  <td>
+                    <input className="vg-input" placeholder="name@bank" value={e.upi ?? ''} onChange={ev => upd(e.id, { upi: ev.target.value.trim() })} />
+                    {e.upi && !isUpiId(e.upi) && <span className="vg-neg" style={{ fontSize: '0.7rem', display: 'block', marginTop: 2 }}>not a UPI id — no pay button</span>}
+                  </td>
                   <td><select className="vg-select" value={e.kind} onChange={ev => upd(e.id, { kind: ev.target.value as EntityKind })}><option value="person">Person</option><option value="common">Common pool</option></select></td>
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.canPay} onChange={ev => upd(e.id, { canPay: ev.target.checked })} /></td>
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.earning} onChange={ev => upd(e.id, { earning: ev.target.checked })} /></td>
@@ -2021,6 +2024,45 @@ function RecordPaymentModal({ tr, payee, monthLabelText, busy, onClose, onSave }
   )
 }
 
+// Your own UPI id, offered where it pays off: the settlement page. Without
+// one, everybody else has to type your details in by hand every month.
+function MyUpiCard({ entity, action }: {
+  entity?: Entity
+  action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
+}) {
+  const [value, setValue] = useState(entity?.upi ?? '')
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  useEffect(() => { setValue(entity?.upi ?? ''); setSaved(false) }, [entity?.upi])
+  const trimmed = value.trim()
+  const bad = trimmed.length > 0 && !isUpiId(trimmed)
+  const dirty = trimmed !== (entity?.upi ?? '')
+
+  return (
+    <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
+      <p className="vg-sec" style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <IndianRupee className="h-4 w-4" /> How the others pay you
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <input className="vg-input" value={value} placeholder="yourname@bank" onChange={e => { setValue(e.target.value); setSaved(false) }} />
+          {bad && <p className="vg-neg" style={{ fontSize: '0.75rem', margin: '0.3rem 0 0' }}>A UPI id looks like <b>yourname@bank</b> — until it does, no one gets a pay button for you.</p>}
+        </div>
+        <button className="vg-btn vg-btn-primary" disabled={busy || bad || !dirty}
+          onClick={async () => { setBusy(true); await action({ action: 'setUpi', upi: trimmed }); setBusy(false); setSaved(true) }}>
+          {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <Check className="h-4 w-4" />} Save
+        </button>
+      </div>
+      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>
+        {entity?.upi
+          ? <>Anyone who owes you this month gets a <b>Pay</b> button that opens their UPI app with your id and the exact amount already filled in.</>
+          : <>Add it once and anyone who owes you gets a <b>Pay</b> button with your id and the exact amount filled in, instead of typing it out each month.</>}
+        {saved && <b className="vg-pos"> Saved.</b>}
+      </p>
+    </div>
+  )
+}
+
 // ---------- Monthly settlement ----------------------------------
 function SettlementTab({ doc, me, k, setKey, action }: {
   doc: FinanceDoc
@@ -2179,6 +2221,8 @@ function SettlementTab({ doc, me, k, setKey, action }: {
             : <button className="vg-btn vg-btn-primary" disabled={s.transfers.length === 0} onClick={() => action({ action: 'closeSettlement', monthKey: k })}><Check className="h-4 w-4" /> Close this month</button>}
         </div>
       </div>
+
+      {me.role === 'member' && me.entityId && <MyUpiCard entity={entities.find(e => e.id === me.entityId)} action={action} />}
 
       {paying && <RecordPaymentModal tr={paying} payee={entities.find(e => e.id === paying.to)} monthLabelText={monthLabel(k)} busy={busyKey === paying.key}
         onClose={() => setPaying(null)} onSave={(amount, file) => recordPayment(paying, amount, file)} />}
