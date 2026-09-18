@@ -1464,3 +1464,90 @@ export function applyRevert(doc: FinanceDoc, c: AuditChange): void {
   else next = { ...next, items: next.items.filter(x => !(x.src === 'template' && x.tmplId === c.key)) }
   doc.months[mk] = next
 }
+
+// ============================================================
+// Reconciling a statement against what was expected.
+//
+// The template says what SHOULD leave the account each month; the statement
+// says what did. Nobody was comparing the two, so a bounced EMI, a double
+// debit, or a rate revision that changed an instalment all passed unnoticed —
+// and a recurring bill re-imported by hand became a duplicate expense.
+//
+// Only items paid from the account being imported are considered: a personal
+// statement will not show what the common account paid, and calling those
+// "missing" would be noise.
+// ============================================================
+
+export interface StatementLike { id: string; date: string; payee: string; desc?: string; amount: number; type: 'debit' | 'credit' }
+
+export interface ReconMatch {
+  row: StatementLike
+  item: Item
+  score: number
+  amountDiff: number        // statement minus expected; non-zero means the instalment moved
+}
+export interface Recon {
+  matched: ReconMatch[]
+  missing: Item[]                                   // expected, nothing in the statement looks like it
+  duplicates: { item: Item; rows: StatementLike[] }[]
+  drift: ReconMatch[]                               // matched, but not for the expected amount
+  unmatchedRows: StatementLike[]
+}
+
+const WORD = /[a-z0-9]+/g
+const norm = (s: string) => (s || '').toLowerCase().match(WORD)?.filter(w => w.length > 2) ?? []
+/** How much two names look like each other, 0..1. */
+function nameScore(a: string, b: string): number {
+  const x = norm(a), y = norm(b)
+  if (!x.length || !y.length) return 0
+  const hit = x.filter(w => y.some(v => v.startsWith(w) || w.startsWith(v))).length
+  return hit / Math.max(x.length, y.length)
+}
+
+/** Compare a month's expected payments against the statement rows for it. */
+export function reconcile(expected: Item[], rows: StatementLike[], owner: string): Recon {
+  // Only what this account actually pays, and only money going out.
+  const mine = expected.filter(it => it.paidBy === owner && (it.amount || 0) > 0)
+  const debits = rows.filter(r => r.type === 'debit')
+  const used = new Set<string>()
+  const matched: ReconMatch[] = []
+  const duplicates: { item: Item; rows: StatementLike[] }[] = []
+  const missing: Item[] = []
+
+  // Strong matches first, so an exact amount is not stolen by a fuzzy one.
+  const candidates = (it: Item) => debits
+    .filter(r => !used.has(r.id))
+    .map(r => {
+      const exp = it.amount || 0
+      const diff = Math.abs(r.amount - exp)
+      const rel = exp > 0 ? diff / exp : 1
+      const amountScore = rel < 0.001 ? 1 : rel <= 0.02 ? 0.8 : rel <= 0.1 ? 0.5 : 0
+      const nm = Math.max(nameScore(it.name, r.payee), nameScore(it.name, r.desc ?? ''))
+      return { row: r, score: amountScore * 0.65 + nm * 0.35, amountDiff: r.amount - exp, amountScore }
+    })
+    // An amount that is nowhere near, with a name that does not match either, is not this bill.
+    .filter(c => c.amountScore > 0 || c.score >= 0.5)
+    .sort((a, b) => b.score - a.score)
+
+  for (const it of mine) {
+    const hits = candidates(it).filter(c => c.score >= 0.45)
+    if (hits.length === 0) { missing.push(it); continue }
+    const best = hits[0]
+    used.add(best.row.id)
+    matched.push({ row: best.row, item: it, score: best.score, amountDiff: best.amountDiff })
+    // A second debit of nearly the same amount, in the same month, is worth a look.
+    const alsoExact = hits.slice(1).filter(c => Math.abs(c.amountDiff) < 0.51 && !used.has(c.row.id))
+    if (alsoExact.length) {
+      alsoExact.forEach(c => used.add(c.row.id))
+      duplicates.push({ item: it, rows: [best.row, ...alsoExact.map(c => c.row)] })
+    }
+  }
+
+  return {
+    matched,
+    missing,
+    duplicates,
+    drift: matched.filter(m => Math.abs(m.amountDiff) > 0.5),
+    unmatchedRows: debits.filter(r => !used.has(r.id)),
+  }
+}

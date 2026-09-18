@@ -28,7 +28,7 @@ import {
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
   personalEnvId, bearersOf, loanView, loanYear, fyOf, type AuditEntry, type AuditChange,
-  forecast, sinkingFund, upiLink, isUpiId, type ForecastMonth, type SinkingRow,
+  forecast, sinkingFund, upiLink, isUpiId, reconcile, type Recon, type ForecastMonth, type SinkingRow,
   debtOverTime, debtFreeBy, simulatePrepay, type DebtPoint, type LoanView,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
@@ -1945,6 +1945,12 @@ function catColor(name: string, cats: Category[], i = 0): string {
   return cats.find(c => c.name === name)?.color ?? CAT_COLORS[name] ?? PALETTE[i % PALETTE.length]
 }
 
+/** "14 Sept" — a statement line needs the day, not just the month. */
+function fmtDay(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
+
 function fmtMon(iso?: string | null): string {
   if (!iso) return '—'
   const [y, m] = iso.slice(0, 7).split('-').map(Number)
@@ -3425,6 +3431,84 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
   )
 }
 
+// What the statement says against what was expected. The useful part is not
+// the matches — it is the three things that would otherwise pass unnoticed: a
+// bill that never went out, one that went out twice, and one whose amount has
+// moved because the rate was revised.
+function ReconPanel({ recon, ownerName, onClose, onSkipMatched }: {
+  recon: Recon & { months: string[] }
+  ownerName: string
+  onClose: () => void
+  onSkipMatched: () => void
+}) {
+  const { matched, missing, duplicates, drift } = recon
+  const clean = missing.length === 0 && duplicates.length === 0 && drift.length === 0
+  const span = recon.months.map(m => monthLabel(m)).join(', ')
+  return (
+    <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', borderLeft: `3px solid ${clean ? 'var(--vg-pos)' : 'var(--vg-neg)'}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <p className="vg-sec" style={{ margin: 0 }}>
+          <Scale className="h-4 w-4" style={{ display: 'inline', verticalAlign: '-3px' }} /> Against what was expected · {span}
+        </p>
+        <button className="vg-icobtn" onClick={onClose} aria-label="Hide"><X className="h-4 w-4" /></button>
+      </div>
+
+      <p className="vg-muted" style={{ fontSize: '0.82rem', margin: '0.5rem 0 0' }}>
+        {matched.length} of {matched.length + missing.length} payments {ownerName} was due to make {matched.length === 1 ? 'is' : 'are'} in this statement.
+        {clean && ' Nothing missing, nothing doubled, no amount has moved.'}
+      </p>
+
+      {missing.length > 0 && (
+        <div style={{ marginTop: '0.8rem' }}>
+          <p style={{ margin: '0 0 0.3rem', fontWeight: 700, fontSize: '0.88rem' }} className="vg-neg">Expected, but not in this statement</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            {missing.map(it => (
+              <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.82rem' }}>
+                <span>{it.name}{it.kind === 'emi' && <span className="vg-chip" style={{ marginLeft: 6 }}>EMI</span>}</span>
+                <b style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(it.amount)}</b>
+              </div>
+            ))}
+          </div>
+          <p className="vg-muted" style={{ fontSize: '0.74rem', marginTop: '0.4rem' }}>Either it did not go out — worth checking, an EMI that bounces costs a penalty — or it was paid from a different account than this statement.</p>
+        </div>
+      )}
+
+      {duplicates.length > 0 && (
+        <div style={{ marginTop: '0.8rem' }}>
+          <p style={{ margin: '0 0 0.3rem', fontWeight: 700, fontSize: '0.88rem' }} className="vg-neg">Paid more than once</p>
+          {duplicates.map(d => (
+            <div key={d.item.id} style={{ fontSize: '0.82rem' }}>
+              {d.item.name} — {d.rows.length} debits of {d.rows.map(r => INR(r.amount)).join(', ')} on {d.rows.map(r => fmtDay(r.date)).join(' and ')}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {drift.length > 0 && (
+        <div style={{ marginTop: '0.8rem' }}>
+          <p style={{ margin: '0 0 0.3rem', fontWeight: 700, fontSize: '0.88rem' }}>Amounts that have moved</p>
+          {drift.map(m => (
+            <div key={m.item.id} style={{ fontSize: '0.82rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>{m.item.name}</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                expected <b>{INR(m.item.amount)}</b> · paid <b className={m.amountDiff > 0 ? 'vg-neg' : 'vg-pos'}>{INR(m.row.amount)}</b>
+              </span>
+            </div>
+          ))}
+          <p className="vg-muted" style={{ fontSize: '0.74rem', marginTop: '0.4rem' }}>On a floating-rate loan this is usually a rate revision. Update the amount under Budget, or the interest worked out on the Loans page will drift from what you are actually paying.</p>
+        </div>
+      )}
+
+      {matched.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: '0.9rem', paddingTop: '0.7rem', borderTop: '1px solid var(--vg-line)' }}>
+          <span className="vg-muted" style={{ fontSize: '0.78rem' }}>{matched.length} row{matched.length === 1 ? '' : 's'} already tracked as recurring — importing them again would double them up.</span>
+          <button className="vg-btn" onClick={onSkipMatched}>Untick those {matched.length}</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------- Import from bank statement --------------------------
 type ImpRow = StatementRow & { shareWith?: string; sharePct?: number; tags?: string; envelope?: string }
 function ImportTab({ doc, me, onImport }: {
@@ -3437,6 +3521,7 @@ function ImportTab({ doc, me, onImport }: {
   const [done, setDone] = useState(0)
   const [proposedN, setProposedN] = useState(0)
   const [skipped, setSkipped] = useState(0)
+  const [reconOpen, setReconOpen] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
   const persons = doc.entities.filter(e => e.kind === 'person')
   const others = persons.filter(p => p.id !== owner)
@@ -3452,10 +3537,24 @@ function ImportTab({ doc, me, onImport }: {
       for (const m of Object.values(doc.months)) { for (const it of m.items) if (it.ref) seen.add(it.ref); for (const inc of m.income) if (inc.ref) seen.add(inc.ref) }
       for (const p of (doc.proposals ?? [])) if (p.item?.ref) seen.add(p.item.ref)
       setRows(parsed.map(r => seen.has(r.ref) ? { ...r, include: false, dup: true } : r))
+      setReconOpen(true)
     } catch { setRows([]) }
   }
   const upd = (id: string, patch: Partial<ImpRow>) => setRows(r => r.map(x => x.id === id ? { ...x, ...patch } : x))
   const setAll = (v: boolean) => setRows(r => r.map(x => ({ ...x, include: v })))
+
+  // The statement is checked against what the recurring commitments say should
+  // have gone out of THIS account that month, so a missed, doubled or revised
+  // instalment is visible — and a bill already tracked is not imported twice.
+  const recon = useMemo(() => {
+    if (rows.length === 0 || !owner) return null
+    const months = [...new Set(rows.map(r => r.date.slice(0, 7)))].filter(Boolean).sort()
+    if (months.length === 0) return null
+    const expected = months.flatMap(mk => monthView(doc, mk).items)
+    return { months, ...reconcile(expected, rows.map(r => ({ id: r.id, date: r.date, payee: r.payee, desc: r.desc, amount: r.amount, type: r.type })), owner) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, owner, doc])
+  const matchedIds = useMemo(() => new Set((recon?.matched ?? []).map(m => m.row.id)), [recon])
 
   const selected = rows.filter(r => r.include)
   const debitTotal = selected.filter(r => r.type === 'debit').reduce((a, b) => a + b.amount, 0)
@@ -3492,6 +3591,11 @@ function ImportTab({ doc, me, onImport }: {
         </div>
         {(done > 0 || proposedN > 0 || skipped > 0) && <p className="vg-pos" style={{ marginTop: '0.6rem', marginBottom: 0 }}><Check className="h-4 w-4" style={{ display: 'inline' }} /> Added {done}{proposedN > 0 ? ` · sent ${proposedN} for approval` : ''}{skipped > 0 ? ` · skipped ${skipped} already imported` : ''}. Personal ones land in their month; shared ones wait on a yes.</p>}
       </div>
+
+      {recon && reconOpen && (
+        <ReconPanel recon={recon} ownerName={ownerName} onClose={() => setReconOpen(false)}
+          onSkipMatched={() => setRows(r => r.map(x => matchedIds.has(x.id) ? { ...x, include: false } : x))} />
+      )}
 
       {rows.length > 0 && (
         <>
