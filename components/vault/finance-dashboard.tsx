@@ -15,7 +15,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
-  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards, Landmark,
+  Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards, Landmark, IndianRupee,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -28,7 +28,7 @@ import {
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
   personalEnvId, bearersOf, loanView, loanYear, fyOf,
-  forecast, sinkingFund, type ForecastMonth, type SinkingRow,
+  forecast, sinkingFund, upiLink, type ForecastMonth, type SinkingRow,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -1490,7 +1490,7 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
         </div>
         <div className="vg-tablewrap">
           <table className="vg-table" style={{ minWidth: 720 }}>
-            <thead><tr><th style={{ width: 34 }}></th><th>Name</th><th style={{ width: 150 }}>Role in family</th><th style={{ width: 110 }}>Type</th><th style={{ width: 70 }}>Can pay</th><th style={{ width: 70 }}>Earns</th><th style={{ width: 90 }}>Dependant</th><th style={{ width: 40 }}></th></tr></thead>
+            <thead><tr><th style={{ width: 34 }}></th><th>Name</th><th style={{ width: 150 }}>Role in family</th><th style={{ width: 160 }}>UPI id</th><th style={{ width: 110 }}>Type</th><th style={{ width: 70 }}>Can pay</th><th style={{ width: 70 }}>Earns</th><th style={{ width: 90 }}>Dependant</th><th style={{ width: 40 }}></th></tr></thead>
             <tbody>
               {doc.entities.map(e => (
                 <tr key={e.id}>
@@ -1499,6 +1499,7 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
                   <td>{e.kind === 'person'
                     ? <input className="vg-input" list="vg-roles" placeholder="e.g. Father" value={e.role ?? ''} onChange={ev => upd(e.id, { role: ev.target.value })} />
                     : <span className="vg-muted" style={{ fontSize: '0.8rem' }}>Shared pool</span>}</td>
+                  <td><input className="vg-input" placeholder="name@bank" value={e.upi ?? ''} onChange={ev => upd(e.id, { upi: ev.target.value.trim() })} /></td>
                   <td><select className="vg-select" value={e.kind} onChange={ev => upd(e.id, { kind: ev.target.value as EntityKind })}><option value="person">Person</option><option value="common">Common pool</option></select></td>
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.canPay} onChange={ev => upd(e.id, { canPay: ev.target.checked })} /></td>
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.earning} onChange={ev => upd(e.id, { earning: ev.target.checked })} /></td>
@@ -1514,7 +1515,7 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
           <option value="Wife" /><option value="Husband" /><option value="Daughter-in-law" /><option value="Son-in-law" />
           <option value="Brother" /><option value="Sister" /><option value="Brother-in-law" /><option value="Sister-in-law" />
         </datalist>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>The <b>role in family</b> is how everyone relates — e.g. Surinder Pal Singh is <b>Father</b>, Gurneet &amp; Bhawneet are his <b>Sons</b> (so, brothers), Harsimran Kaur is his <b>Wife</b> and the sons&rsquo; mother, and Mehak is Gurneet&rsquo;s wife (<b>Daughter-in-law</b>). Removing a member leaves any past expense tagged to them intact. &ldquo;Common&rdquo; is the shared pool — money paid from it is never counted as a debt between people.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>A <b>UPI id</b> (and the common account can have one too) turns each settlement into a single tap — the app opens with the payee and the amount already filled in. The <b>role in family</b> is how everyone relates — e.g. Surinder Pal Singh is <b>Father</b>, Gurneet &amp; Bhawneet are his <b>Sons</b> (so, brothers), Harsimran Kaur is his <b>Wife</b> and the sons&rsquo; mother, and Mehak is Gurneet&rsquo;s wife (<b>Daughter-in-law</b>). Removing a member leaves any past expense tagged to them intact. &ldquo;Common&rdquo; is the shared pool — money paid from it is never counted as a debt between people.</p>
       </div>
 
       <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
@@ -1951,6 +1952,74 @@ function RemindersCard({ doc, me, k, action }: {
   )
 }
 
+// Record a payment against a settlement transfer — all of it, or part.
+// Paying in instalments is ordinary, and the remainder has to stay on the
+// books rather than the whole debt reading as unpaid.
+function RecordPaymentModal({ tr, payee, monthLabelText, busy, onClose, onSave }: {
+  tr: SettleTransfer; payee?: Entity; monthLabelText: string; busy: boolean
+  onClose: () => void; onSave: (amount: number, file?: File) => void
+}) {
+  const [amount, setAmount] = useState(String(Math.round(tr.due)))
+  const [file, setFile] = useState<File | undefined>()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const value = Math.min(num(amount), tr.due)
+  const rest = tr.due - value
+  const link = upiLink(payee, value, `${monthLabelText} settlement`)
+
+  return (
+    <div className="vg-lb" onClick={onClose}>
+      <div className="vg-card vg-pad" style={{ width: 'min(420px, 96vw)', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>Record a payment</p>
+          <button className="vg-icobtn" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        <p className="vg-muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>
+          {INR(tr.due)} still owed to <b>{payee?.name ?? 'the common account'}</b>
+          {tr.settled > 0.5 && <> · {INR(tr.settled)} of {INR(tr.amount)} already paid</>}.
+        </p>
+
+        <label className="vg-lbl">How much was paid</label>
+        <input className="vg-input vg-num" inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+        <div style={{ display: 'flex', gap: 6, marginTop: '0.4rem', flexWrap: 'wrap' }}>
+          <button className="vg-btn" onClick={() => setAmount(String(Math.round(tr.due)))}>All of it</button>
+          <button className="vg-btn" onClick={() => setAmount(String(Math.round(tr.due / 2)))}>Half</button>
+        </div>
+        {rest > 0.5 && value > 0 && (
+          <p className="vg-muted" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
+            {INR(rest)} would stay outstanding, and carry into next month if this one is closed.
+          </p>
+        )}
+
+        {link && (
+          <p style={{ marginTop: '0.8rem' }}>
+            <a className="vg-btn" href={link}><IndianRupee className="h-4 w-4" /> Pay {INR(value)} by UPI</a>
+            <span className="vg-muted" style={{ display: 'block', fontSize: '0.72rem', marginTop: '0.35rem' }}>
+              Opens your UPI app with {payee?.upi} and the amount filled in. On a computer it will not open — pay from your phone, then record it here.
+            </span>
+          </p>
+        )}
+
+        <div style={{ marginTop: '0.9rem' }}>
+          <label className="vg-lbl">Screenshot <span className="vg-muted" style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => setFile(e.target.files?.[0])} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="vg-btn" onClick={() => fileRef.current?.click()}><Camera className="h-4 w-4" /> {file ? 'Change' : 'Attach'}</button>
+            {file && <span className="vg-muted" style={{ fontSize: '0.8rem' }}>{file.name}</span>}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1rem' }}>
+          <button className="vg-btn" onClick={onClose}>Cancel</button>
+          <button className="vg-btn vg-btn-primary" disabled={busy || !(value > 0)} onClick={() => onSave(value, file)}>
+            {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <Check className="h-4 w-4" />} Record {INR(value)}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------- Monthly settlement ----------------------------------
 function SettlementTab({ doc, me, k, setKey, action }: {
   doc: FinanceDoc
@@ -1961,21 +2030,22 @@ function SettlementTab({ doc, me, k, setKey, action }: {
   const entities = doc.entities
   const s = computeSettlement(doc, k)
   const [busyKey, setBusyKey] = useState<string | null>(null)
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [paying, setPaying] = useState<SettleTransfer | null>(null)
   const step = (d: number) => { const [y, mo] = k.split('-').map(Number); setKey(monthKey(new Date(y, mo - 1 + d, 1))) }
   const nm = (id: string) => (id === 'common' ? 'Common account' : entName(entities, id))
 
-  async function uploadProof(tr: SettleTransfer, file?: File) {
-    if (!file) return
+  async function recordPayment(tr: SettleTransfer, amount: number, file?: File) {
     setBusyKey(tr.key)
     let proofKey = ''
-    try {
-      const safe = file.name.replace(/[^\w.\-]+/g, '_'); proofKey = `settlements/${k}-${tr.key.replace(/[^\w]+/g, '_')}-${Date.now()}-${safe}`
-      const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: proofKey, contentType: file.type }) })
-      const { url } = await u.json(); if (url) await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-    } catch { /* still record as paid, proof optional */ }
-    await action({ action: 'settlePay', monthKey: k, transferKey: tr.key, proofKey })
-    setBusyKey(null)
+    if (file) {
+      try {
+        const safe = file.name.replace(/[^\w.\-]+/g, '_'); proofKey = `settlements/${k}-${tr.key.replace(/[^\w]+/g, '_')}-${Date.now()}-${safe}`
+        const u = await fetch('/api/vault/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: proofKey, contentType: file.type }) })
+        const { url } = await u.json(); if (url) await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+      } catch { /* the payment still counts; the screenshot is optional */ }
+    }
+    await action({ action: 'settlePay', monthKey: k, transferKey: tr.key, amount, proofKey })
+    setBusyKey(null); setPaying(null)
   }
 
   const kindChip = (kind: SettleTransfer['kind']) =>
@@ -2012,28 +2082,49 @@ function SettlementTab({ doc, me, k, setKey, action }: {
         ) : (
           <div className="vg-tablewrap">
             <table className="vg-table" style={{ minWidth: 620 }}>
-              <thead><tr><th>From</th><th>To</th><th></th><th className="num">Amount</th><th style={{ width: 220 }}>Status</th></tr></thead>
+              <thead><tr><th>From</th><th>To</th><th></th><th className="num">Amount</th><th className="num" style={{ width: 120 }}>Still due</th><th style={{ width: 260 }}>Status</th></tr></thead>
               <tbody>
                 {s.transfers.map(tr => {
-                  const proof = s.paid[tr.key]
+                  const done = tr.due <= 0.5
+                  const part = tr.settled > 0.5 && !done
+                  const payee = entities.find(e => e.id === tr.to)
+                  const link = upiLink(payee, tr.due, `${monthLabel(k)} settlement`)
                   return (
                     <tr key={tr.key}>
                       <td><span className="vg-chip" style={{ background: entColor(entities, tr.from) + '22', color: entColor(entities, tr.from) }}>{nm(tr.from)}</span></td>
                       <td><span className="vg-chip" style={{ background: (tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to)) + '22', color: tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to) }}>{nm(tr.to)}</span></td>
                       <td>{kindChip(tr.kind)}{tr.kind === 'carry' && tr.fromMonth && <span className="vg-muted" style={{ fontSize: '0.72rem', marginLeft: 4 }}>from {fmtMon(tr.fromMonth)}</span>}</td>
                       <td className="num" style={{ fontWeight: 700 }}>{INR(tr.amount)}</td>
+                      <td className="num">
+                        {done
+                          ? <span className="vg-pos" style={{ fontWeight: 700 }}>settled</span>
+                          : <b className="vg-neg">{INR(tr.due)}</b>}
+                        {part && <span className="vg-muted" style={{ display: 'block', fontSize: '0.7rem' }}>{INR(tr.settled)} paid</span>}
+                      </td>
                       <td>
-                        {proof ? (
-                          <span className="vg-pos" style={{ fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <Check className="h-4 w-4" /> Paid <span className="vg-muted">· {proof.by}</span>
-                            {!s.closed && <button className="vg-icobtn" title="Undo" onClick={() => action({ action: 'settleUnpay', monthKey: k, transferKey: tr.key })}><X className="h-4 w-4" /></button>}
-                          </span>
-                        ) : s.closed ? <span className="vg-neg" style={{ fontSize: '0.82rem' }}>unpaid → carried</span> : (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <input ref={el => { fileRefs.current[tr.key] = el }} type="file" accept="image/*" hidden onChange={e => uploadProof(tr, e.target.files?.[0])} />
-                            <button className="vg-btn" disabled={busyKey === tr.key} onClick={() => fileRefs.current[tr.key]?.click()}>{busyKey === tr.key ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Proof + mark paid</button>
+                        {tr.payments.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: done ? 0 : 5 }}>
+                            {tr.payments.map(pay => (
+                              <span key={pay.id} style={{ fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                <Check className="h-3.5 w-3.5" style={{ color: 'var(--vg-pos)' }} />
+                                <b style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(pay.amount)}</b>
+                                <span className="vg-muted">· {pay.by}</span>
+                                {!s.closed && <button className="vg-icobtn" style={{ width: 22, height: 22 }} title="Undo this payment"
+                                  onClick={() => action({ action: 'settleUnpay', monthKey: k, transferKey: tr.key, paymentId: pay.id })}><X className="h-3 w-3" /></button>}
+                              </span>
+                            ))}
                           </div>
                         )}
+                        {!done && (s.closed
+                          ? <span className="vg-neg" style={{ fontSize: '0.82rem' }}>unpaid → carried</span>
+                          : (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {link && <a className="vg-btn" href={link} title={`Opens your UPI app to pay ${payee?.upi}`}><IndianRupee className="h-4 w-4" /> Pay {INR(tr.due)}</a>}
+                              <button className="vg-btn" disabled={busyKey === tr.key} onClick={() => setPaying(tr)}>
+                                {busyKey === tr.key ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Record payment
+                              </button>
+                            </div>
+                          ))}
                       </td>
                     </tr>
                   )
@@ -2081,12 +2172,15 @@ function SettlementTab({ doc, me, k, setKey, action }: {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.9rem', gap: 8, flexWrap: 'wrap' }}>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', margin: 0, maxWidth: 560 }}>Upload the payment screenshot as proof when someone pays. When you close the month, anything still unpaid is carried into next month with a reference back to here.</p>
+          <p className="vg-muted" style={{ fontSize: '0.75rem', margin: 0, maxWidth: 560 }}>A transfer can be settled in instalments — record each payment as it happens, with the screenshot if there is one. Closing the month carries forward only what is <b>still owed</b>, so a part payment stays paid.</p>
           {s.closed
             ? (me.role === 'super' && <button className="vg-btn" onClick={() => action({ action: 'reopenSettlement', monthKey: k })}>Reopen</button>)
             : <button className="vg-btn vg-btn-primary" disabled={s.transfers.length === 0} onClick={() => action({ action: 'closeSettlement', monthKey: k })}><Check className="h-4 w-4" /> Close this month</button>}
         </div>
       </div>
+
+      {paying && <RecordPaymentModal tr={paying} payee={entities.find(e => e.id === paying.to)} monthLabelText={monthLabel(k)} busy={busyKey === paying.key}
+        onClose={() => setPaying(null)} onSave={(amount, file) => recordPayment(paying, amount, file)} />}
 
       <RemindersCard doc={doc} me={me} k={k} action={action} />
     </>

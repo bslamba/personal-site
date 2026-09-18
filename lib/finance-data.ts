@@ -26,6 +26,7 @@ export interface Entity {
   isLiability: boolean   // a dependent / liability, tracked but not earning
   color: string
   role?: string          // family relationship label, e.g. "Father", "Son", "Daughter-in-law"
+  upi?: string           // UPI id, so a settlement can be paid without retyping anything
 }
 
 // How an expense's cost is shared.
@@ -110,6 +111,9 @@ export interface AuditEntry {
 }
 
 export interface SettlementProof { key: string; by: string; at: string }
+/** One payment against a transfer. A transfer can be settled in instalments,
+ *  so what matters is how much has been paid, not merely whether it was. */
+export interface SettlePayment { id: string; amount: number; proofKey?: string; by: string; at: string }
 export interface CarryItem {
   id: string; from: string; to: string; amount: number
   fromMonth: string        // the month the debt originally arose in
@@ -120,8 +124,9 @@ export interface Settlement {
   closed?: boolean
   closedAt?: string
   closedBy?: string
-  paid?: Record<string, SettlementProof>   // transferKey -> payment proof
-  carry?: CarryItem[]                        // outstanding carried in from earlier months
+  paid?: Record<string, SettlementProof>     // legacy: transferKey -> a single, full-amount proof
+  payments?: Record<string, SettlePayment[]>  // transferKey -> the payments made against it
+  carry?: CarryItem[]                         // outstanding carried in from earlier months
 }
 
 export interface Envelope {
@@ -765,7 +770,33 @@ export function setCommonIncome(doc: FinanceDoc, monthKey: string, amount: numbe
 }
 
 // ---------- Monthly settlement ----------------------------------
-export interface SettleTransfer { key: string; from: string; to: string; amount: number; kind: 'common' | 'peer' | 'carry'; fromMonth?: string; note?: string }
+export interface SettleTransfer {
+  key: string; from: string; to: string; amount: number
+  kind: 'common' | 'peer' | 'carry'; fromMonth?: string; note?: string
+  settled: number            // paid against it so far
+  due: number                // what is still owed — this is what carries forward
+  payments: SettlePayment[]
+}
+
+/** The payments recorded against a transfer, reading a legacy single proof as
+ *  one payment of the whole amount. */
+export function paymentsFor(st: Settlement | undefined, key: string, amount: number): SettlePayment[] {
+  const list = st?.payments?.[key]
+  if (list) return list
+  const old = st?.paid?.[key]
+  return old ? [{ id: `legacy:${key}`, amount, proofKey: old.key || undefined, by: old.by, at: old.at }] : []
+}
+
+/** A UPI deep link: opens the payer's UPI app with everything filled in.
+ *  Returns null when we have no UPI id to pay into. */
+export function upiLink(payee: Entity | undefined, amount: number, note: string): string | null {
+  const vpa = (payee?.upi || '').trim()
+  if (!vpa || !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(vpa)) return null
+  const q = new URLSearchParams({
+    pa: vpa, pn: payee!.name, am: Math.max(0, amount).toFixed(2), cu: 'INR', tn: note.slice(0, 50),
+  })
+  return `upi://pay?${q.toString()}`
+}
 export interface LedgerLine { label: string; amount: number }  // + = owed to them, - = they owe
 export interface SettleView {
   commonIncome: number
@@ -775,9 +806,8 @@ export interface SettleView {
   contributors: string[]
   perContributor: number
   transfers: SettleTransfer[]
-  paid: Record<string, SettlementProof>
   closed: boolean
-  outstanding: number
+  outstanding: number        // the sum still due, after part payments
   ledger: Record<string, LedgerLine[]>   // per-entity itemised working
   net: Record<string, number>            // per-entity net (>0 owed to them)
 }
@@ -798,13 +828,21 @@ export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
   const contributors = persons.filter(e => e.earning).map(e => e.id)
   const perContributor = contributors.length ? shortfall / contributors.length : 0
 
-  const transfers: SettleTransfer[] = []
-  if (perContributor > 0.5) contributors.forEach(c => transfers.push({ key: `common:${c}`, from: c, to: 'common', amount: perContributor, kind: 'common' }))
+  type RawTransfer = Omit<SettleTransfer, 'settled' | 'due' | 'payments'>
+  const raw: RawTransfer[] = []
+  if (perContributor > 0.5) contributors.forEach(c => raw.push({ key: `common:${c}`, from: c, to: 'common', amount: perContributor, kind: 'common' }))
   // Peer settlement (individual-paid shared expenses) already handled by totals().
-  t.transfers.forEach(tr => transfers.push({ key: `peer:${tr.from}>${tr.to}`, from: tr.from, to: tr.to, amount: tr.amount, kind: 'peer' }))
+  t.transfers.forEach(tr => raw.push({ key: `peer:${tr.from}>${tr.to}`, from: tr.from, to: tr.to, amount: tr.amount, kind: 'peer' }))
   // Anything carried in from an earlier, closed month.
   const st = doc.settlements?.[mk]
-  ;(st?.carry ?? []).forEach(c => transfers.push({ key: `carry:${c.id}`, from: c.from, to: c.to, amount: c.amount, kind: 'carry', fromMonth: c.fromMonth, note: c.note }))
+  ;(st?.carry ?? []).forEach(c => raw.push({ key: `carry:${c.id}`, from: c.from, to: c.to, amount: c.amount, kind: 'carry', fromMonth: c.fromMonth, note: c.note }))
+  // Each transfer carries what has been paid against it, so a part payment is
+  // visible everywhere rather than rounding to "not paid yet".
+  const transfers: SettleTransfer[] = raw.map(tr => {
+    const payments = paymentsFor(st, tr.key, tr.amount)
+    const settled = payments.reduce((a, p) => a + (p.amount || 0), 0)
+    return { ...tr, payments, settled, due: Math.max(0, tr.amount - settled) }
+  })
 
   // Itemised working, per entity — explains where each net figure comes from.
   const ledger: Record<string, LedgerLine[]> = {}
@@ -824,10 +862,9 @@ export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
   }
   if (perContributor > 0.5) contributors.forEach(c => push(c, `Common-account shortfall — your ${Math.round(100 / contributors.length)}% of ₹${Math.round(shortfall)}`, -perContributor))
 
-  const paid = st?.paid ?? {}
   const closed = !!st?.closed
-  const outstanding = transfers.filter(tr => !paid[tr.key]).reduce((s, tr) => s + tr.amount, 0)
-  return { commonIncome, carryIn, commonExpenses, shortfall, contributors, perContributor, transfers, paid, closed, outstanding, ledger, net }
+  const outstanding = transfers.reduce((s, tr) => s + tr.due, 0)
+  return { commonIncome, carryIn, commonExpenses, shortfall, contributors, perContributor, transfers, closed, outstanding, ledger, net }
 }
 
 // ============================================================

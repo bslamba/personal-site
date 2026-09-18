@@ -19,7 +19,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
-import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid,
+import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid, paymentsFor,
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
@@ -397,23 +397,47 @@ export async function POST(request: Request) {
       }
 
       case 'settlePay': {
-        // Mark a settlement transfer as paid, with an uploaded proof image.
-        const bt = body as unknown as { monthKey?: string; transferKey?: string; proofKey?: string }
+        // Record a payment against a transfer — the whole thing, or a part of
+        // it. Paying in instalments is normal, and a part payment has to
+        // survive the month being closed rather than rounding back to unpaid.
+        const bt = body as unknown as { monthKey?: string; transferKey?: string; proofKey?: string; amount?: number }
         const mk = bt.monthKey, key = bt.transferKey
         if (!mk || !key) return NextResponse.json({ error: 'Missing transfer' }, { status: 400 })
+        const view = computeSettlement(doc, mk)
+        const tr = view.transfers.find(x => x.key === key)
+        if (!tr) return NextResponse.json({ error: 'That transfer is no longer part of this month.' }, { status: 404 })
+        const asked = Number(bt.amount)
+        const amount = Number.isFinite(asked) && asked > 0 ? Math.min(asked, tr.due) : tr.due
+        if (!(amount > 0)) return NextResponse.json({ error: 'That transfer is already settled.' }, { status: 400 })
         const st = doc.settlements?.[mk] ?? {}
-        st.paid = { ...(st.paid ?? {}), [key]: { key: bt.proofKey || '', by: actorName, at: new Date().toISOString() } }
+        // Fold a legacy all-or-nothing proof into the list before adding to it.
+        const existing = st.payments?.[key] ?? paymentsFor(st, key, tr.amount)
+        st.payments = { ...(st.payments ?? {}), [key]: [...existing, { id: uid('pay'), amount, proofKey: bt.proofKey || undefined, by: actorName, at: new Date().toISOString() }] }
+        if (st.paid) delete st.paid[key]
         doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
+        audit('apply', `Settled ${amount >= tr.due ? '' : 'part of '}· ${entName(doc, tr.from)} → ${tr.to === 'common' ? 'common account' : entName(doc, tr.to)}`, { monthKey: mk })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       case 'settleUnpay': {
-        const bt = body as unknown as { monthKey?: string; transferKey?: string }
+        // Undo one payment, or every payment on the transfer when no id is given.
+        const bt = body as unknown as { monthKey?: string; transferKey?: string; paymentId?: string }
         const mk = bt.monthKey, key = bt.transferKey
         if (!mk || !key) return NextResponse.json({ error: 'Missing transfer' }, { status: 400 })
         const st = doc.settlements?.[mk]
-        if (st?.paid) { delete st.paid[key]; doc.settlements = { ...(doc.settlements ?? {}), [mk]: st } }
+        if (st) {
+          if (bt.paymentId) {
+            const view = computeSettlement(doc, mk)
+            const tr = view.transfers.find(x => x.key === key)
+            const list = (st.payments?.[key] ?? paymentsFor(st, key, tr?.amount ?? 0)).filter(x => x.id !== bt.paymentId)
+            st.payments = { ...(st.payments ?? {}), [key]: list }
+          } else if (st.payments) {
+            delete st.payments[key]
+          }
+          if (st.paid) delete st.paid[key]
+          doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
+        }
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
@@ -427,8 +451,9 @@ export async function POST(request: Request) {
         const view = computeSettlement(doc, mk)
         const [y, mo] = mk.split('-').map(Number)
         const nextMk = monthKey(new Date(y, mo, 1))
-        const carry = view.transfers.filter(tr => !view.paid[tr.key]).map(tr => ({
-          id: uid('carry'), from: tr.from, to: tr.to, amount: tr.amount,
+        // Only what is STILL owed moves forward — a part payment stays paid.
+        const carry = view.transfers.filter(tr => tr.due > 0.5).map(tr => ({
+          id: uid('carry'), from: tr.from, to: tr.to, amount: tr.due,
           fromMonth: tr.kind === 'carry' && tr.fromMonth ? tr.fromMonth : mk,
           viaMonth: mk,
           note: tr.note || `Unpaid from ${mk}`,
