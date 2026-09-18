@@ -2006,6 +2006,7 @@ body:has(.vg-member) > footer { display: none !important; }
 .vg-kpi .k { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--vg-ink-faint); font-weight: 600; }
 .vg-kpi .v { font-size: clamp(1.3rem, 3vw, 1.7rem); font-weight: 800; letter-spacing: -0.02em; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
 .vg-pos { color: var(--vg-pos); }
+.vg-accent { color: var(--vg-accent); }
 .vg-neg { color: var(--vg-neg); }
 
 /* Tabs / pills */

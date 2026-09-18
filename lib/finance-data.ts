@@ -1056,3 +1056,109 @@ export function loanYear(it: Item, fy: string): { interest: number; principal: n
   }
   return { interest, principal, paid: rows.reduce((a, x) => a + x.emi, 0), byEntity }
 }
+
+// ============================================================
+// Looking ahead: what each month will cost, and the quiet monthly
+// set-aside that stops a yearly bill landing as a shock.
+//
+// Nothing here invents a second model of the money. A future month is just
+// a month the template has not been opened yet, so monthView materialises it
+// exactly as it would when it arrives, and the same charge rule that drives
+// My Dashboard is applied to it.
+// ============================================================
+
+export interface MonthCharge {
+  income: number            // what this person earns that month
+  charged: number           // their share of everything that reaches their own money
+  topUp: number             // included in `charged` — their part of the common shortfall
+  commonShortfall: number   // the whole shortfall, for context
+}
+
+/** What a month costs one person: their share of every expense paid from a
+ *  personal account, plus their part of the common account's shortfall.
+ *  Bills the common account pays are funded by its own income, so they only
+ *  reach a person through that shortfall. */
+export function personCharge(doc: FinanceDoc, entityId: string, k: string): MonthCharge {
+  const m = monthView(doc, k)
+  const s = computeSettlement(doc, k)
+  const income = m.income.filter(i => i.entity === entityId).reduce((a, b) => a + (b.amount || 0), 0)
+  let charged = 0
+  for (const it of m.items) {
+    if (it.paidBy === 'common') continue
+    charged += (it.amount || 0) * (shares(it)[entityId] ?? 0)
+  }
+  const topUp = s.contributors.includes(entityId) ? s.perContributor : 0
+  return { income, charged: charged + topUp, topUp, commonShortfall: s.shortfall }
+}
+
+export interface ForecastMonth {
+  key: string
+  income: number
+  outflow: number
+  net: number
+  spikes: { name: string; amount: number }[]   // yearly bills landing this month
+}
+
+/** The next few months as they stand today, for one person or the household. */
+export function forecast(doc: FinanceDoc, entityId: string | null, months = 6, from: string = monthKey()): ForecastMonth[] {
+  const [y, mo] = from.split('-').map(Number)
+  return Array.from({ length: months }, (_, i) => {
+    const key = monthKey(new Date(y, mo - 1 + i, 1))
+    const m = monthView(doc, key)
+    const spikes = m.items
+      .filter(it => it.kind === 'annual' && (it.amount || 0) > 0)
+      .map(it => ({ name: it.name || 'Yearly bill', amount: it.amount || 0 }))
+      .sort((a, b) => b.amount - a.amount)
+    if (entityId) {
+      const c = personCharge(doc, entityId, key)
+      return { key, income: c.income, outflow: c.charged, net: c.income - c.charged, spikes }
+    }
+    const t = totals(m, doc.entities)
+    return { key, income: t.income, outflow: t.expense, net: t.income - t.expense, spikes }
+  })
+}
+
+export interface SinkingRow {
+  item: Item
+  annual: number            // the bill, once a year
+  nextDue: string           // YYYY-MM it next lands
+  monthsToGo: number        // whole months from now until then
+  perMonth: number          // the steady set-aside: a twelfth of the bill
+  catchUp: number           // what it takes from now if nothing is set aside yet
+  commonPaid: boolean
+  yours: number             // the part of `perMonth` that falls to this viewer
+}
+
+/**
+ * The yearly bills, and what putting money aside each month would look like.
+ * A bill the common account pays is funded by that account, so it is the
+ * earners who would each carry an equal part of it; a bill someone pays
+ * themselves is carried the way it is split.
+ */
+export function sinkingFund(doc: FinanceDoc, entityId: string | null, from: string = monthKey()): SinkingRow[] {
+  const earners = doc.entities.filter(e => e.kind === 'person' && e.earning)
+  const [fy, fm] = from.split('-').map(Number)
+  return doc.template.annual
+    .filter(it => (it.amount || 0) > 0 && it.dueDate)
+    .map(it => {
+      const dueMonth = Number(it.dueDate!.slice(5, 7))
+      // The next time this bill lands: this year if still to come, else next.
+      const year = dueMonth >= fm ? fy : fy + 1
+      const nextDue = `${year}-${String(dueMonth).padStart(2, '0')}`
+      const monthsToGo = (year - fy) * 12 + (dueMonth - fm)
+      const annual = it.amount || 0
+      const commonPaid = it.paidBy === 'common'
+      const yours = entityId
+        ? (commonPaid
+            ? (earners.some(e => e.id === entityId) ? annual / 12 / (earners.length || 1) : 0)
+            : (annual / 12) * (shares(it)[entityId] ?? 0))
+        : annual / 12
+      return {
+        item: it, annual, nextDue, monthsToGo,
+        perMonth: annual / 12,
+        catchUp: monthsToGo > 0 ? annual / monthsToGo : annual,
+        commonPaid, yours,
+      }
+    })
+    .sort((a, b) => a.monthsToGo - b.monthsToGo || b.annual - a.annual)
+}

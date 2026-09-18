@@ -28,6 +28,7 @@ import {
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
   personalEnvId, bearersOf, loanView, loanYear, fyOf,
+  forecast, sinkingFund, type ForecastMonth, type SinkingRow,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
@@ -371,12 +372,13 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
 
 // The Budget page holds two halves: the recurring commitments that repeat
 // every month, and the limits and goals they are measured against.
-type BudgetView = 'recurring' | 'limits'
+type BudgetView = 'recurring' | 'limits' | 'ahead'
 function BudgetSwitch({ view, onView }: { view: BudgetView; onView: (v: BudgetView) => void }) {
   return (
     <div className="vg-subtabs" style={{ marginBottom: '1.1rem' }}>
       <button className="vg-subtab" data-on={view === 'recurring'} onClick={() => onView('recurring')}>Recurring commitments</button>
       <button className="vg-subtab" data-on={view === 'limits'} onClick={() => onView('limits')}>Limits &amp; goals</button>
+      <button className="vg-subtab" data-on={view === 'ahead'} onClick={() => onView('ahead')}>The year ahead</button>
     </div>
   )
 }
@@ -521,7 +523,9 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
           <BudgetSwitch view={budgetView} onView={setBudgetView} />
           {budgetView === 'recurring'
             ? <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} envelopes={doc.envelopes ?? []} />
-            : <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
+            : budgetView === 'ahead'
+              ? <AheadTab doc={doc} me={{ role: 'super', entityId: null }} />
+              : <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
         </>
       )}
       {tab === 'profile' && <ProfileTab me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} />}
@@ -3044,7 +3048,9 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
                 openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })}
                 onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })}
                 onSaveIncome={rows => action({ action: 'setTemplateIncome', income: rows })} />
-            : <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
+            : budgetView === 'ahead'
+              ? <AheadTab doc={doc} me={me} />
+              : <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
         </>
       )}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
@@ -3530,6 +3536,145 @@ function LoansTab({ doc, me }: {
         </div>
         <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.7rem' }}>
           Interest is split the way the loan is split, so a 50/50 home loan gives each person half to claim. Only home-loan interest is deductible — this table does not judge which of these count, it just does the arithmetic.
+        </p>
+      </div>
+    </>
+  )
+}
+
+// ---------- The year ahead: forecast and set-asides --------------
+// Yearly bills are what turn an ordinary month into a difficult one, so this
+// shows the months coming and what quietly putting money aside each month
+// would do to them. The months are projected by materialising the template
+// exactly as each month would be when it arrives, and charged by the same
+// rule My Dashboard uses, so the figures agree with the rest of the app.
+function AheadTab({ doc, me }: {
+  doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
+}) {
+  const viewer = me.role === 'member' ? me.entityId : null
+  const from = monthKey()
+  const [span, setSpan] = useState(6)
+  const months = useMemo(() => forecast(doc, viewer, span, from), [doc, viewer, span, from])
+  const sinking = useMemo(() => sinkingFund(doc, viewer, from), [doc, viewer, from])
+
+  const setAside = sinking.reduce((a, r) => a + (viewer ? r.yours : r.perMonth), 0)
+  const nextBill = sinking[0]
+  const tightest = months.reduce<ForecastMonth | null>((worst, m) => (!worst || m.net < worst.net ? m : worst), null)
+  const yearlyTotal = sinking.reduce((a, r) => a + (viewer ? r.yours * 12 : r.annual), 0)
+  const maxScale = Math.max(1, ...months.map(m => Math.max(m.income, m.outflow)))
+  const mine = (r: SinkingRow) => (viewer ? r.yours : r.perMonth)
+
+  return (
+    <>
+      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
+        <Kpi label={viewer ? 'Your set-aside a month' : 'Set aside a month'} value={INR(setAside)} cls="vg-accent"
+          info="Put this away every month and every yearly bill is already paid for when it lands. It is the bills for the year, spread evenly." />
+        <Kpi label="Yearly bills" value={INR(yearlyTotal)} info="What those bills come to across a whole year." />
+        <Kpi label="Next one due" small
+          value={nextBill ? `${nextBill.item.name} · ${INR(nextBill.annual)}` : '—'}
+          info={nextBill ? `Lands in ${monthLabel(nextBill.nextDue)}, ${nextBill.monthsToGo === 0 ? 'this month' : `${nextBill.monthsToGo} month${nextBill.monthsToGo === 1 ? '' : 's'} away`}.` : 'No yearly bills recorded.'} />
+        {tightest && <Kpi label="Tightest month ahead" small value={`${monthLabel(tightest.key)} · ${tightest.net >= 0 ? INR(tightest.net) + ' spare' : INR(Math.abs(tightest.net)) + ' short'}`}
+          cls={tightest.net >= 0 ? undefined : 'vg-neg'} info="The month with the least left over, on today's commitments." />}
+      </div>
+
+      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>{viewer ? 'What the next months cost you' : 'What the next months cost the household'}</p>
+          <div className="vg-subtabs">
+            {[3, 6, 12].map(n => <button key={n} className="vg-subtab" data-on={span === n} onClick={() => setSpan(n)}>{n} months</button>)}
+          </div>
+        </div>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 680 }}>
+            <thead><tr>
+              <th>Month</th>
+              <th className="num">Coming in</th>
+              <th className="num">Going out</th>
+              <th className="num">Left over</th>
+              <th style={{ width: '32%' }}>Out against in</th>
+            </tr></thead>
+            <tbody>
+              {months.map(f => {
+                const over = f.net < 0
+                return (
+                  <tr key={f.key} className={f.key === from ? 'vg-row-paid' : ''}>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>{monthLabel(f.key)}</span>
+                      {f.spikes.length > 0 && (
+                        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {f.spikes.map((s, i) => (
+                            <span key={i} className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: '#c0398b', fontSize: '0.68rem' }}>{s.name} {INR(s.amount)}</span>
+                          ))}
+                        </span>
+                      )}
+                    </td>
+                    <td className="num vg-pos">{INR(f.income)}</td>
+                    <td className="num">{INR(f.outflow)}</td>
+                    <td className="num" style={{ fontWeight: 700 }}><b className={over ? 'vg-neg' : 'vg-pos'}>{over ? '−' : ''}{INR(Math.abs(f.net))}</b></td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ position: 'relative', flex: 1, height: 10, borderRadius: 999, background: 'rgba(31,157,107,0.16)', overflow: 'hidden' }}>
+                          <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (f.outflow / maxScale) * 100)}%`, borderRadius: 999, background: over ? 'var(--vg-neg)' : 'linear-gradient(90deg,#a06be0,#6d4bd8)' }} />
+                        </span>
+                        <b style={{ fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'right', color: over ? 'var(--vg-neg)' : 'var(--vg-ink-soft)' }}>
+                          {f.income > 0 ? `${Math.round((f.outflow / f.income) * 100)}%` : '—'}
+                        </b>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>
+          Projected from the recurring commitments as they stand today — EMIs that end along the way drop out, and yearly bills appear in the month they fall. Anything added by hand later is not in here, because it has not happened yet.
+        </p>
+      </div>
+
+      <div className="vg-card vg-pad">
+        <p className="vg-sec" style={{ marginTop: 0 }}>Yearly bills — the monthly set-aside</p>
+        <div className="vg-tablewrap">
+          <table className="vg-table" style={{ minWidth: 680 }}>
+            <thead><tr>
+              <th>Bill</th>
+              <th>Next due</th>
+              <th className="num">Once a year</th>
+              <th className="num">{viewer ? 'Your set-aside' : 'Set aside'} / month</th>
+              <th className="num">If you start now</th>
+            </tr></thead>
+            <tbody>
+              {sinking.map(r => (
+                <tr key={r.item.id}>
+                  <td>
+                    <span className="vg-nm" style={{ fontWeight: 600 }}>{r.item.name}</span>
+                    {r.commonPaid && <span className="vg-chip" style={{ marginLeft: 6 }}>common</span>}
+                  </td>
+                  <td className="vg-muted" style={{ fontSize: '0.82rem' }}>
+                    {monthLabel(r.nextDue)}
+                    <span style={{ display: 'block', fontSize: '0.72rem' }}>{r.monthsToGo === 0 ? 'this month' : `${r.monthsToGo} month${r.monthsToGo === 1 ? '' : 's'} away`}</span>
+                  </td>
+                  <td className="num vg-muted">{INR(r.annual)}</td>
+                  <td className="num" style={{ fontWeight: 700 }}>{INR(mine(r))}</td>
+                  <td className="num vg-muted">{INR(viewer ? r.catchUp * (r.perMonth > 0 ? r.yours / r.perMonth : 0) : r.catchUp)}</td>
+                </tr>
+              ))}
+              {sinking.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No yearly bills recorded yet. Add them under Recurring commitments and they will be planned for here.</td></tr>}
+            </tbody>
+            {sinking.length > 0 && (
+              <tfoot>
+                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                  <td colSpan={3} style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Every month, to stay ahead of all of them</td>
+                  <td className="num" style={{ fontWeight: 800, paddingTop: '0.6rem' }}>{INR(setAside)}</td>
+                  <td style={{ paddingTop: '0.6rem' }}></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>
+          <b>Set aside</b> spreads the bill evenly across the year. <b>If you start now</b> is what it takes from this month if nothing has been put by yet — larger, because there are fewer months left before it lands.
+          {viewer && ' Bills the common account pays are shared equally between the earners, so only your part is shown.'}
         </p>
       </div>
     </>
