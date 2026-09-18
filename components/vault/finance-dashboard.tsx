@@ -358,6 +358,18 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
   )
 }
 
+// The Budget page holds two halves: the recurring commitments that repeat
+// every month, and the limits and goals they are measured against.
+type BudgetView = 'recurring' | 'limits'
+function BudgetSwitch({ view, onView }: { view: BudgetView; onView: (v: BudgetView) => void }) {
+  return (
+    <div className="vg-subtabs" style={{ marginBottom: '1.1rem' }}>
+      <button className="vg-subtab" data-on={view === 'recurring'} onClick={() => onView('recurring')}>Recurring commitments</button>
+      <button className="vg-subtab" data-on={view === 'limits'} onClick={() => onView('limits')}>Limits &amp; goals</button>
+    </div>
+  )
+}
+
 // ---------- helpers for creating / reading ----------------------
 function firstPerson(entities: Entity[]): string {
   return (entities.find(e => e.kind === 'person') ?? entities[0])?.id ?? 'bhawneet'
@@ -379,7 +391,7 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'settle' | 'year' | 'savings' | 'budget' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
+type Tab = 'month' | 'settle' | 'year' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard({ initialRole }: { initialRole?: 'super' | 'member' }) {
@@ -390,6 +402,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'conflict'>('idle')
   const [editing, setEditing] = useState<Editing | null>(null)
   const [setupDraft, setSetupDraft] = useState<Template | null>(null)
+  const [budgetView, setBudgetView] = useState<BudgetView>('recurring')
   const [me, setMe] = useState<{ role: 'super' | 'member'; entityId: string | null; username?: string; name?: string; firstName?: string; lastName?: string; email?: string; avatar?: string } | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -487,11 +500,17 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={runAction} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
-      {tab === 'budget' && <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => runAction({ action: kind, id })} onRevoke={id => runAction({ action: 'revoke', id })} />}
       {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner) => runAction({ action: 'importRows', rows, owner })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
-      {tab === 'setup' && <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} envelopes={doc.envelopes ?? []} />}
+      {tab === 'setup' && (
+        <>
+          <BudgetSwitch view={budgetView} onView={setBudgetView} />
+          {budgetView === 'recurring'
+            ? <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} envelopes={doc.envelopes ?? []} />
+            : <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
+        </>
+      )}
       {tab === 'profile' && <ProfileTab me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} />}
 
       {editing && (
@@ -2163,7 +2182,14 @@ function ApprovalsTab({ doc, onDecide, onRevoke, me }: {
   )
 }
 
-// ---------- Budget ----------------------------------------------
+// ---------- Budget: limits and goals ----------------------------
+// Spending limits and what you're saving up for, against what actually
+// happened in a month.
+//
+// Income and savings are private to each profile — the server strips them
+// from the super view — so anything derived from them (what you saved this
+// month, whether a goal is funded) is only shown to the person themselves.
+// Limits and spend work for everyone, because spend is shared information.
 function BudgetTab({ doc, me, onSaveBudget }: {
   doc: FinanceDoc; me: { role: 'super' | 'member'; entityId: string | null }
   onSaveBudget: (who: string, b: EntityBudget) => void
@@ -2171,6 +2197,7 @@ function BudgetTab({ doc, me, onSaveBudget }: {
   const persons = doc.entities.filter(e => e.kind === 'person')
   const whoOptions = me.role === 'super' ? ['family', ...persons.map(p => p.id)] : [me.entityId ?? persons[0]?.id ?? '']
   const [who, setWho] = useState(whoOptions[0])
+  const [k, setK] = useState(monthKey())
   const stored = who === 'family' ? doc.budgets.family : (doc.budgets.byEntity[who] ?? emptyBudget())
   const [draft, setDraft] = useState<EntityBudget>(() => structuredClone(stored))
   useEffect(() => {
@@ -2179,15 +2206,17 @@ function BudgetTab({ doc, me, onSaveBudget }: {
   }, [who, doc])
   const dirty = JSON.stringify(draft) !== JSON.stringify(stored)
 
-  const mk = monthKey()
-  const m = monthView(doc, mk)
+  const m = monthView(doc, k)
   const t = totals(m, doc.entities)
+  const step = (d: number) => { const [y, mo] = k.split('-').map(Number); setK(monthKey(new Date(y, mo - 1 + d, 1))) }
   const spent = who === 'family' ? t.expense : (t.byEntity[who] ?? 0)
-  const income = who === 'family' ? t.income : m.income.filter(i => i.entity === who).reduce((a, b) => a + b.amount, 0)
-  const savingsTotal = (who === 'family' ? doc.savings : doc.savings.filter(s => s.entity === who)).reduce((a, b) => a + (b.balance || 0), 0)
+  // Only your own income and savings are ever visible to you, so the
+  // saving-and-goals half of this page is yours alone.
+  const isMine = me.role === 'member' && who === me.entityId
+  const income = isMine ? m.income.filter(i => i.entity === who).reduce((a, b) => a + b.amount, 0) : 0
+  const savingsTotal = isMine ? doc.savings.filter(s => s.entity === who).reduce((a, b) => a + (b.balance || 0), 0) : 0
   const monthlySaving = income - spent
   const plannedTotal = draft.planned.reduce((a, b) => a + (b.amount || 0), 0)
-  const monthsToFund = monthlySaving > 0 ? Math.ceil(plannedTotal / monthlySaving) : null
 
   // Per-category spend must sit on the same basis as "Spent this month" above,
   // which is byEntity → bearerShares: a bill paid from the common account is
@@ -2195,6 +2224,7 @@ function BudgetTab({ doc, me, onSaveBudget }: {
   // the category column total more than the headline figure.
   const catAct = new Map<string, number>()
   for (const it of m.items) { const f = who === 'family' ? 1 : (bearerShares(it)[who] ?? 0); if (f <= 0) continue; catAct.set(categoryOf(it), (catAct.get(categoryOf(it)) ?? 0) + it.amount * f) }
+  const limitsTotal = doc.categories.reduce((a, c) => a + (draft.byCategory[c.name] ?? 0), 0)
 
   const setCat = (name: string, v: number) => setDraft(d => ({ ...d, byCategory: { ...d.byCategory, [name]: v } }))
   const addPlan = () => setDraft(d => ({ ...d, planned: [...d.planned, { id: uid('plan'), name: 'New goal', amount: 0, targetMonth: monthKey() }] }))
@@ -2206,26 +2236,36 @@ function BudgetTab({ doc, me, onSaveBudget }: {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.1rem' }}>
-        {whoOptions.length > 1 ? (
-          <div className="vg-tabs">
-            {whoOptions.map(o => <button key={o} className="vg-tab" data-on={who === o} onClick={() => setWho(o)}>{o === 'family' ? 'Family' : entName(doc.entities, o)}</button>)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="vg-nav">
+            <button className="vg-icobtn" onClick={() => step(-1)} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
+            <span className="lbl">{monthLabel(k)}</span>
+            <button className="vg-icobtn" onClick={() => step(1)} aria-label="Next month"><ChevronRight className="h-4 w-4" /></button>
           </div>
-        ) : <p className="vg-sec" style={{ margin: 0 }}>My budget</p>}
-        {dirty && (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {whoOptions.length > 1 ? (
+            <div className="vg-tabs">
+              {whoOptions.map(o => <button key={o} className="vg-tab" data-on={who === o} onClick={() => setWho(o)}>{o === 'family' ? 'Family' : entName(doc.entities, o)}</button>)}
+            </div>
+          ) : <p className="vg-sec" style={{ margin: 0 }}>My budget</p>}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {k !== monthKey() && <button className="vg-btn" onClick={() => setK(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>}
+          {dirty && <>
             <button className="vg-btn" onClick={() => setDraft(structuredClone(stored))}>Discard</button>
             <button className="vg-btn vg-btn-primary" onClick={() => onSaveBudget(who, draft)}><Check className="h-4 w-4" /> Save budget</button>
-          </div>
-        )}
+          </>}
+        </div>
       </div>
 
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
         <div className="vg-kpi"><div className="k">Monthly budget</div><div className="v">
           <input className="vg-input vg-num" style={{ maxWidth: 130 }} inputMode="numeric" value={String(draft.monthly)} onChange={e => setDraft(d => ({ ...d, monthly: num(e.target.value) }))} />
         </div></div>
-        <div className="vg-kpi"><div className="k">Spent this month</div><div className={`v ${overBudget ? 'vg-neg' : ''}`}>{INR(spent)}</div></div>
-        <div className="vg-kpi"><div className="k">{draft.monthly - spent >= 0 ? 'Left to spend' : 'Over by'}</div><div className={`v ${draft.monthly - spent >= 0 ? 'vg-pos' : 'vg-neg'}`}>{draft.monthly ? INR(Math.abs(draft.monthly - spent)) : '—'}</div></div>
-        <div className="vg-kpi"><div className="k">Saving this month</div><div className={`v ${monthlySaving >= 0 ? 'vg-pos' : 'vg-neg'}`}>{INR(Math.abs(monthlySaving))}</div></div>
+        <Kpi label="Spent" value={INR(spent)} cls={overBudget ? 'vg-neg' : undefined} info={who === 'family' ? 'Everything the household spent this month.' : 'This person’s share of what people paid from their own accounts. Bills paid from the common account sit with the pool, not with a person.'} />
+        <Kpi label={draft.monthly - spent >= 0 ? 'Left to spend' : 'Over by'} value={draft.monthly ? INR(Math.abs(draft.monthly - spent)) : '—'} cls={draft.monthly - spent >= 0 ? 'vg-pos' : 'vg-neg'} info="Your monthly budget minus what has been spent so far this month." />
+        {isMine
+          ? <Kpi label={monthlySaving >= 0 ? 'Saving this month' : 'Overspending by'} value={INR(Math.abs(monthlySaving))} cls={monthlySaving >= 0 ? 'vg-pos' : 'vg-neg'} info="Your income for the month minus your share of the spending." />
+          : <Kpi label="Limits set" small value={`${INR(limitsTotal)}${draft.monthly > 0 ? ` of ${INR(draft.monthly)}` : ''}`} cls={draft.monthly > 0 && limitsTotal > draft.monthly ? 'vg-neg' : undefined} info="Your category limits added up, against the monthly budget. Over the budget means the limits promise more than there is." />}
       </div>
 
       {draft.monthly > 0 && (
@@ -2240,10 +2280,15 @@ function BudgetTab({ doc, me, onSaveBudget }: {
       <div className="vg-grid2">
         {/* Category budgets */}
         <div className="vg-card vg-pad">
-          <p className="vg-sec">Category limits</p>
-          <div className="vg-tablewrap">
-            <table className="vg-table" style={{ minWidth: 380 }}>
-              <thead><tr><th>Category</th><th className="num">Limit</th><th className="num">Spent</th></tr></thead>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <p className="vg-sec" style={{ margin: 0 }}>Category limits</p>
+            <span className="vg-muted" style={{ fontSize: '0.78rem' }}>
+              limits {INR(limitsTotal)}{draft.monthly > 0 && <> of {INR(draft.monthly)}{limitsTotal > draft.monthly && <b className="vg-neg"> · over the budget</b>}</>}
+            </span>
+          </div>
+          <div className="vg-tablewrap" style={{ marginTop: '0.6rem' }}>
+            <table className="vg-table" style={{ minWidth: 420 }}>
+              <thead><tr><th>Category</th><th className="num" style={{ width: 104 }}>Limit</th><th className="num">Spent</th><th style={{ width: '26%' }}>Used</th></tr></thead>
               <tbody>
                 {doc.categories.map(c => {
                   const a = catAct.get(c.name) ?? 0
@@ -2254,12 +2299,23 @@ function BudgetTab({ doc, me, onSaveBudget }: {
                       <td><span className="vg-dot" style={{ background: c.color, marginRight: 6 }} />{c.name}</td>
                       <td className="num"><input className="vg-input vg-num" style={{ width: 90 }} inputMode="numeric" value={String(lim)} onChange={e => setCat(c.name, num(e.target.value))} /></td>
                       <td className={`num ${over ? 'vg-neg' : ''}`} style={{ fontWeight: over ? 700 : 400 }}>{INR(a)}</td>
+                      <td>
+                        {lim > 0 ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'rgba(120,99,190,0.12)', overflow: 'hidden' }}>
+                              <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (a / lim) * 100)}%`, borderRadius: 999, background: over ? 'var(--vg-neg)' : c.color }} />
+                            </span>
+                            <b style={{ fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'right', color: over ? 'var(--vg-neg)' : 'var(--vg-ink-soft)' }}>{Math.round((a / lim) * 100)}%</b>
+                          </div>
+                        ) : <span className="vg-muted" style={{ fontSize: '0.76rem' }}>no limit</span>}
+                      </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
+          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Leave a limit at 0 to just watch the category without capping it.</p>
         </div>
 
         {/* Planned purchases + projection */}
@@ -2285,16 +2341,26 @@ function BudgetTab({ doc, me, onSaveBudget }: {
             </table>
           </div>
           <div style={{ marginTop: '0.9rem', borderTop: '1px solid var(--vg-line)', paddingTop: '0.8rem', lineHeight: 1.7 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">Savings now</span><b>{INR(savingsTotal)}</b></div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">Wishlist total</span><b>{INR(plannedTotal)}</b></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">After buying it all</span><b className={savingsTotal - plannedTotal >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(savingsTotal - plannedTotal)}</b></div>
-            {plannedTotal > 0 && (
-              <p style={{ marginTop: '0.6rem', fontSize: '0.88rem' }}>
-                {savingsTotal >= plannedTotal
-                  ? <span className="vg-pos"><b>Your savings already cover this.</b></span>
-                  : monthsToFund != null
-                    ? <>At <b>{INR(monthlySaving)}</b> saved this month, the shortfall of <b>{INR(plannedTotal - savingsTotal)}</b> is about <b>{Math.max(0, Math.ceil((plannedTotal - savingsTotal) / monthlySaving))} months</b> away.</>
-                    : <span className="vg-neg">You&rsquo;re not saving this month, so this can&rsquo;t be funded from savings yet.</span>}
+            {isMine ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">Savings now</span><b>{INR(savingsTotal)}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="vg-muted">After buying it all</span><b className={savingsTotal - plannedTotal >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(savingsTotal - plannedTotal)}</b></div>
+                {plannedTotal > 0 && (
+                  <p style={{ marginTop: '0.6rem', fontSize: '0.88rem' }}>
+                    {savingsTotal >= plannedTotal
+                      ? <span className="vg-pos"><b>Your savings already cover this.</b></span>
+                      : monthlySaving > 0
+                        ? <>At <b>{INR(monthlySaving)}</b> saved this month, the shortfall of <b>{INR(plannedTotal - savingsTotal)}</b> is about <b>{Math.max(0, Math.ceil((plannedTotal - savingsTotal) / monthlySaving))} months</b> away.</>
+                        : <span className="vg-neg">You&rsquo;re not saving this month, so this can&rsquo;t be funded from savings yet.</span>}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="vg-muted" style={{ fontSize: '0.8rem', marginTop: '0.4rem' }}>
+                {who === 'family'
+                  ? 'Savings and income are private to each profile, so the family view plans the list without projecting when it can be afforded.'
+                  : `${entName(doc.entities, who)} sees their own savings and income against this list on their profile.`}
               </p>
             )}
           </div>
@@ -2914,7 +2980,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 // ---------- Member dashboard ------------------------------------
 function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'settle' | 'year' | 'tags' | 'savings' | 'budget' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
+  const [tab, setTab] = useState<'month' | 'settle' | 'year' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
+  const [budgetView, setBudgetView] = useState<BudgetView>('recurring')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
   const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -2954,11 +3021,17 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
-      {tab === 'budget' && <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
-      {tab === 'setup' && <MemberSetup doc={doc} entityId={entityId} envelopes={doc.envelopes ?? []}
-        openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })}
-        onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })}
-        onSaveIncome={rows => action({ action: 'setTemplateIncome', income: rows })} />}
+      {tab === 'setup' && (
+        <>
+          <BudgetSwitch view={budgetView} onView={setBudgetView} />
+          {budgetView === 'recurring'
+            ? <MemberSetup doc={doc} entityId={entityId} envelopes={doc.envelopes ?? []}
+                openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })}
+                onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })}
+                onSaveIncome={rows => action({ action: 'setTemplateIncome', income: rows })} />
+            : <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
+        </>
+      )}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} />}
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
