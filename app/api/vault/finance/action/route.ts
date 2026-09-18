@@ -240,7 +240,7 @@ export async function POST(request: Request) {
         const rows = (body as unknown as { rows?: Row[] }).rows ?? []
         const wantOwner = (body as unknown as { owner?: string }).owner
         // "Paid from" = the logged-in profile (or, for super, the chosen person).
-        const owner = isSuper ? (wantOwner || 'bhawneet') : (actor ?? '')
+        const owner = isSuper ? (wantOwner || doc.entities.find(e => e.kind === 'person')?.id || '') : (actor ?? '')
         if (!owner) return NextResponse.json({ error: 'No owner' }, { status: 400 })
         // Existing fingerprints across the whole sheet (items, income, pending
         // proposals) — skip anything already imported or awaiting approval.

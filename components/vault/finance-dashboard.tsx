@@ -21,7 +21,7 @@ import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
   type SavingItem, type Alloc, type Bucket, type Template, type Category,
   type EntityBudget, type PlannedItem, type Proposal,
-  seedDoc, uid, monthKey, monthView, totals, byCategory, shares, applyTemplateToMonth,
+  seedDoc, uid, monthKey, monthView, totals, byCategory, shares,
   putMonthOverride, deleteMonthTemplate, setMonthPaid,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
   emptyBudget, categoryOf, detectCategory, isPersonalTo, entityReferences,
@@ -386,7 +386,7 @@ function BudgetSwitch({ view, onView }: { view: BudgetView; onView: (v: BudgetVi
 
 // ---------- helpers for creating / reading ----------------------
 function firstPerson(entities: Entity[]): string {
-  return (entities.find(e => e.kind === 'person') ?? entities[0])?.id ?? 'bhawneet'
+  return (entities.find(e => e.kind === 'person') ?? entities[0])?.id ?? ''
 }
 function newItem(bucket: Bucket, entities: Entity[]): Item {
   const persons = entities.filter(e => e.kind === 'person')
@@ -503,9 +503,9 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   const setupTemplate = setupDraft ?? doc.template
   const setupDirty = setupDraft !== null && JSON.stringify(setupDraft) !== JSON.stringify(doc.template)
   const setSetupTemplate = (fn: (t: Template) => Template) => setSetupDraft(prev => fn(structuredClone(prev ?? doc.template) as Template))
-  const saveSetup = (scope: ApplyScope) => {
+  const saveSetup = () => {
     const draft = structuredClone(setupDraft ?? doc.template) as Template
-    patchDoc(d => { d.template = draft; applyScopeToDoc(d, scope); return d })
+    patchDoc(d => { d.template = draft; return d })
     setSetupDraft(null)
   }
 
@@ -523,7 +523,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
         <>
           <BudgetSwitch view={budgetView} onView={setBudgetView} />
           {budgetView === 'recurring'
-            ? <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} currentMonth={monthKey()} openEditor={setEditing} envelopes={doc.envelopes ?? []} />
+            ? <SetupTab entities={doc.entities} draft={setupTemplate} setDraft={setSetupTemplate} dirty={setupDirty} onSave={saveSetup} onDiscard={() => setSetupDraft(null)} openEditor={setEditing} envelopes={doc.envelopes ?? []} />
             : budgetView === 'ahead'
               ? <AheadTab doc={doc} me={{ role: 'super', entityId: null }} />
               : <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
@@ -1002,7 +1002,6 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   action: (payload: Record<string, unknown>) => Promise<{ doc?: FinanceDoc } | null | void> | void
 }) {
   const [bucket, setBucket] = useState<'common' | 'emi'>('common')
-  const [pbucket, setPbucket] = useState<'regular' | 'emi'>('regular')
   // Super has no "My Dashboard" of their own — each person's Personal
   // envelope (their My Dashboard) is just another envelope to pick from.
   const [env, setEnv] = useState<string>(HOUSEHOLD)
@@ -1011,9 +1010,8 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   const fileRef = useRef<HTMLInputElement>(null)
   const entities = doc.entities
   const envs = visibleEnvelopes(doc, null)                 // super sees every envelope
-  const isDash = false
   const curEnv = envs.find(e => e.id === env) ?? envs[0]
-  const isHousehold = !isDash && (!curEnv || curEnv.system)
+  const isHousehold = !curEnv || curEnv.system
 
   useEffect(() => { if (!doc.months[k]) patchMonth(k, m => m) /* eslint-disable-next-line */ }, [k])
 
@@ -1070,13 +1068,9 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
   const hhRows = hhItems.filter(it => classify(it, entities) === bucket)
   // A specific pair/group envelope: one flat list.
   const envItems = curEnv ? m.items.filter(it => itemInEnvelope(it, curEnv)) : m.items
-  // Personal items (100% borne by one person) — the My Dashboard personal panel.
-  const personalItems = m.items.filter(it => classify(it, entities) === 'personal')
-  const pRows = personalItems.filter(it => (pbucket === 'emi' ? it.kind === 'emi' : it.kind !== 'emi'))
-  const rows = isDash ? pRows : isHousehold ? hhRows : envItems
+  const rows = isHousehold ? hhRows : envItems
   const counts = { common: 0, emi: 0 }
   hhItems.forEach(it => { const c = classify(it, entities); if (c === 'common') counts.common++; else if (c === 'emi') counts.emi++ })
-  const pCounts = { regular: personalItems.filter(it => it.kind !== 'emi').length, emi: personalItems.filter(it => it.kind === 'emi').length }
   const commonIncome = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
   const commonExpenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
 
@@ -1112,16 +1106,11 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
         </>}
       </div>
 
-      {!isDash && !isHousehold && curEnv && !curEnv.personalOf && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} />}
+      {!isHousehold && curEnv && !curEnv.personalOf && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
-          {isDash ? (
-            <div className="vg-subtabs">
-              <button className="vg-subtab" data-on={pbucket === 'regular'} onClick={() => setPbucket('regular')}>Regular expense<span className="vg-count">{pCounts.regular}</span></button>
-              <button className="vg-subtab" data-on={pbucket === 'emi'} onClick={() => setPbucket('emi')}>EMIs<span className="vg-count">{pCounts.emi}</span></button>
-            </div>
-          ) : isHousehold ? (
+          {isHousehold ? (
             <div className="vg-subtabs">
               <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
               <button className="vg-subtab" data-on={bucket === 'emi'} onClick={() => setBucket('emi')}>EMIs<span className="vg-count">{counts.emi}</span></button>
@@ -1132,14 +1121,13 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
-            <button className="vg-btn vg-btn-primary" onClick={() => openNew(isDash ? (pbucket === 'emi' ? 'emi' : 'personal') : isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
+            <button className="vg-btn vg-btn-primary" onClick={() => openNew(isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
-        {isDash && <p className="vg-muted" style={{ fontSize: '0.78rem', margin: '0 0 0.7rem' }}>Your personal expenses — money borne entirely by one person. Common and shared items live under the <b>Lamba Household</b> and the other envelopes.</p>}
         {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
         <ExpenseTable rows={rows} entities={entities} shareCols={shareColumns(rows, entities)}
           onEdit={openEdit} onDelete={delItem} onTogglePaid={togglePaid}
-          emptyLabel={`Nothing in ${isDash ? (pbucket === 'emi' ? 'personal EMIs' : 'personal expenses') : isHousehold ? bucket : (curEnv?.name ?? 'this envelope')}. Use Add or snap a Receipt.`} />
+          emptyLabel={`Nothing in ${isHousehold ? bucket : (curEnv?.name ?? 'this envelope')}. Use Add or snap a Receipt.`} />
       </div>
 
       {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} me={{ role: 'super', entityId: null }} action={action} />}
@@ -1178,8 +1166,6 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
         </div>
       </div>
 
-      {/* On My Dashboard, the per-envelope impact strips sit at the very bottom. */}
-      {isDash && <div style={{ marginTop: '1.1rem' }}><EnvelopeImpactList envelopes={envs} items={m.items} entities={entities} /></div>}
     </>
   )
 }
@@ -1746,38 +1732,17 @@ type EntityKind = Entity['kind']
 
 // ---------- Setup tab (staged: edits are local until you Save) ---
 type Sec = 'monthly' | 'emis' | 'annual'
-type ApplyScope =
-  | { mode: 'future' }
-  | { mode: 'this' }
-  | { mode: 'all' }
-  | { mode: 'except-current' }
-  | { mode: 'from'; month: string }
-
-function applyScopeToDoc(d: FinanceDoc, scope: ApplyScope) {
-  const cur = monthKey()
-  const keys = Object.keys(d.months)
-  let targets: string[] = []
-  if (scope.mode === 'this') targets = [cur]
-  else if (scope.mode === 'all') targets = Array.from(new Set([...keys, cur]))
-  else if (scope.mode === 'except-current') targets = keys.filter(k => k !== cur)
-  else if (scope.mode === 'from') targets = Array.from(new Set([...keys, cur])).filter(k => k >= scope.month)
-  // 'future' → touch no existing month; new months pick up the template when opened
-  for (const k of targets) d.months[k] = applyTemplateToMonth(d.template, k, d.months[k])
-}
-
-function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, currentMonth, openEditor, envelopes = [] }: {
+function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, openEditor, envelopes = [] }: {
   entities: Entity[]
   draft: Template
   setDraft: (fn: (t: Template) => Template) => void
   dirty: boolean
-  onSave: (scope: ApplyScope) => void
+  onSave: () => void
   onDiscard: () => void
-  currentMonth: string
   openEditor: (e: Editing) => void
   envelopes?: Envelope[]
 }) {
   const envName = (id?: string) => envelopes.find(e => e.id === (id ?? HOUSEHOLD))?.name ?? 'Lamba Household'
-  const [scopeOpen, setScopeOpen] = useState(false)
 
   const addT = (sec: Sec, it: Item) => setDraft(t => ({ ...t, [sec]: [...t[sec], it] }))
   const updT = (sec: Sec, it: Item) => setDraft(t => ({ ...t, [sec]: t[sec].map(x => x.id === it.id ? it : x) }))
@@ -1843,11 +1808,11 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, current
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', position: 'sticky', top: '0.5rem', zIndex: 5 }}>
         <p style={{ margin: 0, color: '#241b40' }}>
           <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
-          {dirty ? <b>Unsaved changes</b> : 'Setup is saved manually'} — edits here don’t auto-save; choose which months to push them to when you Save.
+          {dirty ? <b>Unsaved changes</b> : 'Saved manually'} — edits here don’t save as you type. Once saved, every month follows these figures, apart from a month you have deliberately edited on its own.
         </p>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {dirty && <button className="vg-btn" onClick={onDiscard}>Discard</button>}
-          <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={() => setScopeOpen(true)}><Check className="h-4 w-4" /> Save…</button>
+          <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={onSave}><Check className="h-4 w-4" /> Save</button>
         </div>
       </div>
 
@@ -1879,52 +1844,7 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, current
         </div>
       </div>
 
-      {scopeOpen && <SaveScopeModal currentMonth={currentMonth} onClose={() => setScopeOpen(false)} onSave={sc => { onSave(sc); setScopeOpen(false) }} />}
     </>
-  )
-}
-
-function SaveScopeModal({ currentMonth, onSave, onClose }: {
-  currentMonth: string; onSave: (s: ApplyScope) => void; onClose: () => void
-}) {
-  const [mode, setMode] = useState<ApplyScope['mode']>('future')
-  const [from, setFrom] = useState<string>(currentMonth)
-  const opts: { id: ApplyScope['mode']; label: string; hint: string }[] = [
-    { id: 'future', label: 'Future months only', hint: 'New months pick up the changes when opened. Existing months untouched.' },
-    { id: 'this', label: `Also this month (${monthLabel(currentMonth)})`, hint: 'Apply to the current month as well.' },
-    { id: 'all', label: 'All months', hint: 'Apply to every month you have opened, plus this one.' },
-    { id: 'except-current', label: 'All except current month', hint: 'Apply to every opened month but leave the current one as it is.' },
-    { id: 'from', label: 'From a chosen month onwards', hint: 'Apply to that month and every month after it.' },
-  ]
-  const commit = () => onSave(mode === 'from' ? { mode: 'from', month: from } : { mode } as ApplyScope)
-
-  return (
-    <div className="vg-lb" onClick={onClose}>
-      <div className="vg-card vg-pad" style={{ width: 'min(440px, 96vw)', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <p className="vg-sec" style={{ margin: 0 }}>Save — apply to which months?</p>
-          <button className="vg-icobtn" onClick={onClose}><X className="h-4 w-4" /></button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {opts.map(o => (
-            <label key={o.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.6rem 0.7rem', borderRadius: 12, cursor: 'pointer', background: mode === o.id ? 'rgba(109,75,216,0.1)' : 'rgba(255,255,255,0.5)', border: `1px solid ${mode === o.id ? 'var(--vg-accent)' : 'var(--vg-line)'}` }}>
-              <input type="radio" name="scope" checked={mode === o.id} onChange={() => setMode(o.id)} style={{ marginTop: 3 }} />
-              <span>
-                <b style={{ fontSize: '0.92rem' }}>{o.label}</b>
-                <span className="vg-muted" style={{ display: 'block', fontSize: '0.78rem' }}>{o.hint}</span>
-                {o.id === 'from' && mode === 'from' && (
-                  <input type="month" className="vg-input" style={{ marginTop: '0.4rem', maxWidth: 180 }} value={from} onChange={e => setFrom(e.target.value)} onClick={e => e.stopPropagation()} />
-                )}
-              </span>
-            </label>
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
-          <button className="vg-btn" onClick={onClose}>Cancel</button>
-          <button className="vg-btn vg-btn-primary" onClick={commit}><Check className="h-4 w-4" /> Save changes</button>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -3518,7 +3438,7 @@ function ImportTab({ doc, me, onImport }: {
 }) {
   const [rows, setRows] = useState<ImpRow[]>([])
   const [fileName, setFileName] = useState('')
-  const [owner, setOwner] = useState(me.role === 'super' ? 'bhawneet' : (me.entityId ?? ''))
+  const [owner, setOwner] = useState(me.role === 'super' ? firstPerson(doc.entities) : (me.entityId ?? ''))
   const [done, setDone] = useState(0)
   const [proposedN, setProposedN] = useState(0)
   const [skipped, setSkipped] = useState(0)

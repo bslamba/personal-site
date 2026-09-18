@@ -146,11 +146,6 @@ export const HOUSEHOLD = 'household'
 /** The stable id of an entity's Personal envelope — "My Dashboard" for that profile. */
 export const personalEnvId = (entityId: string) => `personal:${entityId}`
 
-/** The Personal envelope belonging to a given entity, if any. */
-export function personalEnvelopeOf(envelopes: Envelope[] | undefined, entityId: string): Envelope | undefined {
-  return (envelopes ?? []).find(e => e.personalOf === entityId)
-}
-
 /** Seed the starting envelopes from whatever entities exist. */
 export function seedEnvelopes(entities: Entity[]): Envelope[] {
   const persons = entities.filter(e => e.kind === 'person')
@@ -159,8 +154,7 @@ export function seedEnvelopes(entities: Entity[]): Envelope[] {
   const envs: Envelope[] = [household]
   for (let i = 0; i < persons.length; i++) for (let j = i + 1; j < persons.length; j++) {
     const a = persons[i], b = persons[j]
-    const isBrothers = (a.id === 'bhawneet' && b.id === 'gurneet') || (a.id === 'gurneet' && b.id === 'bhawneet')
-    envs.push({ id: uid('env'), name: isBrothers ? 'Brothers' : `${a.name} & ${b.name}`, members: [a.id, b.id] })
+    envs.push({ id: uid('env'), name: `${a.name} & ${b.name}`, members: [a.id, b.id] })
   }
   // Every person gets their own private Personal envelope — this is what "My
   // Dashboard" shows: anything tagged to it, plus any expense borne entirely
@@ -250,20 +244,15 @@ export const uid = (p: string) =>
 
 export const ENTITY_COLORS = ['#4b7bec', '#b0479a', '#1f9d6b', '#e8963a', '#6d4bd8', '#5bc0d0', '#e2445c', '#8b81ad']
 
-// ----- default entities ----------------------------------------
+// ----- a blank starting point -----------------------------------
+// Deliberately empty. This is only ever used for a brand new vault, and it
+// used to carry real people and real loans — so if the document were ever
+// lost, deleted loans would have reappeared as though restored. Whoever sets
+// the vault up adds the people and the commitments themselves.
 export function seedEntities(): Entity[] {
   return [
-    { id: 'bhawneet', name: 'Bhawneet', kind: 'person', canPay: true, earning: true, isLiability: false, color: '#4b7bec', role: 'Son' },
-    { id: 'gurneet', name: 'Gurneet', kind: 'person', canPay: true, earning: true, isLiability: false, color: '#b0479a', role: 'Son' },
     { id: 'common', name: 'Common', kind: 'common', canPay: true, earning: false, isLiability: false, color: '#6d4bd8' },
-    { id: 'papa', name: 'Papa', kind: 'person', canPay: true, earning: false, isLiability: false, color: '#1f9d6b', role: 'Father' },
   ]
-}
-
-const half = (): Alloc => ({ mode: 'split', shares: { bhawneet: 0.5, gurneet: 0.5 } })
-
-function mk(kind: Kind, name: string, paidBy: string, amount: number, alloc: Alloc, extra: Partial<Item> = {}): Item {
-  return { id: uid(kind), name, amount, kind, paidBy, alloc, ...extra }
 }
 
 export interface Category { name: string; color: string }
@@ -285,51 +274,7 @@ export function seedCategories(): Category[] {
 }
 
 export function seedTemplate(): Template {
-  const monthly: Item[] = [
-    mk('monthly', 'Flat Maintainance', 'common', 3900, half()),
-    mk('monthly', 'House Electricity', 'common', 6000, half()),
-    mk('monthly', 'House Rashan', 'common', 11000, half()),
-    mk('monthly', 'Milk Basket', 'common', 8000, half()),
-    mk('monthly', 'House Fruits & Vegetables', 'common', 5000, half()),
-    mk('monthly', 'House Maid', 'common', 4000, half()),
-    mk('monthly', 'Cook', 'common', 4000, half()),
-    mk('monthly', 'Car Fuel', 'common', 5000, half()),
-    mk('monthly', 'Parking Rent', 'common', 1500, half()),
-    mk('monthly', 'Car Cleaning', 'common', 1300, half()),
-    mk('monthly', 'Internet', 'common', 1200, half()),
-    mk('monthly', 'Cylinder', 'common', 950, half()),
-    mk('monthly', 'Netflix', 'common', 200, half()),
-    mk('monthly', 'Canara Interest', 'papa', 5000, { mode: 'single', who: 'papa' }),
-  ]
-  const emis: Item[] = [
-    mk('emi', 'Axis Home Loan', 'gurneet', 62815, half(), { principal: 8250000, tenure: 276, startDate: '2026-05-10', endDate: '2049-04-10' }),
-    mk('emi', 'Axis Home Loan (2)', 'gurneet', 21080, half(), { principal: 2500000, tenure: 240, startDate: '2026-05-10', endDate: '2046-04-10' }),
-    mk('emi', 'Axis Home Loan (3)', 'gurneet', 14915, half(), { startDate: '2026-07-10', endDate: '2046-06-10' }),
-    mk('emi', 'SBI Home Loan', 'bhawneet', 57700, half(), { principal: 7200000, tenure: 360, startDate: '2023-02-10', endDate: '2053-01-10' }),
-    mk('emi', 'Astor Car Loan', 'bhawneet', 32725, half(), { principal: 1559997, tenure: 60, startDate: '2024-09-05', endDate: '2029-08-05' }),
-    mk('emi', 'Ertiga Top Up', 'bhawneet', 25506, half(), { principal: 1530360, tenure: 60, startDate: '2024-11-07', endDate: '2029-10-07' }),
-    mk('emi', 'Royal Enfield', 'gurneet', 10080, half(), { principal: 362880, tenure: 36, startDate: '2025-06-05', endDate: '2028-05-05' }),
-    mk('emi', 'Bajaj PL', 'bhawneet', 16182, half(), { principal: 776736, tenure: 48, startDate: '2023-05-02', endDate: '2027-04-02' }),
-    mk('emi', 'Apple Laptop', 'bhawneet', 4152, half(), { principal: 99655, tenure: 24, startDate: '2024-09-02', endDate: '2026-08-02' }),
-    mk('emi', 'Apple Cloud Storage', 'gurneet', 749, half(), { startDate: '2026-05-10', endDate: null }),
-  ]
-  const annual: Item[] = [
-    mk('annual', 'Water', 'common', 8000, half(), { dueDate: '2026-05-06' }),
-    mk('annual', 'Bike Insurance', 'common', 1100, half(), { dueDate: '2026-05-04' }),
-    mk('annual', 'Astor Insurance', 'common', 20000, half(), { dueDate: '2026-07-04' }),
-    mk('annual', 'Ertiga Insurance', 'common', 20000, half(), { dueDate: '2026-10-04' }),
-    mk('annual', 'Parents Health Insurance', 'common', 40000, half(), { dueDate: '2026-03-01' }),
-    mk('annual', 'Pavani Property Tax', 'common', 5000, half(), { dueDate: '2026-12-31' }),
-    mk('annual', 'Harsha Property Tax', 'common', 5000, half(), { dueDate: '2026-12-31' }),
-    mk('annual', 'Astor Service', 'common', 10000, half(), { dueDate: '2026-11-15' }),
-    mk('annual', 'Ertiga Service', 'common', 10000, half(), { dueDate: '2026-12-15' }),
-    mk('annual', 'Bike Service', 'common', 3000, half(), { dueDate: '2026-05-31' }),
-    mk('annual', 'Milk Basket - Yearly Subscription', 'common', 849, half(), { dueDate: '2026-05-10' }),
-  ]
-  const income: IncomeItem[] = [
-    { id: uid('inc'), source: 'Rental Income', entity: 'common', amount: 48000 },
-  ]
-  return { monthly, emis, annual, income }
+  return { monthly: [], emis: [], annual: [], income: [] }
 }
 
 export function seedDoc(): FinanceDoc {
@@ -345,28 +290,6 @@ export function seedDoc(): FinanceDoc {
     budgets: seedBudgets(),
     envelopes: seedEnvelopes(entities),
     updatedAt: new Date().toISOString(),
-  }
-}
-
-// ----- migration from v1 ----------------------------------------
-const ACC_TO_ENTITY: Record<string, string> = {
-  'Common Bank Account': 'common',
-  "Bhawneet's Bank Account": 'bhawneet',
-  "Gurneet's Bank Account": 'gurneet',
-  "Papa's Bank Account": 'papa',
-}
-
-interface V1Item { id: string; name: string; owner?: string; account?: string; amount: number; shareB?: number; kind: string; startDate?: string | null; endDate?: string | null; dueDate?: string | null; principal?: number | null; tenure?: number | null; paid?: boolean; note?: string }
-
-function v1ItemToV2(it: V1Item): Item {
-  const paidBy = ACC_TO_ENTITY[it.account ?? 'Common Bank Account'] ?? 'common'
-  const b = typeof it.shareB === 'number' ? Math.max(0, Math.min(1, it.shareB)) : 0.5
-  const alloc: Alloc = { mode: 'split', shares: { bhawneet: b, gurneet: 1 - b } }
-  const kind = (['monthly', 'emi', 'annual', 'oneoff'].includes(it.kind) ? it.kind : 'monthly') as Kind
-  return {
-    id: it.id ?? uid(kind), name: it.name, amount: it.amount || 0, kind, paidBy, alloc,
-    startDate: it.startDate ?? null, endDate: it.endDate ?? null, dueDate: it.dueDate ?? null,
-    principal: it.principal ?? null, tenure: it.tenure ?? null, paid: it.paid, note: it.note, src: kind === 'oneoff' ? 'manual' : 'template',
   }
 }
 
@@ -389,9 +312,14 @@ export function migrate(raw: unknown): FinanceDoc {
     for (const p of doc.entities.filter(e => e.kind === 'person')) {
       if (!doc.envelopes.some(env => env.personalOf === p.id)) doc.envelopes.push({ id: personalEnvId(p.id), name: `${p.name}’s Personal`, members: [p.id], personalOf: p.id })
     }
-    // Backfill family roles for the seeded members if none were set yet.
-    const DEFAULT_ROLES: Record<string, string> = { papa: 'Father', bhawneet: 'Son', gurneet: 'Son' }
-    for (const e of doc.entities) if (e.kind === 'person' && !e.role && DEFAULT_ROLES[e.id]) e.role = DEFAULT_ROLES[e.id]
+    // A month stores only what it changes: its own one-off expenses, the
+    // recurring items it deliberately overrides or marks paid, and what it
+    // removed. Whole copies of the template used to be written into months by
+    // the old "apply to which months" save; monthView has always ignored them,
+    // so they are dropped here rather than carried around for ever.
+    for (const m of Object.values(doc.months)) {
+      m.items = m.items.filter(it => it.src === 'manual' || it.override || it.paid)
+    }
     // Every existing expense belongs to the household envelope until moved.
     const stamp = (it: Item) => { if (!it.envelope) it.envelope = HOUSEHOLD }
     doc.template.monthly.forEach(stamp); doc.template.emis.forEach(stamp); doc.template.annual.forEach(stamp)
@@ -399,26 +327,10 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
     return doc
   }
-  // v1 → v2
-  const tpl = (d.template ?? {}) as Record<string, V1Item[]>
-  const mapIncome = (arr: unknown): IncomeItem[] =>
-    Array.isArray(arr) ? arr.map((i) => {
-      const x = i as { id?: string; source?: string; person?: string; entity?: string; amount?: number }
-      const person = (x.entity ?? x.person ?? 'common').toString().toLowerCase()
-      return { id: x.id ?? uid('inc'), source: x.source ?? 'Income', entity: ['bhawneet', 'gurneet', 'papa', 'common'].includes(person) ? person : 'common', amount: x.amount ?? 0, src: 'template' }
-    }) : []
-  const template: Template = {
-    monthly: (tpl.monthly ?? []).map(v1ItemToV2),
-    emis: (tpl.emis ?? []).map(v1ItemToV2),
-    annual: (tpl.annual ?? []).map(v1ItemToV2),
-    income: mapIncome(tpl.income),
-  }
-  const months: Record<string, MonthData> = {}
-  const rawMonths = (d.months ?? {}) as Record<string, { items?: V1Item[]; income?: unknown; note?: string }>
-  for (const [k, m] of Object.entries(rawMonths)) {
-    months[k] = { items: (m.items ?? []).map(v1ItemToV2), income: mapIncome(m.income), note: m.note ?? '' }
-  }
-  return { version: 2, entities: seedEntities(), template, months, savings: [], categories: seedCategories(), proposals: [], budgets: seedBudgets(), updatedAt: new Date().toISOString() }
+  // Anything that is not a v2 document starts fresh rather than being guessed
+  // at. The old v1 converter mapped fixed account names onto fixed people and
+  // could only ever have produced nonsense for anyone else.
+  return seedDoc()
 }
 
 // ----- month helpers --------------------------------------------
@@ -513,19 +425,7 @@ export function deleteMonthTemplate(month: MonthData, it: Item): MonthData {
   return { ...month, deletedTemplate, items }
 }
 
-/** Re-apply the template's recurring items to a month, keeping that
-    month's manually-added items, its income and its note. Used when
-    you Save the Setup tab and push changes into existing months. */
-export function applyTemplateToMonth(template: Template, key: string, existing?: MonthData): MonthData {
-  const fresh = materialise(template, key)
-  if (!existing) return fresh
-  const manual = existing.items.filter(i => i.src === 'manual')
-  const manualIncome = existing.income.filter(i => i.src === 'manual')
-  return { items: [...fresh.items, ...manual], income: [...fresh.income, ...manualIncome], note: existing.note }
-}
-
 // ----- allocation & settlement ----------------------------------
-export const clamp01 = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0))
 
 /** Normalised share fractions by entity id for an item. */
 export function shares(it: Item): Record<string, number> {
@@ -1084,11 +984,6 @@ export function fyOf(key: string): string {
   const [y, m] = key.split('-').map(Number)
   const start = m >= 4 ? y : y - 1
   return `${start}-${String((start + 1) % 100).padStart(2, '0')}`
-}
-/** The months of a financial year, in order. */
-export function fyMonths(fy: string): string[] {
-  const start = Number(fy.slice(0, 4))
-  return Array.from({ length: 12 }, (_, i) => addMonths(`${start}-04`, i))
 }
 
 /** What a loan costs in one financial year, and each person's share of it. */
