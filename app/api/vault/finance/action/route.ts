@@ -21,7 +21,7 @@ import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid,
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
-         type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget, type Entity } from '@/lib/finance-data'
+         type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
 
 export const runtime = 'nodejs'
@@ -121,10 +121,14 @@ export async function POST(request: Request) {
       }
 
       case 'setSavings': {
+        // Savings are private to each profile — not even super sees them, so
+        // super has nothing to save here. The old super branch replaced the
+        // whole savings list, which would have wiped every member's pots.
+        if (isSuper || !actor) return NextResponse.json({ error: 'Savings are private to each profile' }, { status: 403 })
         const rows = (body.savings ?? [])
-        const who = actor ?? 'su'
-        const mine = rows.map(r => ({ ...r, entity: isSuper ? r.entity : who }))
-        doc.savings = isSuper ? mine : [...doc.savings.filter(s => s.entity !== who), ...mine]
+        const who = actor
+        const mine = rows.map(r => ({ ...r, entity: who }))
+        doc.savings = [...doc.savings.filter(s => s.entity !== who), ...mine]
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
@@ -426,14 +430,19 @@ export async function POST(request: Request) {
         const carry = view.transfers.filter(tr => !view.paid[tr.key]).map(tr => ({
           id: uid('carry'), from: tr.from, to: tr.to, amount: tr.amount,
           fromMonth: tr.kind === 'carry' && tr.fromMonth ? tr.fromMonth : mk,
+          viaMonth: mk,
           note: tr.note || `Unpaid from ${mk}`,
         }))
         const st = doc.settlements?.[mk] ?? {}
         st.closed = true; st.closedAt = new Date().toISOString(); st.closedBy = actorName
         doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
-        if (carry.length) {
-          const nx = doc.settlements[nextMk] ?? {}
-          nx.carry = [...(nx.carry ?? []), ...carry]
+        // Closing is idempotent: drop anything a previous close of THIS month
+        // already pushed forward, so a reopen-and-close never stacks the same
+        // debt into next month twice.
+        const nx = doc.settlements[nextMk] ?? {}
+        const kept = (nx.carry ?? []).filter(c => c.viaMonth !== mk)
+        if (kept.length || carry.length) {
+          nx.carry = [...kept, ...carry]
           doc.settlements[nextMk] = nx
         }
         audit('apply', `Closed settlement · ${mk}${carry.length ? ` · ${carry.length} carried forward` : ''}`, { monthKey: mk })
@@ -495,6 +504,16 @@ export async function POST(request: Request) {
         if (!mk) return NextResponse.json({ error: 'Missing month' }, { status: 400 })
         const st = doc.settlements?.[mk]
         if (st) { st.closed = false; st.closedAt = undefined; doc.settlements = { ...(doc.settlements ?? {}), [mk]: st } }
+        // Take back whatever closing this month pushed into the next one —
+        // otherwise the debt lives in both places at once.
+        const [ry, rmo] = mk.split('-').map(Number)
+        const reopenNext = monthKey(new Date(ry, rmo, 1))
+        const nxt = doc.settlements?.[reopenNext]
+        if (nxt?.carry?.length) {
+          nxt.carry = nxt.carry.filter(c => c.viaMonth !== mk)
+          doc.settlements = { ...(doc.settlements ?? {}), [reopenNext]: nxt }
+        }
+        audit('apply', `Reopened settlement · ${mk}`, { monthKey: mk })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }

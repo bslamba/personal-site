@@ -12,7 +12,7 @@
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { CopyObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSession, VAULT_COOKIE, type Session } from '@/lib/vault-auth'
 import { findUser } from '@/lib/users'
 import { s3 } from '@/lib/storage'
@@ -30,7 +30,30 @@ export async function readRaw(): Promise<unknown | null> {
     return JSON.parse(await out.Body!.transformToString())
   } catch { return null }
 }
+// Keep one snapshot per day: the first write of each day copies the document
+// as it stood BEFORE that write, so every day of history is recoverable. The
+// day already taken is remembered per instance to keep this to one HEAD call.
+let snapshotDay = ''
+async function snapshotOnce(): Promise<void> {
+  const day = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)   // IST
+  if (snapshotDay === day) return
+  snapshotDay = day
+  const Key = `_finance/backups/${day}.json`
+  try {
+    await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key }))
+    return                                            // today's copy is already there
+  } catch { /* not taken yet */ }
+  try {
+    await s3.send(new CopyObjectCommand({ Bucket: BUCKET, Key, CopySource: `${BUCKET}/${KEY}` }))
+  } catch { /* nothing to copy yet, or storage hiccup — never block a save */ }
+}
+
+/** Persist the document. Every write stamps `updatedAt`, which is the version
+ *  token a full-document PUT is checked against, so a stale overwrite is
+ *  caught rather than silently applied. */
 export async function writeDoc(doc: FinanceDoc): Promise<void> {
+  await snapshotOnce()
+  doc.updatedAt = new Date().toISOString()
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: KEY, Body: JSON.stringify(doc), ContentType: 'application/json' }))
 }
 // Savings and personal (non-common) income are private to each individual
@@ -84,13 +107,26 @@ export async function PUT(request: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   if (session.r !== 'super') return NextResponse.json({ error: 'Members cannot overwrite the shared sheet' }, { status: 403 })
   try {
-    const body = (await request.json().catch(() => null)) as { doc?: FinanceDoc } | null
+    const body = (await request.json().catch(() => null)) as { doc?: FinanceDoc; baseUpdatedAt?: string } | null
     if (!body?.doc || body.doc.version !== 2) return NextResponse.json({ error: 'Bad document' }, { status: 400 })
     // The super view never contains savings or personal income (both are
     // private to each profile), so a super PUT must NOT overwrite them —
     // re-merge the stored copies before writing.
     const rawStored = await readRaw()
     const stored = rawStored ? migrate(rawStored) : null
+    // A full-document write replaces the whole sheet, so it must be based on
+    // the version that is actually stored. If a member has since acted (or
+    // another tab saved), refuse and hand back the current document instead of
+    // quietly overwriting what they did.
+    if (stored && body.baseUpdatedAt && stored.updatedAt !== body.baseUpdatedAt) {
+      return NextResponse.json(
+        { error: 'The sheet changed since this page loaded — reloaded it, please redo that last edit.', conflict: true, doc: viewFor(session, stored) },
+        { status: 409 },
+      )
+    }
+    // Proposals are only ever created and decided through the action API.
+    // A document write must never carry a stale copy of them back.
+    body.doc.proposals = stored?.proposals ?? body.doc.proposals ?? []
     body.doc.savings = stored?.savings ?? []
     body.doc.auditLog = stored?.auditLog ?? body.doc.auditLog ?? []
     body.doc.settlements = stored?.settlements ?? body.doc.settlements ?? {}
@@ -110,8 +146,7 @@ export async function PUT(request: Request) {
         ...stored.template.income.filter(i => i.entity !== 'common'),
       ]
     }
-    body.doc.updatedAt = new Date().toISOString()
-    await writeDoc(body.doc)
+    await writeDoc(body.doc)            // stamps updatedAt — the next write's version token
     return NextResponse.json({ ok: true, updatedAt: body.doc.updatedAt })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Storage error' }, { status: 500 })

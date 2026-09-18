@@ -109,7 +109,12 @@ export interface AuditEntry {
 }
 
 export interface SettlementProof { key: string; by: string; at: string }
-export interface CarryItem { id: string; from: string; to: string; amount: number; fromMonth: string; note?: string }
+export interface CarryItem {
+  id: string; from: string; to: string; amount: number
+  fromMonth: string        // the month the debt originally arose in
+  viaMonth?: string        // the close that pushed it here — lets a reopen take it back
+  note?: string
+}
 export interface Settlement {
   closed?: boolean
   closedAt?: string
@@ -598,11 +603,15 @@ export function classify(it: Item, entities: Entity[]): Bucket {
 }
 
 // ----- categories -----------------------------------------------
-export function byCategory(m: MonthData): { name: string; value: number }[] {
+/** Spend by category. With `entityId`, only the part that entity bears —
+ *  so a personal view doesn't show the whole household's spending. */
+export function byCategory(m: MonthData, entityId?: string): { name: string; value: number }[] {
   const map = new Map<string, number>()
   for (const it of m.items) {
+    const frac = entityId ? (bearerShares(it)[entityId] ?? 0) : 1
+    if (frac <= 0) continue
     const key = it.category || bucket(it.name, it.kind)
-    map.set(key, (map.get(key) ?? 0) + (it.amount || 0))
+    map.set(key, (map.get(key) ?? 0) + (it.amount || 0) * frac)
   }
   return [...map.entries()].map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value)
 }
@@ -710,6 +719,21 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements, reminders, envelopes }
 }
 
+/** Everywhere an entity still appears. Removing someone who is referenced
+ *  leaves expenses pointing at a person who no longer exists — their share
+ *  then quietly vanishes from the settlement instead of being reassigned. */
+export function entityReferences(doc: FinanceDoc, id: string): { items: number; income: number; savings: number; envelopes: number; total: number } {
+  const touches = (it: Item) => it.paidBy === id || (shares(it)[id] ?? 0) > 0
+  let items = 0
+  for (const sec of [doc.template.monthly, doc.template.emis, doc.template.annual]) items += sec.filter(touches).length
+  for (const m of Object.values(doc.months)) items += m.items.filter(touches).length
+  let income = doc.template.income.filter(i => i.entity === id).length
+  for (const m of Object.values(doc.months)) income += m.income.filter(i => i.entity === id).length
+  const savings = doc.savings.filter(s => s.entity === id).length
+  const envelopes = (doc.envelopes ?? []).filter(e => !e.personalOf && e.members.includes(id)).length
+  return { items, income, savings, envelopes, total: items + income + savings + envelopes }
+}
+
 /** Apply an add/update/delete to a template section. */
 export function applyTemplateOp(doc: FinanceDoc, section: 'monthly' | 'emis' | 'annual', op: 'add' | 'update' | 'delete', item: Item) {
   const arr = doc.template[section]
@@ -744,6 +768,7 @@ export interface SettleTransfer { key: string; from: string; to: string; amount:
 export interface LedgerLine { label: string; amount: number }  // + = owed to them, - = they owe
 export interface SettleView {
   commonIncome: number
+  carryIn: number           // surplus carried in from last month — it funds this month too
   commonExpenses: number
   shortfall: number
   contributors: string[]
@@ -764,7 +789,10 @@ export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
   const t = totals(m, entities)
   const commonIncome = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
   const commonExpenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
-  const shortfall = Math.max(0, commonExpenses - commonIncome)
+  // A surplus carried in from last month is still sitting in the common
+  // account, so it pays this month's bills before anyone tops anything up.
+  const carryIn = m.commonCarryIn ?? 0
+  const shortfall = Math.max(0, commonExpenses - commonIncome - carryIn)
   // Whoever earns funds the common pot's shortfall, split equally.
   const contributors = persons.filter(e => e.earning).map(e => e.id)
   const perContributor = contributors.length ? shortfall / contributors.length : 0
@@ -798,7 +826,7 @@ export function computeSettlement(doc: FinanceDoc, mk: string): SettleView {
   const paid = st?.paid ?? {}
   const closed = !!st?.closed
   const outstanding = transfers.filter(tr => !paid[tr.key]).reduce((s, tr) => s + tr.amount, 0)
-  return { commonIncome, commonExpenses, shortfall, contributors, perContributor, transfers, paid, closed, outstanding, ledger, net }
+  return { commonIncome, carryIn, commonExpenses, shortfall, contributors, perContributor, transfers, paid, closed, outstanding, ledger, net }
 }
 
 // ============================================================

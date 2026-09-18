@@ -21,10 +21,10 @@ import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
   type SavingItem, type Alloc, type Bucket, type Template, type Category,
   type EntityBudget, type PlannedItem, type Proposal,
-  seedDoc, uid, monthKey, materialise, monthView, totals, byCategory, shares, applyTemplateToMonth,
+  seedDoc, uid, monthKey, monthView, totals, byCategory, shares, applyTemplateToMonth,
   putMonthOverride, deleteMonthTemplate, setMonthPaid,
   classify, INR, monthLabel, entName, entColor, ENTITY_COLORS,
-  emptyBudget, categoryOf, detectCategory, isPersonalTo,
+  emptyBudget, categoryOf, detectCategory, isPersonalTo, entityReferences,
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
   personalEnvId, bearersOf,
@@ -387,18 +387,20 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   const [tab, setTab] = useState<Tab>('month')
   const [key, setKey] = useState<string>(monthKey())
   const [year, setYear] = useState<number>(new Date().getFullYear())
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'conflict'>('idle')
   const [editing, setEditing] = useState<Editing | null>(null)
   const [setupDraft, setSetupDraft] = useState<Template | null>(null)
   const [me, setMe] = useState<{ role: 'super' | 'member'; entityId: string | null; username?: string; name?: string; firstName?: string; lastName?: string; email?: string; avatar?: string } | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const base = useRef('')             // the stored version this page is editing on top of
+  const fromServer = useRef(false)    // the next doc change came from the server, don't save it back
 
   useEffect(() => {
     let live = true
     fetch('/api/vault/finance')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('load'))))
-      .then(d => { if (live) { setDoc(d.doc as FinanceDoc); setMe(d.me ?? { role: 'super', entityId: null }) } })
+      .then(d => { if (live) { base.current = (d.doc as FinanceDoc)?.updatedAt ?? ''; setDoc(d.doc as FinanceDoc); setMe(d.me ?? { role: 'super', entityId: null }) } })
       .catch(() => { if (live) { setDoc(seedDoc()); setMe({ role: 'super', entityId: null }) } })
     return () => { live = false }
   }, [])
@@ -406,11 +408,31 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   useEffect(() => {
     if (!doc) return
     if (firstLoad.current) { firstLoad.current = false; return }
+    // A doc that just came back from the server is already saved — writing it
+    // straight back would be a pointless round trip (and, after a conflict,
+    // would fight whatever we just reloaded).
+    if (fromServer.current) { fromServer.current = false; return }
+    // No known base version means the sheet never loaded (we are showing the
+    // seeded fallback). Saving that would overwrite the real document with an
+    // empty one, so this page stays read-only until a load succeeds.
+    if (!base.current) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaveState('saving')
     saveTimer.current = setTimeout(async () => {
       try {
-        await fetch('/api/vault/finance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ doc }) })
+        const r = await fetch('/api/vault/finance', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doc, baseUpdatedAt: base.current }),
+        })
+        const d = await r.json().catch(() => ({}))
+        if (r.status === 409) {
+          // Someone else changed the sheet first. Take their version rather
+          // than overwriting it, and say so — the last edit needs redoing.
+          if (d.doc) { fromServer.current = true; base.current = (d.doc as FinanceDoc).updatedAt; setDoc(d.doc as FinanceDoc) }
+          setSaveState('conflict')
+          return
+        }
+        if (d.updatedAt) base.current = d.updatedAt
         setSaveState('saved'); setTimeout(() => setSaveState('idle'), 1400)
       } catch { setSaveState('idle') }
     }, 700)
@@ -427,7 +449,12 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 
   const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
   const runAction = useCallback(async (payload: Record<string, unknown>) => {
-    try { const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json().catch(() => ({})); if (d.doc) setDoc(d.doc as FinanceDoc); return d } catch { return null }
+    try {
+      const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const d = await r.json().catch(() => ({}))
+      if (d.doc) { fromServer.current = true; base.current = (d.doc as FinanceDoc).updatedAt; setDoc(d.doc as FinanceDoc) }
+      return d
+    } catch { return null }
   }, [])
 
   if (!doc || !me) return <Shell role={initialRole}><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
@@ -460,7 +487,6 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={runAction} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
-      {tab === 'savings' && <SavingsTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'budget' && <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => runAction({ action: kind, id })} onRevoke={id => runAction({ action: 'revoke', id })} />}
       {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner) => runAction({ action: 'importRows', rows, owner })} />}
@@ -494,7 +520,7 @@ function Avatar({ me, size = 30 }: { me?: MeLite; size?: number }) {
 interface ShellTab { id: string; label: string; icon: typeof Wallet }
 function Shell({ children, saveState, me, tabs, activeTab, onTab, role }: {
   children: React.ReactNode
-  saveState?: 'idle' | 'saving' | 'saved'
+  saveState?: 'idle' | 'saving' | 'saved' | 'conflict'
   me?: MeLite
   tabs?: ShellTab[]
   activeTab?: string
@@ -524,6 +550,12 @@ function Shell({ children, saveState, me, tabs, activeTab, onTab, role }: {
             <span style={{ minWidth: 20, textAlign: 'right' }}>
               {saveState === 'saving' && <Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline', color: 'var(--vg-muted)' }} />}
               {saveState === 'saved' && <Check className="h-3.5 w-3.5" style={{ display: 'inline', color: 'var(--vg-pos, #16a34a)' }} />}
+              {saveState === 'conflict' && (
+                <span className="vg-chip" style={{ background: 'rgba(226,68,92,0.14)', color: 'var(--vg-neg)', whiteSpace: 'normal', textAlign: 'left' }}
+                  title="Someone else changed the sheet while this page was open. Their version is now loaded, so your last edit was not saved — please make it again.">
+                  Reloaded · redo last edit
+                </span>
+              )}
             </span>
             {me && (
               <button className="vg-me" onClick={() => onTab?.('profile')} title={firstName ? `${firstName} — your profile` : 'Your profile'} data-on={activeTab === 'profile'}>
@@ -1319,59 +1351,33 @@ function TagsTab({ doc }: { doc: FinanceDoc }) {
 }
 
 // ---------- Savings tab -----------------------------------------
-function SavingsTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
-  const entities = doc.entities
-  const savings = doc.savings
-  const total = savings.reduce((s, x) => s + (x.balance || 0), 0)
-  const byEnt = entities.map(e => ({ label: e.name, value: savings.filter(s => s.entity === e.id).reduce((a, b) => a + (b.balance || 0), 0), color: e.color })).filter(p => p.value > 0)
-
-  const upd = (id: string, patch: Partial<SavingItem>) => patchDoc(d => ({ ...d, savings: d.savings.map(s => s.id === id ? { ...s, ...patch } : s) }))
-  const del = (id: string) => patchDoc(d => ({ ...d, savings: d.savings.filter(s => s.id !== id) }))
-  const add = () => patchDoc(d => ({ ...d, savings: [...d.savings, { id: uid('sav'), label: 'New savings', entity: firstPerson(entities), balance: 0, kind: 'FD' }] }))
-
-  return (
-    <>
-      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
-        <div className="vg-kpi"><div className="k">Total savings</div><div className="v vg-pos">{INR(total)}</div></div>
-        <div className="vg-kpi"><div className="k">Pots</div><div className="v">{savings.length}</div></div>
-      </div>
-
-      {byEnt.length > 0 && <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}><p className="vg-sec">By person</p><StackBar parts={byEnt} /></div>}
-
-      <div className="vg-card vg-pad">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-          <p className="vg-sec" style={{ margin: 0 }}>Savings & investments</p>
-          <button className="vg-btn vg-btn-primary" onClick={add}><Plus className="h-4 w-4" /> Add</button>
-        </div>
-        <div className="vg-tablewrap">
-          <table className="vg-table" style={{ minWidth: 620 }}>
-            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th>Whose</th><th className="num">Balance</th><th>Note</th><th style={{ width: 40 }}></th></tr></thead>
-            <tbody>
-              {savings.map(s => (
-                <tr key={s.id}>
-                  <td><input className="vg-input" value={s.label} onChange={e => upd(s.id, { label: e.target.value })} /></td>
-                  <td><input className="vg-input" value={s.kind ?? ''} placeholder="FD / MF / RD…" onChange={e => upd(s.id, { kind: e.target.value })} /></td>
-                  <td><select className="vg-select" value={s.entity} onChange={e => upd(s.id, { entity: e.target.value })}>{entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}</select></td>
-                  <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(s.balance)} onChange={e => upd(s.id, { balance: num(e.target.value) })} /></td>
-                  <td><input className="vg-input" value={s.note ?? ''} onChange={e => upd(s.id, { note: e.target.value })} /></td>
-                  <td><button className="vg-icobtn" onClick={() => del(s.id)}><Trash2 className="h-4 w-4" /></button></td>
-                </tr>
-              ))}
-              {savings.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
-  )
-}
-
 // ---------- Entities tab ----------------------------------------
 interface PUser { username: string; name: string; role: 'super' | 'member'; entityId: string | null; email?: string }
 
 function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: FinanceDoc) => FinanceDoc) => void }) {
   const upd = (id: string, patch: Partial<Entity>) => patchDoc(d => ({ ...d, entities: d.entities.map(e => e.id === id ? { ...e, ...patch } : e) }))
-  const del = (id: string) => patchDoc(d => ({ ...d, entities: d.entities.filter(e => e.id !== id) }))
+  // Removing someone who still appears on an expense would leave that expense
+  // pointing at nobody — their share would silently drop out of the
+  // settlement. Refuse, and say exactly what is holding them.
+  const del = (id: string) => {
+    const refs = entityReferences(doc, id)
+    if (refs.total > 0) {
+      const parts = [
+        refs.items && `${refs.items} expense${refs.items === 1 ? '' : 's'}`,
+        refs.income && `${refs.income} income row${refs.income === 1 ? '' : 's'}`,
+        refs.savings && `${refs.savings} savings pot${refs.savings === 1 ? '' : 's'}`,
+        refs.envelopes && `${refs.envelopes} envelope${refs.envelopes === 1 ? '' : 's'}`,
+      ].filter(Boolean).join(', ')
+      setErr(`${entName(doc.entities, id)} is still on ${parts}. Move those to someone else first — removing them now would drop their share out of every settlement.`)
+      return
+    }
+    setErr(null)
+    patchDoc(d => ({
+      ...d,
+      entities: d.entities.filter(e => e.id !== id),
+      envelopes: (d.envelopes ?? []).filter(e => e.personalOf !== id).map(e => ({ ...e, members: e.members.filter(mm => mm !== id) })),
+    }))
+  }
   const add = () => patchDoc(d => {
     const id = uid('ent')
     return {
@@ -1957,6 +1963,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
 
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
         <Kpi label="Common income" value={INR(s.commonIncome)} cls="vg-pos" info="What the common account earns this month (e.g. rent)." />
+        {s.carryIn > 0.5 && <Kpi label="Carried in" value={INR(s.carryIn)} cls="vg-pos" info="Last month's surplus was left in the common account, so it pays this month's bills before anyone tops up." />}
         <Kpi label="Paid from common" value={INR(s.commonExpenses)} info="Everything paid out of the common account this month." />
         <Kpi label="Common shortfall" value={INR(s.shortfall)} cls={s.shortfall > 0 ? 'vg-neg' : 'vg-pos'} info="How much the common account overspent beyond its income — funded by the earners." />
         <Kpi label="Still to settle" value={INR(s.outstanding)} cls={s.outstanding > 0 ? 'vg-neg' : 'vg-pos'} info="Total across all unpaid transfers this month." />
@@ -2005,7 +2012,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
             <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--vg-accent)', fontSize: '0.85rem' }}>Show the full calculation — why these amounts?</summary>
             {s.contributors.length > 0 && s.shortfall > 0 && (
               <div style={{ marginTop: '0.7rem', fontSize: '0.82rem', padding: '0.5rem 0.7rem', background: 'rgba(109,75,216,0.06)', borderRadius: 8 }}>
-                <b>Common account:</b> earned {INR(s.commonIncome)} − spent {INR(s.commonExpenses)} = <b style={{ color: 'var(--vg-neg)' }}>−{INR(s.shortfall)}</b> shortfall, split into {INR(s.perContributor)} each.
+                <b>Common account:</b> earned {INR(s.commonIncome)}{s.carryIn > 0.5 && <> + {INR(s.carryIn)} carried in</>} − spent {INR(s.commonExpenses)} = <b style={{ color: 'var(--vg-neg)' }}>−{INR(s.shortfall)}</b> shortfall, split into {INR(s.perContributor)} each.
               </div>
             )}
             {/* A plain grid (no full-span sibling) so auto-fit correctly collapses
@@ -2182,8 +2189,12 @@ function BudgetTab({ doc, me, onSaveBudget }: {
   const plannedTotal = draft.planned.reduce((a, b) => a + (b.amount || 0), 0)
   const monthsToFund = monthlySaving > 0 ? Math.ceil(plannedTotal / monthlySaving) : null
 
+  // Per-category spend must sit on the same basis as "Spent this month" above,
+  // which is byEntity → bearerShares: a bill paid from the common account is
+  // borne by the pool, not split onto a person. Using raw shares() here made
+  // the category column total more than the headline figure.
   const catAct = new Map<string, number>()
-  for (const it of m.items) { const f = who === 'family' ? 1 : (shares(it)[who] ?? 0); if (f <= 0) continue; catAct.set(categoryOf(it), (catAct.get(categoryOf(it)) ?? 0) + it.amount * f) }
+  for (const it of m.items) { const f = who === 'family' ? 1 : (bearerShares(it)[who] ?? 0); if (f <= 0) continue; catAct.set(categoryOf(it), (catAct.get(categoryOf(it)) ?? 0) + it.amount * f) }
 
   const setCat = (name: string, v: number) => setDraft(d => ({ ...d, byCategory: { ...d.byCategory, [name]: v } }))
   const addPlan = () => setDraft(d => ({ ...d, planned: [...d.planned, { id: uid('plan'), name: 'New goal', amount: 0, targetMonth: monthKey() }] }))
@@ -2771,7 +2782,9 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
   const pCounts = { regular: personalItems.filter(it => it.kind !== 'emi').length, emi: personalItems.filter(it => it.kind === 'emi').length }
   const commonIncome = m.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0)
   const commonExpenses = m.items.filter(it => it.paidBy === 'common').reduce((s, it) => s + (it.amount || 0), 0)
-  const cats = byCategory(m).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
+  // On My Dashboard the breakdown is YOUR share of each category; on a shared
+  // envelope or the household it is the whole picture.
+  const cats = byCategory(m, isDash ? entityId : undefined).map((c, i) => ({ ...c, color: catColor(c.name, doc.categories, i) }))
   const bears = entities.map(e => ({ label: e.name, value: t.byEntity[e.id] ?? 0, color: e.color })).filter(p => p.value > 0)
   // Items already awaiting an edit decision — locked from a second edit.
   const underReview = new Set((doc.proposals ?? []).filter(p => p.monthEdit || (p.template && p.template.op !== 'add')).map(p => p.item?.id))
@@ -2834,7 +2847,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 
       <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
         <Kpi label="My income" value={INR(m.income.filter(i => i.entity === entityId).reduce((a, b) => a + b.amount, 0))} cls="vg-pos" info="Income recorded for you this month." />
-        <Kpi label="My spend" value={INR(t.byEntity[entityId] ?? 0)} info="Your share of everything this month — your own plus your part of shared and common." />
+        <Kpi label="My spend" value={INR(t.byEntity[entityId] ?? 0)} info="Your share of what people paid from their own accounts — your own expenses plus your part of anything shared. Bills paid from the common account are not counted here: they are funded by that account, and only a shortfall reaches you (see the Settlement tab)." />
         <Kpi label="Common income" value={INR(commonIncome)} cls="vg-pos" info="Money paid into the shared Lamba Household account this month." />
         <Kpi label="Common expenditure" value={INR(commonExpenses)} info="Spending from the shared Lamba Household account this month." />
         <Kpi label={bal >= 0 ? 'You are owed' : 'You owe'} small value={INR(Math.abs(bal))} cls={bal >= 0 ? 'vg-pos' : 'vg-neg'} info="Net once everyone settles the shared bills." />
@@ -2885,7 +2898,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
       <div className="vg-grid2">
         {isHousehold && <CommonIncomeCard doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
         <div className="vg-card vg-pad">
-          <p className="vg-sec">Where it goes</p>
+          <p className="vg-sec">{isDash ? 'Where your share goes' : 'Where it goes'}</p>
           {cats.length ? <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><Donut data={cats} /><div style={{ flex: 1, minWidth: 160 }}><Legend items={cats} /></div></div> : <p className="vg-muted">Add expenses to see the breakdown.</p>}
         </div>
         {bears.length > 0 && <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}><p className="vg-sec">Who bears what</p><StackBar parts={bears} /></div>}
