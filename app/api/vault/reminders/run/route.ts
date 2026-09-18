@@ -20,7 +20,7 @@ import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { getUsers } from '@/lib/users'
 import { sendReminderEmail } from '@/lib/mailer'
 import { migrate, type FinanceDoc, type Reminder } from '@/lib/finance-data'
-import { readRaw, writeDoc } from '../../finance/route'
+import { readRaw, writeDoc, snapshotOnce } from '../../finance/route'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,6 +47,10 @@ async function authorized(request: Request): Promise<boolean> {
 }
 
 async function run() {
+  // The daily backup normally rides along with the first write of the day, so
+  // a day when nobody touched anything would have no snapshot. This cron runs
+  // every day regardless, which keeps the restore calendar unbroken.
+  await snapshotOnce()
   const raw = await readRaw()
   const doc: FinanceDoc = migrate(raw ?? {})
   const reminders = doc.reminders ?? []

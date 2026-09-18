@@ -496,7 +496,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
-    { id: 'entities', label: 'Entities', icon: Users },
+    { id: 'entities', label: 'Admin', icon: Users },
     { id: 'setup', label: 'Budget', icon: Target },
   ]
 
@@ -1570,7 +1570,134 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
       </div>
 
       <EnvelopesCard doc={doc} patchDoc={patchDoc} />
+      <BackupsCard />
     </>
+  )
+}
+
+// ---------- Backups (super only) --------------------------------
+// A day-by-day history to fall back on. Restoring rolls back the SHARED
+// picture only: private savings and income stay as they are, and so do
+// settlement payments, because that money has already left the bank whatever
+// this file says. Everyone sees the restore on the sheet afterwards.
+interface BackupDay { day: string; size: number; takenAt?: string }
+/** "18 Sep", with the year only when it is not this one. */
+function dayLabel(day: string): string {
+  const [y, m, d] = day.split('-')
+  const mon = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-IN', { month: 'short' })
+  return `${Number(d)} ${mon}${y === String(new Date().getFullYear()) ? '' : ` ${y.slice(2)}`}`
+}
+function BackupsCard() {
+  const [days, setDays] = useState<BackupDay[] | null>(null)
+  const [kept, setKept] = useState(183)
+  const [err, setErr] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const [chosen, setChosen] = useState<string | null>(null)
+  const [summary, setSummary] = useState<{ label: string; from: string; to: string }[] | null>(null)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch('/api/vault/finance/backups')
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(d.error ?? 'Could not list backups'); return }
+      setDays(d.days ?? []); setKept(d.keptForDays ?? 183)
+    } catch { setErr('Could not list backups') }
+  }, [])
+
+  async function preview(day: string) {
+    setChosen(day); setSummary(null); setReason(''); setErr(null); setDone(null)
+    const r = await fetch('/api/vault/finance/backups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ day, preview: true }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { setErr(d.error ?? 'Could not read that backup'); return }
+    setSummary(d.summary ?? [])
+  }
+
+  async function restore() {
+    if (!chosen) return
+    setBusy(true); setErr(null)
+    try {
+      const r = await fetch('/api/vault/finance/backups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ day: chosen, reason: reason.trim() }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(d.error ?? 'Restore failed') }
+      else { setDone(chosen); setChosen(null); setSummary(null); setTimeout(() => window.location.reload(), 1200) }
+    } catch { setErr('Restore failed') }
+    setBusy(false)
+  }
+
+  return (
+    <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <p className="vg-sec" style={{ margin: 0 }}>
+          <ShieldCheck className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Backups
+        </p>
+        <button className="vg-btn" onClick={() => { setOpen(o => !o); if (days === null) load() }}>{open ? 'Hide' : 'Show backups'}</button>
+      </div>
+      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: '0.5rem', marginBottom: 0 }}>
+        The sheet is copied once a day and kept for about six months. Restoring puts the <b>shared</b> picture back to how it was on a chosen day — everyone&rsquo;s private savings and income stay as they are now, and so does every settlement payment, because that money has already moved. The restore is logged where all the profiles can see it.
+      </p>
+
+      {done && <p className="vg-pos" style={{ fontSize: '0.85rem' }}><Check className="h-4 w-4" style={{ display: 'inline', verticalAlign: '-2px' }} /> Restored to {done}. Reloading…</p>}
+      {err && <p className="vg-neg" style={{ fontSize: '0.85rem' }}>{err}</p>}
+
+      {open && (
+        <div style={{ marginTop: '0.9rem' }}>
+          {days === null ? <p className="vg-muted" style={{ fontSize: '0.85rem' }}><Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> Looking…</p>
+            : days.length === 0 ? <p className="vg-muted" style={{ fontSize: '0.85rem' }}>No backups yet — the first one is taken the next time the sheet changes.</p>
+            : (
+              <>
+                <p className="vg-muted" style={{ fontSize: '0.75rem', margin: '0 0 0.5rem' }}>{days.length} day{days.length === 1 ? '' : 's'} available · kept for {kept} days</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxHeight: 220, overflowY: 'auto' }} className="slim-scroll">
+                  {days.map(b => (
+                    <button key={b.day} className="vg-btn" data-on={chosen === b.day}
+                      style={chosen === b.day ? { borderColor: 'var(--vg-accent)', color: 'var(--vg-accent)', fontWeight: 700 } : undefined}
+                      onClick={() => preview(b.day)}>
+                      {dayLabel(b.day)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+          {chosen && (
+            <div className="vg-card" style={{ marginTop: '0.9rem', padding: '0.9rem 1rem', boxShadow: 'none', border: '1px solid var(--vg-accent)' }}>
+              <p className="vg-sec" style={{ margin: '0 0 0.5rem' }}>Restore to {dayLabel(chosen)} {chosen.slice(0, 4)}</p>
+              {summary === null ? <p className="vg-muted" style={{ fontSize: '0.85rem' }}><Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> Reading that day…</p> : (
+                <>
+                  <div className="vg-tablewrap">
+                    <table className="vg-table" style={{ minWidth: 360 }}>
+                      <thead><tr><th></th><th className="num">Now</th><th className="num">After restoring</th></tr></thead>
+                      <tbody>
+                        {summary.map(r => (
+                          <tr key={r.label}>
+                            <td>{r.label}</td>
+                            <td className="num vg-muted">{r.to}</td>
+                            <td className="num" style={{ fontWeight: r.from !== r.to ? 700 : 400, color: r.from !== r.to ? 'var(--vg-accent)' : undefined }}>{r.from}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ marginTop: '0.8rem' }}>
+                    <label className="vg-lbl">Why are you restoring?</label>
+                    <input className="vg-input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. the rashan amount was changed by mistake" />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '0.8rem' }}>
+                    <button className="vg-btn" onClick={() => { setChosen(null); setSummary(null) }}>Cancel</button>
+                    <button className="vg-btn vg-btn-primary" disabled={busy || reason.trim().length < 3} onClick={restore}>
+                      {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <Check className="h-4 w-4" />} Restore the shared sheet
+                    </button>
+                  </div>
+                  <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>The sheet as it stands right now is copied aside first, so this can be undone.</p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

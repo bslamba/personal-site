@@ -1308,3 +1308,80 @@ export function simulatePrepay(it: Item, opts: { lump?: number; monthly?: number
     clears: true,
   }
 }
+
+// ============================================================
+// Restoring a day's snapshot.
+//
+// There is one document and every profile is a filtered view of it, so a
+// restore is atomic across everybody by construction. The danger is not
+// synchronisation — it is blast radius. Rolling the whole file back to undo
+// one shared expense would also undo things that have nothing to do with it:
+//
+//   · someone else's private savings and income, edited since
+//   · approvals people have given, un-given
+//   · settlement payments — money that actually moved, with a screenshot
+//
+// That last one is the serious one: the money has left the bank whatever the
+// file says, and forgetting it leaves somebody owed a sum they already paid.
+//
+// So a restore rolls back the SHARED picture and carries today's private and
+// factual records forward across it.
+// ============================================================
+
+export interface RestorePlan {
+  /** What the restore will change, in plain terms, for a confirmation step. */
+  summary: { label: string; from: string; to: string }[]
+  doc: FinanceDoc
+}
+
+/** Build the document a restore would write: the backup's shared picture,
+ *  with everything personal or already-transacted kept from today. */
+export function restoreMerge(backup: FinanceDoc, current: FinanceDoc): FinanceDoc {
+  const merged: FinanceDoc = structuredClone(backup)
+
+  // Money that actually moved, and decisions people have made, are facts about
+  // the world rather than parts of the shared picture — they never roll back.
+  merged.settlements = current.settlements ?? {}
+  merged.proposals = current.proposals ?? []
+  merged.savings = current.savings ?? []
+  merged.reminders = current.reminders ?? []
+  // The log is append-only: it is the record OF the restore, so it must survive it.
+  merged.auditLog = current.auditLog ?? []
+
+  // Private income lives in the same month rows as common income. Take the
+  // common side from the backup and each person's own side from today.
+  for (const [k, cur] of Object.entries(current.months)) {
+    const from = merged.months[k]
+    const personal = cur.income.filter(i => i.entity !== 'common')
+    if (!from) {
+      // A month that only exists now — keep the person's income, drop the
+      // shared items the restore says should not be there.
+      if (personal.length) merged.months[k] = { ...cur, items: [], income: personal }
+      continue
+    }
+    merged.months[k] = { ...from, income: [...from.income.filter(i => i.entity === 'common'), ...personal] }
+  }
+  merged.template = {
+    ...merged.template,
+    income: [
+      ...merged.template.income.filter(i => i.entity === 'common'),
+      ...(current.template.income ?? []).filter(i => i.entity !== 'common'),
+    ],
+  }
+  return merged
+}
+
+/** A short, human account of what a restore would change. */
+export function restoreSummary(backup: FinanceDoc, current: FinanceDoc): RestorePlan['summary'] {
+  const countItems = (d: FinanceDoc) =>
+    Object.values(d.months).reduce((a, m) => a + m.items.length, 0)
+  const recurring = (d: FinanceDoc) => d.template.monthly.length + d.template.emis.length + d.template.annual.length
+  const n = (v: number) => String(v)
+  return [
+    { label: 'People', from: n(backup.entities.length), to: n(current.entities.length) },
+    { label: 'Envelopes', from: n((backup.envelopes ?? []).length), to: n((current.envelopes ?? []).length) },
+    { label: 'Recurring commitments', from: n(recurring(backup)), to: n(recurring(current)) },
+    { label: 'Months opened', from: n(Object.keys(backup.months).length), to: n(Object.keys(current.months).length) },
+    { label: 'Expenses recorded', from: n(countItems(backup)), to: n(countItems(current)) },
+  ]
+}

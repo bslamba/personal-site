@@ -12,7 +12,7 @@
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { CopyObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { CopyObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSession, VAULT_COOKIE, type Session } from '@/lib/vault-auth'
 import { findUser } from '@/lib/users'
 import { s3 } from '@/lib/storage'
@@ -30,21 +30,55 @@ export async function readRaw(): Promise<unknown | null> {
     return JSON.parse(await out.Body!.transformToString())
   } catch { return null }
 }
+export const BACKUP_PREFIX = '_finance/backups/'
+export const BACKUP_DAYS = 183           // roughly six months of history
+/** A backup key for an ordinary day, e.g. _finance/backups/2026-09-18.json.
+ *  Safety copies taken before a restore are named differently on purpose, so
+ *  the daily clean-up can never remove one. */
+const dayKey = (day: string) => `${BACKUP_PREFIX}${day}.json`
+const DAY_FILE = /^\d{4}-\d{2}-\d{2}\.json$/
+
+export const istDay = (d: Date = new Date()) =>
+  new Date(d.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+/** Drop daily snapshots beyond the retention window. Only files named exactly
+ *  YYYY-MM-DD.json under the backups prefix are ever considered, so neither
+ *  the live document nor a pre-restore copy can be caught by this. */
+async function pruneBackups(): Promise<void> {
+  const cutoff = istDay(new Date(Date.now() - BACKUP_DAYS * 24 * 60 * 60 * 1000))
+  try {
+    let token: string | undefined
+    const stale: { Key: string }[] = []
+    do {
+      const page = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: BACKUP_PREFIX, ContinuationToken: token }))
+      for (const o of page.Contents ?? []) {
+        const name = (o.Key ?? '').slice(BACKUP_PREFIX.length)
+        if (DAY_FILE.test(name) && name.slice(0, 10) < cutoff) stale.push({ Key: o.Key! })
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined
+    } while (token)
+    for (let i = 0; i < stale.length; i += 1000) {
+      await s3.send(new DeleteObjectsCommand({ Bucket: BUCKET, Delete: { Objects: stale.slice(i, i + 1000) } }))
+    }
+  } catch { /* housekeeping only — it must never interfere with a save */ }
+}
+
 // Keep one snapshot per day: the first write of each day copies the document
 // as it stood BEFORE that write, so every day of history is recoverable. The
 // day already taken is remembered per instance to keep this to one HEAD call.
 let snapshotDay = ''
-async function snapshotOnce(): Promise<void> {
-  const day = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)   // IST
+export async function snapshotOnce(): Promise<void> {
+  const day = istDay()
   if (snapshotDay === day) return
   snapshotDay = day
-  const Key = `_finance/backups/${day}.json`
+  const Key = dayKey(day)
   try {
     await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key }))
     return                                            // today's copy is already there
   } catch { /* not taken yet */ }
   try {
     await s3.send(new CopyObjectCommand({ Bucket: BUCKET, Key, CopySource: `${BUCKET}/${KEY}` }))
+    await pruneBackups()                              // once a day, with the snapshot
   } catch { /* nothing to copy yet, or storage hiccup — never block a save */ }
 }
 
