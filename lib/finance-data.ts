@@ -27,6 +27,7 @@ export interface Entity {
   color: string
   role?: string          // family relationship label, e.g. "Father", "Son", "Daughter-in-law"
   upi?: string           // UPI id, so a settlement can be paid without retyping anything
+  alerts?: boolean       // email them about their own budget and spending (default on)
 }
 
 // How an expense's cost is shared.
@@ -238,6 +239,7 @@ export interface FinanceDoc {
   settlements?: Record<string, Settlement>
   reminders?: Reminder[]
   envelopes?: Envelope[]
+  alertsSent?: Record<string, string>   // alert key -> the day it went out, so it goes out once
   updatedAt: string
 }
 
@@ -1550,4 +1552,89 @@ export function reconcile(expected: Item[], rows: StatementLike[], owner: string
     drift: matched.filter(m => Math.abs(m.amountDiff) > 0.5),
     unmatchedRows: debits.filter(r => !used.has(r.id)),
   }
+}
+
+// ============================================================
+// Alerts.
+//
+// A budget nobody looks at is not a budget. These are the few things worth
+// interrupting someone's day for — their own spending against their own
+// limits — so each one goes only to the person it concerns, and only once.
+// ============================================================
+
+export type AlertKind = 'budget' | 'category' | 'unusual'
+export interface FinanceAlert {
+  key: string          // what makes it unique, so the same news is not sent twice
+  entity: string       // who it is for — and only they are told
+  kind: AlertKind
+  title: string
+  body: string
+}
+
+/** Everything worth telling someone about their month, as it stands. */
+export function financeAlerts(doc: FinanceDoc, mk: string = monthKey()): FinanceAlert[] {
+  const out: FinanceAlert[] = []
+  const m = monthView(doc, mk)
+  const t = totals(m, doc.entities)
+  const when = monthLabel(mk)
+
+  for (const p of doc.entities.filter(e => e.kind === 'person')) {
+    if (p.alerts === false) continue            // they have asked not to be emailed
+    const budget = doc.budgets.byEntity[p.id]
+    const spent = t.byEntity[p.id] ?? 0
+
+    // 1. The monthly budget, at three-quarters and again when it is passed.
+    if (budget && budget.monthly > 0) {
+      const pct = (spent / budget.monthly) * 100
+      const step = pct >= 100 ? 100 : pct >= 75 ? 75 : 0
+      if (step > 0) {
+        out.push({
+          key: `budget:${p.id}:${mk}:${step}`, entity: p.id, kind: 'budget',
+          title: step >= 100 ? `You have gone past your ${when} budget` : `Three quarters through your ${when} budget`,
+          body: step >= 100
+            ? `You have spent ${INR(spent)} against a budget of ${INR(budget.monthly)} — ${INR(spent - budget.monthly)} over, with ${when} still to finish.`
+            : `You have spent ${INR(spent)} of your ${INR(budget.monthly)} budget for ${when}, leaving ${INR(budget.monthly - spent)}.`,
+        })
+      }
+    }
+
+    // 2. Category limits that have been passed — one note listing them all.
+    if (budget) {
+      const perCat = new Map<string, number>()
+      for (const it of m.items) {
+        const f = bearerShares(it)[p.id] ?? 0
+        if (f <= 0) continue
+        const c = categoryOf(it)
+        perCat.set(c, (perCat.get(c) ?? 0) + (it.amount || 0) * f)
+      }
+      const over = [...perCat.entries()]
+        .filter(([c, v]) => (budget.byCategory[c] ?? 0) > 0 && v > (budget.byCategory[c] ?? 0))
+        .sort((a, b) => b[1] - a[1])
+      if (over.length) {
+        out.push({
+          key: `category:${p.id}:${mk}:${over.map(([c]) => c).sort().join('|')}`, entity: p.id, kind: 'category',
+          title: `${over.length} ${over.length === 1 ? 'category is' : 'categories are'} over their limit`,
+          body: `In ${when}: ${over.map(([c, v]) => `${c} ${INR(v)} against a limit of ${INR(budget.byCategory[c] ?? 0)}`).join('; ')}.`,
+        })
+      }
+    }
+
+    // 3. A month well out of step with the last few — the thing you would want
+    //    to be told about even without a budget set.
+    const charged = personCharge(doc, p.id, mk).charged
+    const [y, mo] = mk.split('-').map(Number)
+    const past = [1, 2, 3].map(i => personCharge(doc, p.id, monthKey(new Date(y, mo - 1 - i, 1))).charged).filter(v => v > 0.5)
+    if (past.length >= 2 && charged > 0.5) {
+      const avg = past.reduce((a, b) => a + b, 0) / past.length
+      const excess = charged - avg
+      if (avg > 0 && charged > avg * 1.4 && excess >= 5000) {
+        out.push({
+          key: `unusual:${p.id}:${mk}`, entity: p.id, kind: 'unusual',
+          title: `${when} is running well above your usual`,
+          body: `${INR(charged)} has been charged to you so far, against ${INR(avg)} a month on average over the last ${past.length}. That is ${INR(excess)} more than usual — worth a look in case something has been recorded twice.`,
+        })
+      }
+    }
+  }
+  return out
 }

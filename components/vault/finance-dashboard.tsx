@@ -1491,7 +1491,7 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
         </div>
         <div className="vg-tablewrap">
           <table className="vg-table" style={{ minWidth: 720 }}>
-            <thead><tr><th style={{ width: 34 }}></th><th>Name</th><th style={{ width: 150 }}>Role in family</th><th style={{ width: 160 }}>UPI id</th><th style={{ width: 110 }}>Type</th><th style={{ width: 70 }}>Can pay</th><th style={{ width: 70 }}>Earns</th><th style={{ width: 90 }}>Dependant</th><th style={{ width: 40 }}></th></tr></thead>
+            <thead><tr><th style={{ width: 34 }}></th><th>Name</th><th style={{ width: 150 }}>Role in family</th><th style={{ width: 160 }}>UPI id</th><th style={{ width: 110 }}>Type</th><th style={{ width: 70 }}>Can pay</th><th style={{ width: 70 }}>Earns</th><th style={{ width: 90 }}>Dependant</th><th style={{ width: 70 }}>Alerts</th><th style={{ width: 40 }}></th></tr></thead>
             <tbody>
               {doc.entities.map(e => (
                 <tr key={e.id}>
@@ -1508,6 +1508,7 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.canPay} onChange={ev => upd(e.id, { canPay: ev.target.checked })} /></td>
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.earning} onChange={ev => upd(e.id, { earning: ev.target.checked })} /></td>
                   <td style={{ textAlign: 'center' }}><input type="checkbox" checked={e.isLiability} onChange={ev => upd(e.id, { isLiability: ev.target.checked })} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" title="Email them when they pass their own budget, or a month runs well above their usual" checked={e.alerts !== false} onChange={ev => upd(e.id, { alerts: ev.target.checked })} /></td>
                   <td>{doc.entities.length > 1 && <button className="vg-icobtn" onClick={() => del(e.id)} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>}</td>
                 </tr>
               ))}

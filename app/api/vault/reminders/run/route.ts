@@ -19,7 +19,7 @@ import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { getUsers } from '@/lib/users'
 import { sendReminderEmail } from '@/lib/mailer'
-import { migrate, type FinanceDoc, type Reminder } from '@/lib/finance-data'
+import { migrate, financeAlerts, type FinanceDoc, type Reminder } from '@/lib/finance-data'
 import { readRaw, writeDoc, snapshotOnce } from '../../finance/route'
 
 export const runtime = 'nodejs'
@@ -80,8 +80,29 @@ async function run() {
     else { errors.push(res.error || 'send failed'); skipped++ }
   }
 
-  if (sent > 0) await writeDoc(doc)
-  return { ok: true, configured: !notConfigured, sent, skipped, month: mk, day, errors: errors.slice(0, 5) }
+  // Budget and spending alerts. Each goes only to the person it concerns, and
+  // each piece of news goes out once — the key changes only when the news
+  // does, so nobody is told the same thing every morning.
+  let alerted = 0
+  if (!notConfigured) {
+    const already = doc.alertsSent ?? {}
+    for (const a of financeAlerts(doc, mk)) {
+      if (already[a.key]) { skipped++; continue }
+      const to = emailFor(a.entity)
+      if (!to) { skipped++; continue }
+      const res = await sendReminderEmail([to], {
+        title: a.title,
+        body: `${a.body}\n\nYou are seeing this because it is about your own spending — nobody else is copied.`,
+      })
+      if (res.configured === false) { notConfigured = true; break }
+      if (res.ok) { already[a.key] = iso; alerted++ }
+      else { errors.push(res.error || 'send failed'); skipped++ }
+    }
+    doc.alertsSent = already
+  }
+
+  if (sent > 0 || alerted > 0) await writeDoc(doc)
+  return { ok: true, configured: !notConfigured, sent, alerted, skipped, month: mk, day, errors: errors.slice(0, 5) }
 }
 
 export async function GET(request: Request) {
