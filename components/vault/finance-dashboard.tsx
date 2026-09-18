@@ -27,7 +27,7 @@ import {
   emptyBudget, categoryOf, detectCategory, isPersonalTo, entityReferences,
   computeSettlement, type SettleTransfer,
   type Envelope, envelopeShares, HOUSEHOLD, itemInEnvelope, visibleEnvelopes, bearerShares,
-  personalEnvId, bearersOf, loanView, loanYear, fyOf,
+  personalEnvId, bearersOf, loanView, loanYear, fyOf, type AuditEntry, type AuditChange,
   forecast, sinkingFund, upiLink, isUpiId, type ForecastMonth, type SinkingRow,
   debtOverTime, debtFreeBy, simulatePrepay, type DebtPoint, type LoanView,
 } from '@/lib/finance-data'
@@ -516,7 +516,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'loans' && <LoansTab doc={doc} me={{ role: 'super', entityId: null }} />}
-      {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => runAction({ action: kind, id })} onRevoke={id => runAction({ action: 'revoke', id })} />}
+      {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => runAction({ action: kind, id })} onRevoke={id => runAction({ action: 'revoke', id })} onRevert={(auditId, reason) => runAction({ action: 'revertChange', auditId, reason })} />}
       {tab === 'import' && <ImportTab doc={doc} me={{ role: 'super', entityId: null }} onImport={(rows, owner) => runAction({ action: 'importRows', rows, owner })} />}
       {tab === 'entities' && <EntitiesTab doc={doc} patchDoc={patchDoc} />}
       {tab === 'setup' && (
@@ -2366,12 +2366,14 @@ function editKind(p: Proposal): string {
   return 'New charge'
 }
 
-function ApprovalsTab({ doc, onDecide, onRevoke, me }: {
+function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
   doc: FinanceDoc
   onDecide: (id: string, kind: 'accept' | 'decline') => void
   onRevoke?: (id: string) => void
+  onRevert?: (auditId: string, reason: string) => Promise<{ error?: string } | null | void> | void
   me?: { role: 'super' | 'member'; entityId: string | null }
 }) {
+  const [undoing, setUndoing] = useState<AuditEntry | null>(null)
   const props = doc.proposals ?? []
   const ent = doc.entities
   const isSuper = me?.role === 'super'
@@ -2444,22 +2446,114 @@ function ApprovalsTab({ doc, onDecide, onRevoke, me }: {
         {log.length === 0 ? <p className="vg-muted">No activity yet.</p> : (
           <div className="vg-tablewrap">
             <table className="vg-table" style={{ minWidth: 560 }}>
-              <thead><tr><th style={{ width: 130 }}>When</th><th style={{ width: 90 }}>Who</th><th style={{ width: 90 }}>Action</th><th>What</th><th>Reason</th></tr></thead>
+              <thead><tr><th style={{ width: 130 }}>When</th><th style={{ width: 90 }}>Who</th><th style={{ width: 90 }}>Action</th><th>What</th><th>Reason</th>{onRevert && <th style={{ width: 90 }}></th>}</tr></thead>
               <tbody>
                 {log.slice(0, 60).map(a => (
                   <tr key={a.id}>
                     <td className="vg-muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{when(a.ts)}</td>
                     <td style={{ fontSize: '0.82rem' }}>{a.actorName}</td>
                     <td><span className="vg-chip" style={{ background: (evColor[a.event] || '#8b81ad') + '22', color: evColor[a.event] || '#8b81ad', textTransform: 'capitalize' }}>{a.event}</span></td>
-                    <td style={{ fontSize: '0.85rem' }}>{a.what}</td>
+                    <td style={{ fontSize: '0.85rem' }}>
+                      {a.what}
+                      {a.change && <ChangeBlurb c={a.change} />}
+                    </td>
                     <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{a.reason || '—'}</td>
+                    {onRevert && (
+                      <td>
+                        {a.revertedAt
+                          ? <span className="vg-chip" style={{ background: 'rgba(139,129,173,0.16)', color: 'var(--vg-ink-faint)' }}>undone</span>
+                          : a.change
+                            ? <button className="vg-btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.76rem' }} onClick={() => setUndoing(a)}>Undo</button>
+                            : null}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Every edit request, approval, decline and revoke is logged here with who did it and when.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>
+          Every edit request, approval, decline and revoke is logged here with who did it and when.
+          {onRevert && ' An entry that changed an expense can be put back on its own — nothing else is touched.'}
+        </p>
+      </div>
+
+      {undoing && onRevert && <UndoChangeModal entry={undoing} entities={ent} onClose={() => setUndoing(null)} onConfirm={onRevert} />}
+    </div>
+  )
+}
+
+// A one-line account of what an entry did, so the history reads as figures
+// rather than only as labels.
+function ChangeBlurb({ c }: { c: AuditChange }) {
+  const money = (it: Item | null) => (it ? INR(it.amount || 0) : null)
+  const from = money(c.before), to = money(c.after)
+  const where = c.scope === 'month' ? (c.mode === 'override' ? 'this month only' : 'one-off') : 'recurring'
+  return (
+    <span className="vg-muted" style={{ display: 'block', fontSize: '0.74rem', marginTop: 2 }}>
+      {from && to ? <>{from} → <b>{to}</b></> : to ? <>added at <b>{to}</b></> : from ? <>removed, was <b>{from}</b></> : 'removed'}
+      <span style={{ opacity: 0.7 }}> · {where}</span>
+    </span>
+  )
+}
+
+// Undoing one change. It asks for a reason because everyone else sees the
+// entry, and it can fail — if the figure has moved again since, putting the
+// old one back would wipe out the newer change, so the server refuses.
+function UndoChangeModal({ entry, entities, onClose, onConfirm }: {
+  entry: AuditEntry; entities: Entity[]
+  onClose: () => void
+  onConfirm: (auditId: string, reason: string) => Promise<{ error?: string } | null | void> | void
+}) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const c = entry.change!
+  const target = c.before ?? c.after
+  void entities
+  return (
+    <div className="vg-lb" onClick={onClose}>
+      <div className="vg-card vg-pad" style={{ width: 'min(440px, 96vw)', background: 'var(--vg-glass-2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <p className="vg-sec" style={{ margin: 0 }}>Undo this change</p>
+          <button className="vg-icobtn" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        <p style={{ margin: 0, color: '#241b40', fontSize: '0.9rem' }}>
+          <b>{target?.name || entry.what}</b>
+          {c.before && c.after
+            ? <> goes back to <b>{INR(c.before.amount || 0)}</b>, from {INR(c.after.amount || 0)}.</>
+            : c.after ? <> was added — it will be removed again.</>
+            : <> was removed — it will be put back at {INR(c.before?.amount || 0)}.</>}
+        </p>
+        <p className="vg-muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+          {c.scope === 'template'
+            ? 'This is a recurring item, so every month that has not been edited by hand follows it.'
+            : c.mode === 'override'
+              ? `Only ${c.monthKey ? monthLabel(c.monthKey) : 'that month'} is affected — the recurring item itself is untouched.`
+              : `Only that one entry in ${c.monthKey ? monthLabel(c.monthKey) : 'that month'} is affected.`}
+        </p>
+
+        <div style={{ marginTop: '0.9rem' }}>
+          <label className="vg-lbl">Why? <span className="vg-muted" style={{ textTransform: 'none', letterSpacing: 0 }}>(everyone sees this)</span></label>
+          <input className="vg-input" value={reason} onChange={e => { setReason(e.target.value); setErr(null) }} placeholder="e.g. the amount was typed wrong" autoFocus />
+        </div>
+        {err && <p className="vg-neg" style={{ fontSize: '0.82rem', marginTop: '0.6rem' }}>{err}</p>}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1rem' }}>
+          <button className="vg-btn" onClick={onClose}>Cancel</button>
+          <button className="vg-btn vg-btn-primary" disabled={busy}
+            onClick={async () => {
+              setBusy(true); setErr(null)
+              const r = await onConfirm(entry.id, reason.trim())
+              setBusy(false)
+              if (r && typeof r === 'object' && 'error' in r && r.error) setErr(String(r.error))
+              else onClose()
+            }}>
+            {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <Check className="h-4 w-4" />} Undo it
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -3320,7 +3414,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
         </>
       )}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
-      {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} />}
+      {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} onRevert={(auditId, reason) => action({ action: 'revertChange', auditId, reason })} />}
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
 
       {editing && (

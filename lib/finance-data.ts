@@ -108,6 +108,9 @@ export interface AuditEntry {
   proposalId?: string
   parties?: string[]          // entity ids who may see this entry (besides the actor)
   personal?: boolean          // a private, personal-only action
+  change?: AuditChange        // what it was and what it became, so it can be put back
+  revertedAt?: string         // set once it has been undone, so it cannot be undone twice
+  revertOf?: string           // the id of the entry this one undid
 }
 
 export interface SettlementProof { key: string; by: string; at: string }
@@ -1384,4 +1387,80 @@ export function restoreSummary(backup: FinanceDoc, current: FinanceDoc): Restore
     { label: 'Months opened', from: n(Object.keys(backup.months).length), to: n(Object.keys(current.months).length) },
     { label: 'Expenses recorded', from: n(countItems(backup)), to: n(countItems(current)) },
   ]
+}
+
+// ============================================================
+// Undoing one change.
+//
+// Restoring a whole day to undo a single wrong figure is a sledgehammer: it
+// also rolls back everything else that happened that day. So every change to
+// a shared item records what it was and what it became, and can be put back
+// on its own.
+//
+// What is recorded is the STORED shape, not the displayed one. A recurring
+// item shown in a month is materialised fresh each read and gets a new id
+// every time, so a month change is keyed on the template id it came from and
+// undone by restoring (or removing) that month's override.
+// ============================================================
+
+export interface AuditChange {
+  scope: 'template' | 'month'
+  section?: 'monthly' | 'emis' | 'annual'   // template changes
+  monthKey?: string                          // month changes
+  mode?: 'manual' | 'override'               // a one-off, or this month's override of a recurring item
+  key: string                                // template item id, or the tmplId / manual id in a month
+  before: Item | null                        // null when the change created it
+  after: Item | null                         // null when the change removed it
+}
+
+/** What that change's target looks like in the document right now, so a
+ *  revert can refuse when something else has since touched it. */
+export function currentOf(doc: FinanceDoc, c: AuditChange): Item | null {
+  if (c.scope === 'template') {
+    const sec = c.section ? doc.template[c.section] : []
+    return sec.find(x => x.id === c.key) ?? null
+  }
+  const m = doc.months[c.monthKey ?? '']
+  if (!m) return null
+  if (c.mode === 'manual') return m.items.find(x => x.id === c.key && x.src === 'manual') ?? null
+  if ((m.deletedTemplate ?? []).includes(c.key)) return null
+  return m.items.find(x => x.src === 'template' && x.override && x.tmplId === c.key) ?? null
+}
+
+/** True when the target still holds what the change left behind — i.e. nobody
+ *  has edited it since, so undoing it cannot clobber someone else's work. */
+export function revertIsSafe(doc: FinanceDoc, c: AuditChange): boolean {
+  const now = currentOf(doc, c)
+  const cmp = (a: Item | null) => {
+    if (!a) return null
+    // Ids are reassigned when a month is materialised, so compare what the
+    // change actually carried rather than identity.
+    const { id: _id, src: _src, override: _ov, ...rest } = a
+    void _id; void _src; void _ov
+    return JSON.stringify(rest)
+  }
+  return cmp(now) === cmp(c.after)
+}
+
+/** Put a single change back. The document is modified in place. */
+export function applyRevert(doc: FinanceDoc, c: AuditChange): void {
+  if (c.scope === 'template') {
+    if (!c.section) return
+    if (c.before && c.after) applyTemplateOp(doc, c.section, 'update', c.before)
+    else if (c.before) applyTemplateOp(doc, c.section, 'add', c.before)
+    else if (c.after) applyTemplateOp(doc, c.section, 'delete', c.after)
+    return
+  }
+  const mk = c.monthKey ?? ''
+  const m = doc.months[mk] ?? { items: [], income: [], note: '' }
+  if (c.mode === 'manual') {
+    const others = m.items.filter(x => x.id !== c.key)
+    doc.months[mk] = { ...m, items: c.before ? [...others, c.before] : others }
+    return
+  }
+  // An override of a recurring item, or its removal for this month.
+  let next: MonthData = { ...m, deletedTemplate: (m.deletedTemplate ?? []).filter(id => id !== c.key) }
+  if (c.before) next = putMonthOverride(next, c.before)
+  else next = { ...next, items: next.items.filter(x => !(x.src === 'template' && x.tmplId === c.key)) }
+  doc.months[mk] = next
 }

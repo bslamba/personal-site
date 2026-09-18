@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid, paymentsFor, isUpiId,
+         currentOf, revertIsSafe, applyRevert, type AuditChange,
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
 import { readRaw, writeDoc, viewFor } from '../route'
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   const isSuper = session.r === 'super'
   const actor = session.e   // entity id for members; null for super
   const actorName = isSuper ? 'Super admin' : entName(doc, actor)
-  const audit = (event: 'propose' | 'accept' | 'decline' | 'revoke' | 'apply', what: string, extra: { reason?: string; monthKey?: string; proposalId?: string; parties?: string[]; personal?: boolean } = {}) => {
+  const audit = (event: 'propose' | 'accept' | 'decline' | 'revoke' | 'apply', what: string, extra: { reason?: string; monthKey?: string; proposalId?: string; parties?: string[]; personal?: boolean; change?: AuditChange; revertOf?: string } = {}) => {
     doc.auditLog = [...(doc.auditLog ?? []), { id: uid('log'), ts: new Date().toISOString(), actor: actor ?? 'super', actorName, event, what, ...extra }].slice(-800)
   }
   const partiesOf = (pr: Proposal) => [pr.proposedBy, ...pr.approvers].filter(x => x && x !== 'super')
@@ -63,6 +64,19 @@ export async function POST(request: Request) {
   // template change/removal) — used to block a second, overlapping edit.
   const pendingEditFor = (id: string) => (doc.proposals ?? []).find(p => p.item?.id === id && (p.monthEdit || (p.template && p.template.op !== 'add')))
   const shortName = (it?: Item) => (it?.name || 'expense')
+  // What a change is about to do, captured before it happens, so the entry it
+  // writes can be undone on its own later.
+  const monthChange = (mk: string, item: Item, after: Item | null): AuditChange => {
+    const mode = item.src === 'template' ? ('override' as const) : ('manual' as const)
+    const c: AuditChange = { scope: 'month', monthKey: mk, mode, key: mode === 'override' ? (item.tmplId ?? item.id) : item.id, before: null, after }
+    c.before = currentOf(doc, c)
+    return c
+  }
+  const templateChange = (section: 'monthly' | 'emis' | 'annual', item: Item, after: Item | null): AuditChange => {
+    const c: AuditChange = { scope: 'template', section, key: item.id, before: null, after }
+    c.before = currentOf(doc, c)
+    return c
+  }
 
   try {
     switch (body.action) {
@@ -73,16 +87,18 @@ export async function POST(request: Request) {
         const addLabel = `Add · ${shortName(item)}`
         // Super, or an expense that is purely the caller's own, is added straight away.
         if (isSuper || (actor && isPersonalTo(item, actor, doc.entities))) {
+          const ch = monthChange(monthKey, { ...item, src: 'manual' }, { ...item, src: 'manual' })
           addToMonth(doc, monthKey, item)
-          audit('apply', addLabel, { monthKey, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+          audit('apply', addLabel, { monthKey, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, added: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const { approvers, mode } = approversFor(item, actor, doc.entities)
         if (approvers.length === 0) {
+          const ch = monthChange(monthKey, { ...item, src: 'manual' }, { ...item, src: 'manual' })
           addToMonth(doc, monthKey, item)
-          audit('apply', addLabel, { monthKey, personal: true, parties: actor ? [actor] : undefined })
+          audit('apply', addLabel, { monthKey, personal: true, parties: actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, added: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
@@ -110,11 +126,15 @@ export async function POST(request: Request) {
         } else {
           if (actor && !pr.approved.includes(actor)) pr.approved.push(actor)
           const done = isSuper || pr.mode === 'any' || pr.approvers.every(a => pr.approved.includes(a))
+          let ch: AuditChange | undefined
           if (done) {
+            // Capture what accepting is about to do, so it can be undone too.
+            if (pr.template) ch = templateChange(pr.template.section, pr.item, pr.template.op === 'delete' ? null : pr.item)
+            else if (pr.item && !pr.incomeEdit) ch = monthChange(pr.monthKey, pr.monthEdit ? pr.item : { ...pr.item, src: 'manual' }, pr.monthEdit?.op === 'delete' ? null : { ...pr.item, src: pr.monthEdit ? pr.item.src : 'manual' })
             commitProposalItem(doc, pr)
             doc.proposals = doc.proposals.filter(p => p.id !== pr.id)
           }
-          audit('accept', prLabel, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr) })
+          audit('accept', prLabel, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr), change: ch })
         }
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
@@ -160,6 +180,31 @@ export async function POST(request: Request) {
         audit('apply', 'Recurring income updated', { personal: true, parties: [actor] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+      }
+
+      case 'revertChange': {
+        // Undo one recorded change, on its own, without disturbing anything else.
+        const bt = body as unknown as { auditId?: string; reason?: string }
+        const entry = (doc.auditLog ?? []).find(a => a.id === bt.auditId)
+        if (!entry?.change) return NextResponse.json({ error: 'There is nothing recorded for that entry to undo.' }, { status: 404 })
+        if (entry.revertedAt) return NextResponse.json({ error: 'That change has already been undone.' }, { status: 400 })
+        const c = entry.change
+        const target = c.before ?? c.after
+        const mine = !!(actor && target && isPersonalTo(target, actor, doc.entities))
+        if (!isSuper && !mine) {
+          return NextResponse.json({ error: 'Only the family admin can undo a shared change. You can change it back the usual way, which goes to the others to approve.' }, { status: 403 })
+        }
+        if (!revertIsSafe(doc, c)) {
+          return NextResponse.json({ error: 'That has been changed again since, so undoing this now would wipe out the newer change. Edit it directly instead.' }, { status: 409 })
+        }
+        applyRevert(doc, c)
+        entry.revertedAt = new Date().toISOString()
+        audit('apply', `Undid · ${entry.what}`, {
+          monthKey: c.monthKey, reason: (bt.reason ?? '').trim() || undefined,
+          revertOf: entry.id, parties: entry.parties, personal: entry.personal,
+        })
+        await writeDoc(doc)
+        return NextResponse.json({ ok: true, reverted: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
       }
 
       case 'setUpi': {
@@ -270,16 +315,18 @@ export async function POST(request: Request) {
         const applyNow = isSuper || personal
         const label = `${op === 'delete' ? 'Remove' : 'Change'} · ${shortName(item)}`
         if (applyNow) {
+          const ch = monthChange(monthKey2, item, op === 'delete' ? null : item)
           applyMonthEdit(doc, monthKey2, item, op)
-          audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+          audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const ap = approversFor(item, actor, doc.entities)
         if (ap.approvers.length === 0) {
+          const ch = monthChange(monthKey2, item, op === 'delete' ? null : item)
           applyMonthEdit(doc, monthKey2, item, op)
-          audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+          audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
@@ -318,16 +365,18 @@ export async function POST(request: Request) {
         const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
         const label = `${op === 'delete' ? 'Remove' : op === 'add' ? 'Add' : 'Change'} recurring · ${shortName(item)}`
         if (isSuper || personal) {
+          const ch = templateChange(section, item, op === 'delete' ? null : item)
           applyTemplateOp(doc, section, op, item)
-          audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+          audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const { approvers, mode } = approversFor(item, actor, doc.entities)
         if (approvers.length === 0) {
+          const ch = templateChange(section, item, op === 'delete' ? null : item)
           applyTemplateOp(doc, section, op, item)
-          audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+          audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
         }
