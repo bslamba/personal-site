@@ -14,14 +14,25 @@
 
 export type ExamId = 'ccna' | 'encor' | 'enarsi'
 
+/** One article under a topic that was too big for a single page. */
+export interface Part {
+  slug: string
+  title: string
+  /** One line on what this part covers, shown under the link. */
+  blurb?: string
+}
+
 export interface Topic {
   /** Blueprint number, e.g. "1.11". */
   n: string
   title: string
   /** The lettered sub-items beneath it, verbatim. */
   subs?: string[]
-  /** The article, when it has been written. */
+  /** The article, when the topic fits on one page. */
   slug?: string
+  /** Several articles, when it does not. Anything much over 5,000 words
+   *  reads better split, and each part ranks on its own terms. */
+  parts?: Part[]
   /** What to build in the lab to understand this properly. */
   lab?: string
   /** Extra words that should find this topic in search. */
@@ -291,6 +302,16 @@ const ENCOR: Exam = {
           tags: ['802.1Q', 'trunk', 'DTP', 'EtherChannel', 'LACP', 'PAgP', 'RSTP', 'MST', 'root guard', 'BPDU guard'],
           lab: 'Configure MST with two instances and map VLANs so traffic splits across both uplinks.' },
         { n: '3.2', title: 'Layer 3',
+          parts: [
+            { slug: 'ospf-explained-areas-lsas-and-adjacency', title: 'OSPF: areas, LSAs and adjacency',
+              blurb: 'The single-area picture first — how neighbours form and what the database holds.' },
+            { slug: 'ospf-multi-area-summarisation-and-filtering', title: 'OSPF beyond one area: ABRs, summarisation and filtering',
+              blurb: 'Multi-area, the LSA types and where each stops, the stub family, and the two summarisation commands.' },
+            { slug: 'bgp-neighbors-states-and-why-the-session-wont-come-up', title: 'BGP neighbours: the six states and why yours says Active',
+              blurb: 'The session, eBGP versus iBGP, next-hop-self, and a checklist that finds the fault.' },
+            { slug: 'bgp-best-path-selection-the-tie-breakers-in-order', title: 'BGP best path selection: the tie-breakers in order',
+              blurb: 'All eleven steps, which four you actually use, and the inbound/outbound direction problem.' },
+          ],
           subs: ['Compare routing concepts of EIGRP and OSPF (advanced distance vector vs. link state, load balancing, path selection, path operations, metrics, and area types)', 'Configure simple OSPFv2/v3 environments, including multiple normal areas, summarization, and filtering (neighbor adjacency, point-to-point and broadcast network types, and passive-interface)', 'Configure and verify eBGP between directly connected neighbors (best path selection algorithm and neighbor relationships)', 'Describe policy-based routing'],
           tags: ['EIGRP', 'OSPF', 'BGP', 'eBGP', 'PBR', 'summarization', 'area', 'best path'],
           lab: 'Run OSPF multi-area with summarisation on the ABR, then add eBGP to a second AS.' },
@@ -406,11 +427,22 @@ const ENARSI: Exam = {
           lab: 'Force a stuck-in-active and read the query path that caused it.' },
         { n: '1.10', title: 'Troubleshoot OSPF (v2/v3)',
           subs: ['Address families (IPv4, IPv6)', 'Neighbor relationship and authentication', 'Network types, area types, and router types', 'Point-to-point, multipoint, broadcast, nonbroadcast', 'Area type: backbone, normal, transit, stub, NSSA, totally stub', 'Internal router, backbone router, ABR, ASBR', 'Virtual link', 'Path preference'],
-          slug: 'ospf-explained-areas-lsas-and-adjacency',
+          parts: [
+            { slug: 'ospf-explained-areas-lsas-and-adjacency', title: 'OSPF: areas, LSAs and adjacency',
+              blurb: 'Neighbour states, network types, DR/BDR and the link-state database.' },
+            { slug: 'ospf-multi-area-summarisation-and-filtering', title: 'OSPF beyond one area: ABRs, summarisation and filtering',
+              blurb: 'Area types, every LSA type and its scope, summarisation, and what can be filtered where.' },
+          ],
           tags: ['OSPF', 'OSPFv3', 'LSA', 'NSSA', 'stub', 'virtual link', 'ABR', 'ASBR', 'network type'],
           lab: 'Build every area type in one topology and read which LSAs appear in each.' },
         { n: '1.11', title: 'Troubleshoot BGP (Internal and External; unicast and VRF-lite)',
           subs: ['Address families (IPv4, IPv6)', 'Neighbor relationship and authentication (next-hop, multihop, 4-byte AS, private AS, route refresh, synchronization, operation, peer group, states and timers)', 'Path preference (attributes and best-path)', 'Route reflector (excluding multiple route reflectors, confederations, dynamic peer)', 'Policies (inbound/outbound filtering, path manipulation)'],
+          parts: [
+            { slug: 'bgp-neighbors-states-and-why-the-session-wont-come-up', title: 'BGP neighbours: the six states and why yours says Active',
+              blurb: 'eBGP versus iBGP, TTL and multihop, next-hop-self, route reflectors, authentication.' },
+            { slug: 'bgp-best-path-selection-the-tie-breakers-in-order', title: 'BGP best path selection: the tie-breakers in order',
+              blurb: 'Weight, local preference, AS_PATH, MED and the rest — and which direction each controls.' },
+          ],
           tags: ['BGP', 'iBGP', 'eBGP', 'route reflector', 'local preference', 'AS path', 'MED', 'weight', 'best path'],
           lab: 'Build iBGP with a route reflector, then manipulate the path four different ways.' },
       ],
@@ -486,6 +518,7 @@ export const ALL_TOPICS: FlatTopic[] = EXAMS.flatMap(exam =>
       haystack: [
         exam.short, exam.code, domain.n, domain.title,
         topic.n, topic.title, ...(topic.subs ?? []), ...(topic.tags ?? []), topic.lab ?? '',
+        ...(topic.parts ?? []).flatMap(part => [part.title, part.blurb ?? '']),
       ].join(' ').toLowerCase(),
     })),
   ),
@@ -495,5 +528,6 @@ export const COUNTS = {
   topics: ALL_TOPICS.length,
   subs: ALL_TOPICS.reduce((n, t) => n + (t.subs?.length ?? 0), 0),
   labs: ALL_TOPICS.filter(t => t.lab).length,
-  written: ALL_TOPICS.filter(t => t.slug).length,
+  written: ALL_TOPICS.filter(t => t.slug || t.parts?.length).length,
+  articles: new Set(ALL_TOPICS.flatMap(t => [t.slug ?? '', ...(t.parts ?? []).map(p => p.slug)]).filter(Boolean)).size,
 }

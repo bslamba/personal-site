@@ -159,7 +159,8 @@ export default function StudyHub() {
 function TopicRow({
   topic, examShort, domainTitle,
 }: {
-  topic: { n: string; title: string; subs?: string[]; slug?: string; lab?: string }
+  topic: { n: string; title: string; subs?: string[]; slug?: string; lab?: string
+           parts?: { slug: string; title: string; blurb?: string }[] }
   examShort?: string
   domainTitle?: string
 }) {
@@ -169,6 +170,9 @@ function TopicRow({
         <span className="ccnp-n">{topic.n}</span>
         <span className="ccnp-title">{topic.title}</span>
         {topic.slug && <span className="ccnp-read">Read</span>}
+        {topic.parts && topic.parts.length > 0 && (
+          <span className="ccnp-read">{topic.parts.length} parts</span>
+        )}
       </div>
       {examShort && (
         <p className="ccnp-breadcrumb">{examShort} · {domainTitle}</p>
@@ -177,6 +181,19 @@ function TopicRow({
         <ul className="ccnp-subs">
           {topic.subs.map(s => <li key={s}>{s}</li>)}
         </ul>
+      )}
+      {topic.parts && topic.parts.length > 0 && (
+        <ol className="ccnp-parts">
+          {topic.parts.map((part, i) => (
+            <li key={part.slug}>
+              <Link href={`/blog/${part.slug}`}>
+                <span className="ccnp-part-n">{i + 1}</span>
+                <span className="ccnp-part-title">{part.title}</span>
+              </Link>
+              {part.blurb && <span className="ccnp-part-blurb">{part.blurb}</span>}
+            </li>
+          ))}
+        </ol>
       )}
       {topic.lab && (
         <p className="ccnp-lab">
