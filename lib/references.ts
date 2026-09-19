@@ -59,7 +59,60 @@ const ISE_CHEAT_SHEET_TERMS = [
   'api', 'ers', 'openapi', 'data connect',
 ]
 
+const CCNP_TRACK_TERMS = [
+  'ccna', '200-301', 'ccnp', 'ccnp enterprise', 'encor', '350-401',
+  'enarsi', '300-410', 'ccie enterprise', 'cisco certification',
+  'exam topics', 'blueprint', 'study guide', 'study plan', 'labs',
+  'network fundamentals', 'network access', 'ip connectivity', 'ip services',
+  'security fundamentals', 'automation', 'programmability',
+  'vlan', 'trunk', '802.1q', 'native vlan', 'etherchannel', 'lacp', 'pagp',
+  'spanning tree', 'stp', 'rstp', 'mst', 'rapid pvst', 'portfast',
+  'bpdu guard', 'root guard', 'loop guard', 'udld',
+  'ospf', 'ospfv3', 'lsa', 'nssa', 'stub area', 'virtual link', 'abr', 'asbr',
+  'eigrp', 'dual', 'feasible successor', 'stuck in active', 'named mode',
+  'bgp', 'ibgp', 'ebgp', 'route reflector', 'local preference', 'as path',
+  'med', 'weight', 'best path', 'redistribution', 'route map', 'prefix list',
+  'administrative distance', 'summarization', 'policy based routing', 'pbr',
+  'static route', 'floating static', 'longest prefix match',
+  'vrf', 'vrf-lite', 'gre', 'ipsec', 'dmvpn', 'nhrp', 'mgre', 'mpls', 'ldp',
+  'l3vpn', 'lisp', 'vxlan', 'vtep', 'vni', 'overlay', 'underlay', 'fabric',
+  'sd-wan', 'sd-access', 'catalyst center', 'dna center', 'vmanage', 'vsmart',
+  'hsrp', 'vrrp', 'glbp', 'fhrp', 'nat', 'pat', 'dhcp', 'dns', 'ntp', 'ptp',
+  'qos', 'dscp', 'policing', 'shaping', 'llq', 'mqc',
+  'multicast', 'pim', 'igmp', 'rpf', 'ssm', 'msdp',
+  'netflow', 'flexible netflow', 'ipfix', 'span', 'rspan', 'erspan', 'ip sla',
+  'syslog', 'snmp', 'debug', 'conditional debug', 'eem',
+  'acl', 'copp', 'urpf', 'aaa', 'tacacs', 'radius', 'macsec', 'trustsec',
+  'ipv6', 'slaac', 'eui-64', 'link local', 'ra guard', 'dhcp guard',
+  'netconf', 'restconf', 'yang', 'json', 'python', 'ansible', 'terraform',
+  'rest api', 'subnetting', 'vlsm', 'wireless', 'wlc', 'capwap', 'wpa3',
+  'port security', 'dhcp snooping', 'dynamic arp inspection', 'bfd',
+]
+
 export const REFERENCES: Reference[] = [
+  {
+    slug: 'ccna-ccnp-study-guide',
+    href: '/blog/ccna-ccnp-study-guide',
+    title: 'CCNA, ENCOR and ENARSI — The Complete Topic-by-Topic Study Guide',
+    excerpt:
+      'Every topic on three Cisco blueprints, in Cisco\u2019s own numbering and ' +
+      'searchable \u2014 each one explained from first principles with diagrams, ' +
+      'packet flow, full configuration, a lab to build it, and a knowledge check.',
+    category: 'networking',
+    meta: 'Reference · CCNA 200-301 · ENCOR 350-401 · ENARSI 300-410',
+    tags: [
+      'CCNA', 'CCNP Enterprise', 'ENCOR', 'ENARSI', 'Certification',
+      'Spanning Tree', 'OSPF', 'EIGRP', 'BGP', 'Layer 2', 'Switching',
+      'Routing', 'Automation',
+    ],
+    searchText: [
+      'CCNA, ENCOR and ENARSI topic by topic study guide',
+      'every blueprint topic with a lab for each',
+      ...CCNP_TRACK_TERMS,
+    ]
+      .join(' ')
+      .toLowerCase(),
+  },
   {
     slug: 'cisco-ise-cheat-sheet',
     href: '/blog/cisco-ise-cheat-sheet',

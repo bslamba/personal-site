@@ -2164,3 +2164,198 @@ body:has(.vg-member) > footer { display: none !important; }
 .vg .vg-emi-bar { height: 7px; border-radius: 999px; background: rgba(120,99,190,0.16); overflow: hidden; margin: 0.4rem 0 0.35rem; }
 .vg .vg-emi-bar i { display: block; height: 100%; background: linear-gradient(90deg, #a06be0, #6d4bd8); border-radius: 999px; }
 .vg .vg-emi-meta { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.78rem; color: var(--vg-ink-soft); font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   CCNA / CCNP STUDY HUB
+   The blueprint index at /blog/ccna-ccnp-study-guide.
+   ============================================================ */
+.ccnp { --ccnp-line: var(--color-ink-200); }
+
+.ccnp-controls {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
+  padding: 0.9rem 0; margin-bottom: 1.5rem;
+  background: var(--color-paper);
+  border-bottom: 1px solid var(--ccnp-line);
+}
+.ccnp-search {
+  display: flex; align-items: center; gap: 0.55rem; flex: 1 1 22rem;
+  border: 1px solid var(--color-ink-300); background: #fff;
+  padding: 0.6rem 0.75rem;
+}
+.ccnp-search input {
+  flex: 1; border: 0; outline: none; background: transparent;
+  font-family: var(--font-heading); font-size: 0.95rem; color: var(--color-ink-800);
+  min-width: 0;
+}
+.ccnp-search input::placeholder { color: var(--color-ink-400); }
+.ccnp-search:focus-within { border-color: var(--color-signal-500); }
+.ccnp-clear { color: var(--color-ink-400); display: flex; }
+.ccnp-clear:hover { color: var(--color-signal-500); }
+
+.ccnp-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.ccnp-filter {
+  font-family: var(--font-heading); font-size: 0.78rem; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 0.5rem 0.7rem; border: 1px solid var(--color-ink-300);
+  color: var(--color-ink-500); background: #fff; cursor: pointer;
+  transition: all 0.15s;
+}
+.ccnp-filter:hover { border-color: var(--color-ink-500); color: var(--color-ink-800); }
+.ccnp-filter.is-on { background: var(--color-ink-900); border-color: var(--color-ink-900); color: var(--color-paper); }
+
+.ccnp-count { font-size: 0.9rem; color: var(--color-ink-500); margin: 0 0 1rem; }
+.ccnp-hitlist, .ccnp-topics { list-style: none; padding: 0; margin: 0; }
+.ccnp-hitlist > li, .ccnp-topics > li { border-bottom: 1px solid var(--color-ink-100); }
+
+.ccnp-exam { margin: 2.5rem 0; scroll-margin-top: 5rem; }
+.ccnp-exam-head { display: flex; gap: 0.85rem; align-items: flex-start; margin-bottom: 1.25rem; }
+.ccnp-dot { width: 0.6rem; height: 0.6rem; margin-top: 0.62rem; border-radius: 50%; flex: none; }
+.ccnp-exam-title {
+  font-family: var(--font-heading); font-size: 1.5rem; font-weight: 700;
+  margin: 0; letter-spacing: -0.01em; color: var(--color-ink-900);
+}
+.ccnp-code { color: var(--color-signal-500); font-weight: 600; }
+.ccnp-ver { color: var(--color-ink-400); font-size: 0.9rem; font-weight: 500; }
+.ccnp-exam-blurb { margin: 0.35rem 0 0; color: var(--color-ink-600); font-size: 0.98rem; }
+.ccnp-exam-meta { margin: 0.35rem 0 0; font-size: 0.82rem; color: var(--color-ink-400); font-family: var(--font-heading); }
+.ccnp-exam-meta a { color: var(--color-signal-500); }
+.ccnp-exam-meta a:hover { text-decoration: underline; }
+
+.ccnp-domain { border-top: 1px solid var(--ccnp-line); }
+.ccnp-domain-head {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%;
+  padding: 0.85rem 0; text-align: left; cursor: pointer; background: none; border: 0;
+  font-family: var(--font-heading);
+}
+.ccnp-domain-n { color: var(--color-signal-500); font-weight: 700; font-size: 0.9rem; }
+.ccnp-domain-title { font-weight: 700; font-size: 1.02rem; color: var(--color-ink-900); flex: 1; }
+.ccnp-weight {
+  font-size: 0.75rem; font-weight: 700; color: var(--color-ink-500);
+  border: 1px solid var(--color-ink-200); padding: 0.15rem 0.45rem;
+}
+
+.ccnp-topic { display: block; padding: 0.85rem 0 0.9rem 1.6rem; color: inherit; text-decoration: none; }
+.ccnp-topic.is-link:hover { background: var(--color-signal-50); }
+.ccnp-topic-head { display: flex; gap: 0.55rem; align-items: baseline; flex-wrap: wrap; }
+.ccnp-n { font-family: var(--font-mono); font-size: 0.78rem; color: var(--color-ink-400); flex: none; }
+.ccnp-title { font-family: var(--font-heading); font-weight: 600; color: var(--color-ink-900); font-size: 0.97rem; }
+.ccnp-topic.is-link .ccnp-title { color: var(--color-signal-600); }
+.ccnp-topic.is-link:hover .ccnp-title { text-decoration: underline; }
+.ccnp-read {
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  background: var(--color-signal-500); color: #fff; padding: 0.1rem 0.35rem; flex: none;
+}
+.ccnp-breadcrumb {
+  margin: 0.25rem 0 0; font-family: var(--font-heading);
+  font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-400);
+}
+.ccnp-subs { margin: 0.45rem 0 0; padding-left: 1.05rem; }
+.ccnp-subs li { font-size: 0.88rem; color: var(--color-ink-500); line-height: 1.55; }
+.ccnp-lab {
+  display: flex; gap: 0.4rem; align-items: flex-start;
+  margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--color-ink-600);
+  border-left: 2px solid var(--color-signal-300); padding: 0.15rem 0 0.15rem 0.55rem;
+}
+.ccnp-lab b { color: var(--color-ink-800); }
+
+.ccnp-foot {
+  margin-top: 2.5rem; padding-top: 1.1rem; border-top: 1px solid var(--ccnp-line);
+  font-size: 0.85rem; color: var(--color-ink-400);
+}
+
+@media (max-width: 640px) {
+  .ccnp-controls { position: static; }
+  .ccnp-topic { padding-left: 0.6rem; }
+}
+
+/* ============================================================
+   TEACHING COMPONENTS
+   Used inside article markdown. All interactivity is CSS only —
+   markdown is injected as HTML, so no script in a post ever runs.
+   ============================================================ */
+
+/* ---- Knowledge check ---- */
+.qz {
+  border: 1px solid var(--color-ink-200); background: #fff;
+  padding: 1.1rem 1.2rem; margin: 1.6rem 0;
+}
+.qz-q {
+  font-family: var(--font-heading); font-weight: 700; font-size: 1rem;
+  color: var(--color-ink-900); margin: 0 0 0.85rem;
+}
+.qz-q .qz-num {
+  color: var(--color-signal-500); font-family: var(--font-mono);
+  font-size: 0.8rem; margin-right: 0.45rem;
+}
+.qz-opt {
+  display: block; cursor: pointer; border: 1px solid var(--color-ink-200);
+  padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; transition: border-color 0.15s, background 0.15s;
+}
+.qz-opt:hover { border-color: var(--color-ink-400); background: var(--color-paper-dim); }
+.qz-opt input { margin-right: 0.6rem; accent-color: var(--color-signal-500); }
+.qz-opt > span { font-family: var(--font-heading); font-size: 0.93rem; color: var(--color-ink-800); }
+.qz-fb {
+  display: none; margin-top: 0.55rem; padding-left: 1.5rem;
+  font-family: var(--font-heading); font-size: 0.87rem; font-style: normal; line-height: 1.55;
+}
+.qz-opt input:checked ~ .qz-fb { display: block; }
+.qz-opt:has(input:checked) { border-width: 2px; padding: calc(0.6rem - 1px) calc(0.75rem - 1px); }
+.qz-opt:has(input:checked) .qz-good { color: #0f6b47; }
+.qz-opt:has(input:checked) .qz-bad  { color: var(--color-signal-600); }
+.qz-opt:has(.qz-good input:checked), .qz-opt:has(input:checked) .qz-good::before { content: '✓  '; font-weight: 800; }
+.qz-opt:has(input:checked) .qz-bad::before { content: '✕  '; font-weight: 800; }
+
+/* ---- Reveal (think first, then check) ---- */
+.reveal {
+  border-left: 3px solid var(--color-signal-300); background: var(--color-signal-50);
+  padding: 0.75rem 1rem; margin: 1.4rem 0;
+}
+.reveal > summary {
+  cursor: pointer; font-family: var(--font-heading); font-weight: 700;
+  font-size: 0.93rem; color: var(--color-signal-700); list-style: none;
+}
+.reveal > summary::-webkit-details-marker { display: none; }
+.reveal > summary::before { content: '▸  '; }
+.reveal[open] > summary::before { content: '▾  '; }
+.reveal[open] > summary { margin-bottom: 0.6rem; }
+.reveal > :not(summary) { font-size: 0.95rem; }
+
+/* ---- Lab task ---- */
+.lab {
+  border: 1px solid var(--color-ink-800); margin: 1.8rem 0; background: #fff;
+}
+.lab-head {
+  background: var(--color-ink-900); color: var(--color-paper);
+  padding: 0.6rem 1rem; font-family: var(--font-heading);
+  font-weight: 700; font-size: 0.86rem; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.lab-body { padding: 1rem 1.1rem; }
+.lab-body > :first-child { margin-top: 0; }
+.lab-body > :last-child { margin-bottom: 0; }
+
+/* ---- Callouts ---- */
+.note, .warn, .why {
+  padding: 0.8rem 1rem; margin: 1.4rem 0; border-left: 3px solid; font-size: 0.95rem;
+}
+.note { border-color: var(--color-ink-400); background: var(--color-paper-dim); }
+.warn { border-color: var(--color-signal-500); background: var(--color-signal-50); }
+.why  { border-color: #1f9d6b; background: rgba(31, 157, 107, 0.07); }
+.note > :first-child, .warn > :first-child, .why > :first-child { margin-top: 0; }
+.note > :last-child, .warn > :last-child, .why > :last-child { margin-bottom: 0; }
+.note b:first-child, .warn b:first-child, .why b:first-child {
+  font-family: var(--font-heading); text-transform: uppercase;
+  font-size: 0.72rem; letter-spacing: 0.09em; display: block; margin-bottom: 0.3rem;
+}
+.note b:first-child { color: var(--color-ink-500); }
+.warn b:first-child { color: var(--color-signal-600); }
+.why  b:first-child { color: #0f6b47; }
+
+/* ---- Figures ---- */
+.fig { margin: 1.8rem 0; }
+.fig svg { width: 100%; height: auto; display: block; border: 1px solid var(--color-ink-200); background: #fff; }
+.fig figcaption {
+  font-family: var(--font-heading); font-size: 0.82rem; color: var(--color-ink-500);
+  margin-top: 0.5rem; padding-left: 0.1rem;
+}
+.fig figcaption b { color: var(--color-ink-700); }

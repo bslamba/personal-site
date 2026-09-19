@@ -20,7 +20,12 @@
     ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    // Only these type packages are loaded. Without this, TypeScript pulls in
+    // every directory under node_modules/@types automatically — and pnpm has
+    // left empty husks for estree, json-schema and json5, which then fail to
+    // resolve and break the production build.
+    "types": ["node", "react", "react-dom"]
   },
   "include": [
     "next-env.d.ts",
