@@ -1,7 +1,7 @@
 // ============================================================
 // app/happy-birthday/page.tsx
 //
-// A birthday page for Parteek "Nishu" Kaur — 25 September 2026.
+// A birthday page for Parteet "Nishu" Kaur — 25 September 2026.
 //
 // Public, because it has to be openable from a phone with nothing
 // but the link. Not indexed, because a surprise for one person has

@@ -28,7 +28,7 @@ import { SongControl, SongHolder, useBirthdaySong } from './music'
 import { decryptLetter, Letter, type Block } from './letter-lock'
 
 const HER = 'Nishu'
-const HER_FULL = 'Parteek Kaur'
+const HER_FULL = 'Parteet Kaur'
 const BORN = 1996
 const BIRTHDAY_ISO = '2026-09-25T00:00:00+05:30'
 const TURNS = 2026 - BORN
