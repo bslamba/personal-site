@@ -2378,3 +2378,32 @@ body:has(.vg-member) > footer { display: none !important; }
 .ccnp-part-blurb {
   display: block; padding-left: 1.6rem; font-size: 0.82rem; color: var(--color-ink-500); line-height: 1.5;
 }
+
+/* ---- Lab blocks: target, notice, issues, earned ---- */
+.lab-target, .lab-watch, .lab-issues, .lab-earned {
+  padding: 0.7rem 0.9rem; margin: 1rem 0; font-size: 0.93rem; border-left: 3px solid;
+}
+.lab-target b:first-child, .lab-watch b:first-child,
+.lab-issues b:first-child, .lab-earned b:first-child {
+  font-family: var(--font-heading); text-transform: uppercase; font-size: 0.7rem;
+  letter-spacing: 0.1em; display: block; margin-bottom: 0.3rem;
+}
+.lab-target { border-color: var(--color-ink-900); background: var(--color-paper-dim); }
+.lab-target b:first-child { color: var(--color-ink-900); }
+.lab-watch { border-color: #4b7bec; background: rgba(75,123,236,0.07); }
+.lab-watch b:first-child { color: #2b5ab8; }
+.lab-issues { border-color: var(--color-signal-500); background: var(--color-signal-50); }
+.lab-issues b:first-child { color: var(--color-signal-600); }
+.lab-earned { border-color: #1f9d6b; background: rgba(31,157,107,0.08); }
+.lab-earned b:first-child { color: #0f6b47; }
+.lab-step {
+  font-family: var(--font-heading); font-weight: 700; font-size: 0.95rem;
+  color: var(--color-ink-900); margin: 1.3rem 0 0.5rem;
+  padding-top: 0.8rem; border-top: 1px solid var(--color-ink-100);
+}
+.lab-step .n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.35rem; height: 1.35rem; margin-right: 0.45rem; border-radius: 2px;
+  background: var(--color-ink-900); color: #fff; font-family: var(--font-mono); font-size: 0.72rem;
+}
+.lab-body > .lab-step:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
