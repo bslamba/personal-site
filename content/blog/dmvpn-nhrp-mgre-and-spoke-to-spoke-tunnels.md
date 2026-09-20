@@ -36,6 +36,54 @@ draft: false
 
 ---
 
+## DMVPN building blocks, one by one
+
+DMVPN is four technologies stacked so that many branch routers can build tunnels to a hub — and directly to each other — with almost no per-branch configuration. These are the pieces.
+
+### GRE/mGRE
+
+**GRE** (Generic Routing Encapsulation) is a simple tunnel: it wraps a packet in a new IP header so it can cross an intermediate network, and unlike plain IPsec it can carry **multicast and routing protocols**. Classic GRE is **point-to-point** — one `tunnel destination` per tunnel.
+
+**mGRE (multipoint GRE)** removes the fixed destination: **one** tunnel interface reaches **many** peers, and the destination for each packet is looked up at send time. That is what lets a hub have a single tunnel interface for hundreds of spokes.
+
+- **Beginner:** GRE = a tunnel; mGRE = one tunnel interface that can reach many other routers.
+- **Working knowledge:** mGRE has no `tunnel destination` — it asks [NHRP](#nhrp) "what is the real address for this tunnel peer?" instead.
+- **Pro:** GRE adds 24 bytes and carries no encryption, so DMVPN pairs it with [IPsec](#ipsec) for confidentiality and needs `ip mtu`/`ip tcp adjust-mss` tuning — the overhead is why full-size packets otherwise fragment or black-hole.
+
+### NHRP
+
+**NHRP** (Next Hop Resolution Protocol) is the **mapping service** that makes mGRE work. Spokes **register** with the hub (the Next Hop Server), telling it "my tunnel address maps to my real public address." When one spoke needs to reach another, it asks the hub, gets the mapping, and can then build a direct tunnel.
+
+- **Beginner:** the phone book that maps a tunnel IP to a real internet IP.
+- **Working knowledge:** because spokes register themselves, their public addresses can be **dynamic** — the hub learns them as they check in. `show dmvpn` and `show ip nhrp` are the first commands for any DMVPN problem.
+- **Pro:** NHRP is what enables **spoke-to-spoke** without pre-configuring every pair — the hub answers a resolution request and steps out of the path. See [The registration, and the shortcut](#the-registration-and-the-shortcut).
+
+### IPsec
+
+**IPsec** provides the **encryption** DMVPN's GRE does not. It is applied as a **tunnel protection profile** on the tunnel interface, so the same policy protects every dynamically built tunnel — hub-to-spoke and spoke-to-spoke alike — without a crypto map per peer.
+
+- **Beginner:** the layer that makes the tunnel private over the internet.
+- **Working knowledge:** IPsec here is optional in theory (DMVPN is a topology mechanism) but mandatory in practice over any public transport.
+- **Pro:** the give-away symptom of a one-way IPsec problem is **encrypting but not decrypting** in `show crypto ipsec sa` — almost always a firewall or NAT dropping ESP or protocol 47 on the return path.
+
+### Dynamic neighbor
+
+A **dynamic neighbor** is a spoke the hub did not have to be told about in advance. Because spokes initiate registration and (for routing) the hub accepts **dynamic** multipoint peers, adding a branch requires **zero change on the hub** — ship a pre-staged router, plug it into any internet, and it joins.
+
+- **Beginner:** new branches appear by themselves; you don't reconfigure the hub.
+- **Working knowledge:** on the hub, the routing protocol is configured to accept peers dynamically (e.g. EIGRP with no explicit neighbor statements, or an OSPF multipoint network type), which is the counterpart to NHRP's dynamic registration.
+- **Pro:** this is DMVPN's whole operational value proposition, and the reason it persisted into the SD-WAN era — provisioning scales because the hub is static regardless of spoke count.
+
+### Spoke-to-spoke
+
+**Spoke-to-spoke** tunnels let two branches talk **directly** instead of hair-pinning through the hub. The first packets go via the hub; the hub sends an NHRP **redirect**; the spokes resolve each other and build a temporary direct tunnel.
+
+- **Beginner:** two branches end up talking directly, not through head office.
+- **Working knowledge:** it needs `ip nhrp redirect` on the hub **and** `ip nhrp shortcut` on the spokes (Phase 3) — one without the other means everything silently stays hub-routed.
+- **Pro:** in Phase 3 the routing table keeps pointing at the hub even when a direct tunnel is active; the shortcut lives in **CEF**, so `show dmvpn` showing a **D** (dynamic) entry, not the routing table, is your proof spoke-to-spoke works.
+
+---
+
 ## One interface, many peers
 
 <figure class="fig">

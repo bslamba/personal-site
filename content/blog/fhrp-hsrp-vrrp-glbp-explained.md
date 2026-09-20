@@ -27,6 +27,37 @@ draft: false
 
 ---
 
+## Enterprise design principles this belongs to
+
+FHRP is one piece of a larger idea: an enterprise network is built so that **no single failure takes a service down**. Before the protocol details, two blueprint sub-items set the context.
+
+### Enterprise network design principles
+
+Enterprise networks are built in **layers with redundancy at each one**, and the shape is chosen to match the traffic:
+
+- **2-tier (collapsed core)** — access switches into a redundant distribution/core pair. The common enterprise campus.
+- **3-tier** — access, distribution and core separated, for large campuses with many distribution blocks and a feature-light, ultra-stable core.
+- **Fabric** — an underlay plus a [VXLAN overlay](/blog/sdn-controllers-overlays-sd-access-and-sd-wan) with a controller, giving segmentation and mobility that a tree design cannot.
+- **Cloud** — services rented from a provider, connected back over VPN or a dedicated interconnect, under a **shared-responsibility model**.
+
+- **Beginner:** networks are built in tiers so that losing one device or link does not lose the service.
+- **Working knowledge:** the design decision is *where the Layer 3 boundary sits* and *where redundancy is provided* — which is exactly where FHRP fits, at the gateway. See [components and topologies](/blog/network-components-topologies-cabling-and-interface-errors) for each shape in detail.
+- **Pro:** redundancy is only useful if failover is **fast and deterministic** — two core switches help nothing if hosts keep sending to a dead gateway. That gap between "the network has a backup path" and "the host uses it" is the problem the next sub-item, and this whole article, exists to close.
+
+### High availability techniques
+
+**High availability** removes single points of failure at three levels:
+
+- **Redundancy** — duplicate devices, links and power, so hardware failure has a standby ready (dual core switches, dual uplinks, [StackWise/VSS/vPC](/blog/virtualization-vms-containers-and-network-virtualization) so both links forward).
+- **FHRP** — a **First Hop Redundancy Protocol** (HSRP, VRRP, GLBP) gives hosts a **virtual gateway IP** shared by two routers, so if the active gateway fails the standby takes the same IP over in seconds — without the host knowing or re-learning anything. This is the article's core topic.
+- **SSO** — **Stateful Switchover** lets a device with dual supervisors fail over to the standby supervisor **without dropping the control plane**; with **NSF** (nonstop forwarding) the data plane keeps forwarding during the switchover.
+
+- **Beginner:** redundancy is having a spare; FHRP is making hosts use the spare gateway automatically; SSO is a device surviving its own supervisor failing.
+- **Working knowledge:** these compose — a redundant pair of switches running an FHRP for the gateway, each with SSO internally, is the standard resilient distribution block.
+- **Pro:** match the FHRP to the failover need and pair it with [tracking](/blog/ip-sla-probes-jitter-and-tracking-objects) so the gateway also fails over when the *uplink* fails, not just when the router dies — otherwise the active router happily keeps the virtual IP while black-holing traffic behind a dead uplink.
+
+---
+
 ## The problem is on the host, not the router
 
 Everything a network engineer builds for redundancy — two distribution switches, two uplinks, a routing protocol that reconverges in milliseconds — stops at the edge of the PC.

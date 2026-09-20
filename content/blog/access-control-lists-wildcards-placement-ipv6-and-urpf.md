@@ -31,6 +31,40 @@ draft: false
 
 ---
 
+## Router security features, one by one
+
+Filtering traffic is the same engine everywhere — an ordered list, first match wins, an implicit deny at the end. What changes is where you apply it and what it inspects. The blueprint names three tools.
+
+### IPv4 access control lists (standard, extended, time-based)
+
+An **IPv4 ACL** is an ordered list of permit/deny rules matched top-down, first match wins, with an **implicit `deny any`** at the end.
+
+- **Standard** ACLs match **source address only** — so they are placed **close to the destination**, to avoid discarding traffic that had other valid destinations.
+- **Extended** ACLs match source, destination, protocol and ports — placed **close to the source**, to drop unwanted traffic before it crosses the network.
+- **Time-based** ACLs reference a `time-range`, so a rule is active only during defined hours.
+
+- **Beginner:** a list of "allow this / block that" rules on an interface.
+- **Working knowledge:** order matters (a broad permit early hides everything after it) and the invisible `deny any` at the end drops anything you did not explicitly permit. Number or name them, and leave gaps in sequence numbers so you can insert rules.
+- **Pro:** ACLs are also the matching engine for far more than filtering — NAT, route maps, `access-class`, QoS classification and `debug` all reference them. Master the list semantics once and it pays off everywhere. See [Wildcard masks run backwards](#wildcard-masks-run-backwards).
+
+### IPv6 traffic filter
+
+IPv6 ACLs do the same job but are applied with `ipv6 traffic-filter` (not `ip access-group`), and they are **named only**. Two differences bite: the implicit rules at the end **permit ICMPv6 neighbour discovery** (before the final deny), because breaking ND would break IPv6 itself; and there is an implicit `permit` for NDP you must not accidentally override.
+
+- **Beginner:** same idea as IPv4 ACLs, different command, for IPv6.
+- **Working knowledge:** apply with `ipv6 traffic-filter NAME in|out` under the interface; there is no numbered form.
+- **Pro:** if you write an explicit `deny ipv6 any any` you **override** the implicit ND permits and can black-hole a working IPv6 segment — always permit the necessary ICMPv6 before a catch-all deny.
+
+### Unicast reverse path forwarding (uRPF)
+
+**uRPF** drops a packet if the router has **no route back** to its source address out the interface it arrived on — a cheap, stateless **anti-spoofing** control. **Strict** mode requires the return path to use the *same* interface; **loose** mode only requires *a* route to the source to exist.
+
+- **Beginner:** "if I couldn't route a reply back the way this packet came, it's probably spoofed — drop it."
+- **Working knowledge:** strict uRPF suits single-homed edges; loose uRPF suits asymmetric/multi-homed links where the return path may differ.
+- **Pro:** uRPF is the practical implementation of **BCP 38** source-address validation. Deploying it at your edge stops your network being the *source* of spoofed reflection/amplification attacks — a control that protects others as much as you, which is exactly why it is so often skipped. See [security fundamentals](/blog/security-fundamentals-threats-aaa-and-defence-in-depth).
+
+---
+
 ## The engine, and it is simple
 
 <figure class="fig">

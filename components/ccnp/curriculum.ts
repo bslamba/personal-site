@@ -309,7 +309,10 @@ const ENCOR: Exam = {
       n: '1.0', title: 'Architecture', weight: 15,
       topics: [
         { n: '1.1', title: 'Explain the different design principles used in an enterprise network',
-          subs: ['High-level enterprise network design such as 2-tier, 3-tier, fabric, and cloud', 'High availability techniques such as redundancy, FHRP, and SSO'],
+          subs: [
+            { t: 'High-level enterprise network design such as 2-tier, 3-tier, fabric, and cloud', a: 'enterprise-network-design-principles' },
+            { t: 'High availability techniques such as redundancy, FHRP, and SSO', a: 'high-availability-techniques' },
+          ],
           slug: 'fhrp-hsrp-vrrp-glbp-explained',
           tags: ['design', 'two-tier', 'three-tier', 'fabric', 'SSO', 'NSF', 'redundancy', 'FHRP'],
           lab: 'Build a collapsed core with HSRP and fail the active router while pinging.' },

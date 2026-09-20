@@ -32,6 +32,28 @@ draft: false
 
 ---
 
+## Device access control, one by one
+
+Controlling who can log in to a device and what they may do has two layers: a local fallback that always works, and centralised AAA for everything normal. The blueprint names both.
+
+### Lines and local user authentication
+
+A device is reached through **lines**: the **console** (physical), the **aux** port, and the **vty** lines (remote — SSH). Each line decides how a login is authenticated. **Local user authentication** means the device checks credentials against its own `username … secret` database.
+
+- **Beginner:** the console is the cable you plug in; vty lines are SSH sessions; a local user is an account stored on the device itself.
+- **Working knowledge:** harden the vty lines with `transport input ssh` (never Telnet), an `access-class` ACL limiting who can even connect, and `exec-timeout`. Store users with `algorithm-type scrypt secret` (type 9), never type 7.
+- **Pro:** a **local break-glass account is mandatory before you enable AAA**, and `local` belongs at the end of every method list — otherwise an unreachable AAA server locks everyone out, including on the console. This is the single most common self-inflicted lockout. See [Configuration, word by word](#configuration-word-by-word).
+
+### Authentication and authorization using AAA
+
+**AAA** centralises the three questions: **authentication** (who are you), **authorization** (what may you do), **accounting** (what did you do). It runs over **RADIUS** or **TACACS+**, with a method list that tries the server first and falls back to `local`.
+
+- **Beginner:** instead of accounts on every device, everyone authenticates against a central server (ISE).
+- **Working knowledge:** for **device administration** use **TACACS+** — it separates authorization from authentication, so it can approve or deny **individual commands**. For **network access** (802.1X, VPN, wireless) use **RADIUS**.
+- **Pro:** the failure that looks impossible — the server logs a success while the device rejects the login — is a **shared-secret mismatch**: the reply fails its authenticator check and is silently dropped. And a *reject* from a reachable server is final; the fall-through to `local` happens only on **no response**. Both are covered in depth in the sections below.
+
+---
+
 ## The three A's are genuinely three things
 
 <figure class="fig">

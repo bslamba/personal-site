@@ -38,6 +38,94 @@ draft: false
 
 ---
 
+## Components of the routing table
+
+Every line of `show ip route` is the same handful of fields. Read one line and you can read them all — these are the parts the blueprint asks you to interpret.
+
+### Routing protocol code
+
+The letter at the **start** of each line says **how the route was learned**: `C` connected, `L` local (the interface's own /32), `S` static, `O` OSPF, `D` EIGRP, `B` BGP, `i` IS-IS, `R` RIP. `O IA` is an OSPF inter-area route, `O E2` an external; `*` marks a candidate default.
+
+- **Beginner:** the code tells you where the route came from.
+- **Pro:** the code implies the **administrative distance**, which is how the router chose *this* source over another that also knew the prefix. `show ip route` shows the winner; `show ip route <prefix>` and the protocol's topology table show the also-rans.
+
+### Prefix
+
+The **prefix** is the destination network — `10.1.20.0` in `10.1.20.0/24`. It is what the router matches a packet's destination against.
+
+- **Beginner:** the network this line tells you how to reach.
+- **Pro:** the routing table is a set of prefixes of varying lengths, and forwarding is a **longest-prefix match** across all of them — so the same destination can be covered by a /24, a /16 and a /0 at once, and the most specific wins. See [Longest prefix match](#longest-prefix-match).
+
+### Network mask
+
+The **mask** (shown as the `/24` prefix length) says **how many leading bits** are the network and how many are host. It is what defines the size of the prefix and therefore its specificity.
+
+- **Beginner:** `/24` = 256 addresses; a bigger number = a smaller, more specific network.
+- **Working knowledge:** IOS may show routes summarised by classful boundaries or with explicit masks; `show ip route` prints the mask on the network line.
+- **Pro:** the mask length is precisely what longest-prefix match compares — a /32 host route beats a /24 beats a /0, regardless of protocol or metric. Specificity is decided before administrative distance or metric ever enter the picture. See [subnetting](/blog/ipv4-addressing-subnetting-and-verifying-a-client).
+
+### Next hop
+
+The **next hop** (`via 10.0.12.2`) is the **IP address of the neighbouring router** to hand the packet to. The router does a recursive lookup to find how to reach the next hop, then rewrites the layer-2 header for it.
+
+- **Beginner:** the next router along the path toward the destination.
+- **Working knowledge:** a route can instead list an **exit interface**; on multi-access (Ethernet) links, prefer a next hop or a fully specified route, because an exit-interface-only static makes the router ARP for every destination. See [static routing](/blog/static-routes-dhcp-relay-and-file-transfer).
+- **Pro:** if the next hop is itself unreachable, the route is **inactive** and silently absent from the table though present in the config — a recursive-lookup failure.
+
+### Administrative distance
+
+**Administrative distance (AD)** is how a router chooses when **two different sources** both offer a route to the same prefix: lower AD wins. Connected 0, static 1, EIGRP 90, OSPF 110, RIP 120, external EIGRP 170, BGP 20 (external) / 200 (internal).
+
+- **Beginner:** a trust ranking between routing protocols — the router believes the more trusted source.
+- **Working knowledge:** AD is **local** to the router and compared **only** between protocols, never within one. It is shown as the first number in `[110/20]`.
+- **Pro:** AD is the lever behind **floating static routes** (a static at AD 200 waits behind a dynamic route) and behind redistribution loops (a route returning via a lower-AD protocol can look better than the original). See [route maps and loop prevention](/blog/route-maps-loop-prevention-and-summarisation).
+
+### Metric
+
+The **metric** is how a **single** routing protocol chooses among **its own** paths to a prefix — the second number in `[110/20]`. Each protocol computes it differently: OSPF by cost (bandwidth), EIGRP by a bandwidth/delay formula, RIP by hop count.
+
+- **Beginner:** within one protocol, the lower-metric path wins.
+- **Working knowledge:** metric only breaks ties **after** AD has chosen the protocol and longest-match has chosen the prefix — it is the last decision, not the first.
+- **Pro:** metrics are not comparable across protocols (OSPF cost 20 and EIGRP metric 2816 mean nothing to each other), which is exactly why AD exists to arbitrate between them.
+
+### Gateway of last resort
+
+The **gateway of last resort** is where the router sends anything it has **no more specific route** for — the default route, `0.0.0.0/0`. `show ip route` prints it at the top ("Gateway of last resort is 203.0.113.1 to network 0.0.0.0").
+
+- **Beginner:** "if I don't know where it goes, send it here."
+- **Working knowledge:** it can be a static default or one learned from a routing protocol; "Gateway of last resort is not set" means the router will **drop** anything unmatched.
+- **Pro:** `0.0.0.0/0` is just the least-specific possible prefix, so longest-prefix match reaches it only when nothing else matches — the default route is not special machinery, only the shortest prefix.
+
+---
+
+## How a router makes a forwarding decision
+
+Given a packet, the router applies three tests **in this order**. Getting the order right is the whole topic.
+
+### Longest prefix match
+
+The router picks the route with the **most specific** (longest) prefix that contains the destination — **first, before anything else**. A /32 beats a /24 beats a /0, no matter which protocol or metric produced them.
+
+- **Beginner:** the most specific matching route always wins.
+- **Working knowledge:** this is why a specific static and a summary can coexist — the specific one is used for its range, the summary for the rest.
+- **Pro:** longest-match is decided across the **whole** table regardless of source, so a /24 static and a /16 from OSPF do not compete on AD at all — the /24 wins by specificity, and AD never comes up.
+
+### Administrative distance
+
+Only **when two sources offer the same prefix at the same length** does the router compare **AD** and keep the lower. This is the *second* test, not the first.
+
+- **Beginner:** same network from two protocols → trust the lower AD.
+- **Pro:** the classic mistake is thinking AD chooses between a /24 and a /16 — it does not; longest-match already decided that. AD only arbitrates identical prefixes. See [Administrative distance](#administrative-distance) above.
+
+### Routing protocol metric
+
+Finally, **within the winning protocol**, if it has several equal-length paths to the prefix, it compares its own **metric** and installs the best — or several, if they tie (equal-cost multipath).
+
+- **Beginner:** the tie-breaker inside one protocol.
+- **Pro:** EIGRP can also install **unequal-cost** paths with `variance`; OSPF only load-balances equal-cost. The metric is the last word, after specificity and AD have both been settled.
+
+---
+
 ## Two planes, two questions
 
 A router answers two completely separate questions, at two different times, using two different mechanisms. Conflating them is the single biggest source of confusion in this topic.
