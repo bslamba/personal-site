@@ -2263,6 +2263,14 @@ body:has(.vg-member) > footer { display: none !important; }
 }
 .ccnp-subs { margin: 0.45rem 0 0; padding-left: 1.05rem; }
 .ccnp-subs li { font-size: 0.88rem; color: var(--color-ink-500); line-height: 1.55; }
+.ccnp-topic-headlink { display: block; text-decoration: none; color: inherit; }
+.ccnp-topic-headlink:hover .ccnp-title { text-decoration: underline; }
+.ccnp-subs li { list-style: disc; }
+.ccnp-sub-link {
+  color: var(--color-signal-600); text-decoration: none;
+  border-bottom: 1px solid transparent; transition: border-color 0.12s ease;
+}
+.ccnp-sub-link:hover { border-bottom-color: currentColor; }
 .ccnp-lab {
   display: flex; gap: 0.4rem; align-items: flex-start;
   margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--color-ink-600);

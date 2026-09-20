@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, ArrowUpRight, Clock, Calendar } from 'lucide-react'
 import { getPost, getPostSlugs, getRelatedPosts } from '@/lib/blog'
 import ArticleToc from '@/components/article-toc'
+import { TRACK_SLUGS } from '@/components/ccnp/curriculum'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
@@ -67,6 +68,9 @@ export default async function ArticlePage({
   if (!post) notFound()
 
   const related = getRelatedPosts(slug)
+  const inTrack = TRACK_SLUGS.has(post.slug)
+  const backHref = inTrack ? '/blog/ccna-ccnp-study-guide' : '/blog'
+  const backLabel = inTrack ? 'CCNA · ENCOR · ENARSI study guide' : 'All articles'
   const url = `${SITE_URL}/blog/${post.slug}`
 
   return (
@@ -105,7 +109,9 @@ export default async function ArticlePage({
             '@type': 'BreadcrumbList',
             itemListElement: [
               { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-              { '@type': 'ListItem', position: 2, name: 'Journal', item: `${SITE_URL}/blog` },
+              inTrack
+                ? { '@type': 'ListItem', position: 2, name: 'CCNA / ENCOR / ENARSI study guide', item: `${SITE_URL}/blog/ccna-ccnp-study-guide` }
+                : { '@type': 'ListItem', position: 2, name: 'Journal', item: `${SITE_URL}/blog` },
               { '@type': 'ListItem', position: 3, name: post.title, item: url },
             ],
           }),
@@ -119,10 +125,10 @@ export default async function ArticlePage({
 
             <nav aria-label="Breadcrumb">
               <Link
-                href="/blog"
+                href={backHref}
                 className="label inline-flex items-center gap-2 text-ink-400 transition-colors hover:text-signal-500"
               >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All articles
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {backLabel}
               </Link>
             </nav>
 

@@ -14,6 +14,15 @@
 
 export type ExamId = 'ccna' | 'encor' | 'enarsi'
 
+import { slugifyHeading } from '@/lib/slug'
+
+/** A blueprint sub-item. A plain string uses its own text as the section
+ *  heading and anchor. The object form keeps Cisco's verbatim wording as
+ *  the label but points at a shorter, hand-chosen heading anchor. */
+export type Sub = string | { t: string; a: string }
+export const subText = (s: Sub): string => (typeof s === 'string' ? s : s.t)
+export const subSlug = (s: Sub): string => (typeof s === 'string' ? slugifyHeading(s) : s.a)
+
 /** One article under a topic that was too big for a single page. */
 export interface Part {
   slug: string
@@ -27,7 +36,7 @@ export interface Topic {
   n: string
   title: string
   /** The lettered sub-items beneath it, verbatim. */
-  subs?: string[]
+  subs?: Sub[]
   /** The article, when the topic fits on one page. */
   slug?: string
   /** Several articles, when it does not. Anything much over 5,000 words
@@ -615,7 +624,7 @@ export const ALL_TOPICS: FlatTopic[] = EXAMS.flatMap(exam =>
       domain,
       haystack: [
         exam.short, exam.code, domain.n, domain.title,
-        topic.n, topic.title, ...(topic.subs ?? []), ...(topic.tags ?? []), topic.lab ?? '',
+        topic.n, topic.title, ...(topic.subs ?? []).map(subText), ...(topic.tags ?? []), topic.lab ?? '',
         ...(topic.parts ?? []).flatMap(part => [part.title, part.blurb ?? '']),
       ].join(' ').toLowerCase(),
     })),
@@ -629,3 +638,9 @@ export const COUNTS = {
   written: ALL_TOPICS.filter(t => t.slug || t.parts?.length).length,
   articles: new Set(ALL_TOPICS.flatMap(t => [t.slug ?? '', ...(t.parts ?? []).map(p => p.slug)]).filter(Boolean)).size,
 }
+
+/** Every slug that belongs to the CCNA/ENCOR/ENARSI track, so the article
+ *  page can send its breadcrumb back to the study guide instead of /blog. */
+export const TRACK_SLUGS: Set<string> = new Set(
+  ALL_TOPICS.flatMap(t => [t.slug ?? '', ...(t.parts ?? []).map(p => p.slug)]).filter(Boolean),
+)

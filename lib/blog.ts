@@ -11,6 +11,7 @@ import matter from 'gray-matter'
 import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
+import { slugifyHeading } from './slug'
 
 const BLOG_DIR = path.join(process.cwd(), 'content', 'blog')
 
@@ -83,13 +84,6 @@ function decodeEntities(s: string): string {
     .replace(/&amp;/g, '&')   // last, so we don't double-decode
 }
 
-function slugifyHeading(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-}
 
 function parseFile(filename: string): Post {
   const slug = filename.replace(/\.md$/, '')

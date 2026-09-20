@@ -40,6 +40,196 @@ draft: false
 
 ---
 
+## Network components, one by one
+
+Every device on a network exists to do one of three things: **move frames** (switches), **move packets between networks** (routers), or **enforce or terminate policy** at an edge (firewalls, controllers, access points). Everything below maps to that. Read this section as the vocabulary the rest of the track assumes you already have.
+
+### Routers
+
+A **router** forwards packets *between* IP networks. It makes its decision on the **destination IP address**, looks that address up in its routing table by [longest-prefix match](/blog/how-a-router-chooses-routing-table-longest-match-and-ad), rewrites the layer-2 header for the next hop, decrements the TTL, and sends the packet on. A switch asks "which port owns this MAC?"; a router asks "which *network* owns this address, and who is my next hop toward it?"
+
+- **Beginner:** it is the box that gets you off your own subnet — your default gateway is a router interface.
+- **Working knowledge:** each router interface is in a different subnet and is the gateway for the hosts on that subnet. Routers do not forward broadcasts, which is why every interface is a separate broadcast domain.
+- **Pro:** the *control plane* builds the routing table (static routes, OSPF, EIGRP, BGP); the *data plane* forwards using CEF, a pre-computed copy of that table plus an adjacency table for the rewrite. High-touch features — ACLs, NAT, QoS, tunnels — hang off the forwarding path, and when a packet cannot be hardware-switched it is *punted* to the CPU, which is where **input drops** and high CPU come from.
+
+### Layer 2 and Layer 3 switches
+
+A **Layer 2 switch** forwards *frames* within one broadcast domain using the **MAC address table**: it learns source MACs per port, floods unknown-unicast and broadcast, and forwards known unicast out a single port. It never looks at the IP header.
+
+A **Layer 3 switch** does all of that **and** routes between VLANs in hardware. It is, in effect, a Layer 2 switch with a router built into the same ASIC — you create **SVIs** (`interface Vlan10`) that act as gateways, and inter-VLAN traffic is routed at wire speed without leaving the box.
+
+- **Beginner:** L2 switch = connects devices in one LAN; L3 switch = also moves traffic *between* your VLANs.
+- **Working knowledge:** the distinction that matters day to day is where the **gateway** lives. On an L2 access switch the gateway is elsewhere (a router or an L3 distribution switch); on an L3 switch it can be the SVI itself.
+- **Pro:** L3 switches route in the ASIC and so are far faster and cheaper per port than a traditional router, but they lack the WAN interfaces, deep buffering and rich feature set of a router. The design rule is *route in the ASIC for the campus, route on a router for the WAN edge.* This is why the [collapsed-core](#two-tier) design puts L3 switches at the centre.
+
+### Next-generation firewalls and IPS
+
+A **firewall** controls traffic between security zones. A traditional (stateful) firewall tracks connections and permits or denies on the 5-tuple. A **next-generation firewall (NGFW)** adds **application awareness** (it recognises the app regardless of port), **user identity** (rules by user/group via AD integration), TLS inspection, and integrated threat feeds.
+
+An **IPS** (Intrusion Prevention System) inspects traffic against signatures and behavioural rules and can *block* what it matches. An **IDS** only alerts; an IPS sits inline and drops.
+
+- **Beginner:** the firewall decides who is allowed to talk to whom; the IPS looks *inside* the allowed traffic for attacks.
+- **Working knowledge:** NGFW and IPS are usually the same appliance now — the IPS is a feature you license and enable on the firewall.
+- **Pro:** placement matters more than product. An NGFW enforces policy *between* zones, so its value is proportional to how segmented the network already is — a firewall in front of a flat network inspects north-south traffic and sees none of the lateral movement that actually spreads a compromise. Pair it with [segmentation](#three-tier) so east-west traffic crosses a policy point too.
+
+### Access points
+
+An **access point (AP)** bridges wireless clients onto the wired network. It is a **half-duplex, shared medium** device: only one station in a cell transmits at a time, and the AP is a bridge, not a router — it puts wireless frames onto a VLAN. In an enterprise deployment APs are **lightweight**, tunnelling client traffic to a [wireless LAN controller](#controllers) over CAPWAP; in a small site they may be **autonomous** (self-contained).
+
+- **Beginner:** it is what turns Wi-Fi into a wired-network connection.
+- **Working knowledge:** an AP's switch port is an **access port** in local mode (traffic is tunnelled to the WLC) but a **trunk** in FlexConnect (traffic is switched locally into several VLANs). Getting that wrong is a classic "the new AP does not work" ticket.
+- **Pro:** capacity, not coverage, is the hard problem — see [wireless principles](/blog/wireless-principles-rf-channels-and-ap-modes) for why adding power makes a dense deployment *worse*, and why the real design lever is more APs on non-overlapping channels at lower power.
+
+### Controllers
+
+A **controller** centralises the control plane of many devices. The classic example is the **wireless LAN controller (WLC)**: APs register to it, and it owns RF management, client authentication, roaming and policy, while the APs just forward. The modern, broader example is a **network controller** such as Cisco Catalyst Center or an SD-WAN manager, which pushes intent to hundreds of devices and pulls back assurance data.
+
+- **Beginner:** instead of configuring 200 APs (or 200 routers) by hand, you configure the controller once.
+- **Working knowledge:** the controller runs the **control plane**; the devices keep forwarding on their own. That separation is the whole idea of [controller-based networking](/blog/sdn-controllers-overlays-sd-access-and-sd-wan).
+- **Pro:** the failure question people get wrong — *if the controller dies, does the network stop?* For a WLC in local mode, APs lose central services; with FlexConnect they keep switching. For SD-WAN/SD-Access, existing forwarding continues and what you lose is the ability to *learn about change*. A controller is a single point of *management*, and you design its availability accordingly.
+
+### Endpoints
+
+An **endpoint** is anything that originates or consumes traffic rather than forwarding it — a laptop, phone, IP camera, printer, badge reader, sensor. From the network's point of view an endpoint is a **MAC address on an access port** asking for an IP.
+
+- **Beginner:** the things people actually use; everything else exists to connect them.
+- **Working knowledge:** endpoints are where **access control** happens — 802.1X authenticates the endpoint, and the switch places it in the right VLAN with the right policy based on who or what it is.
+- **Pro:** endpoints are the largest and least trustworthy population on the network, and most incidents begin with one that is compromised. This is the argument for **zero trust** at the access edge: authenticate the endpoint, profile it, give it the minimum reachability it needs, and watch it — because you cannot assume it is clean.
+
+### Servers
+
+A **server** is an endpoint that provides a service — DNS, DHCP, web, file, authentication, virtualization host. Physically it is often not one machine but a **hypervisor** running many virtual servers, which changes the network picture: traffic between two VMs on the same host never reaches your switch. See [virtualization](/blog/virtualization-vms-containers-and-network-virtualization) for why that matters.
+
+- **Beginner:** the machines that hold the data and run the applications everyone connects to.
+- **Working knowledge:** servers live in their own segment (a server VLAN or a data-centre fabric), reached through a firewall or an L3 boundary, never mixed with user endpoints.
+- **Pro:** a server port routinely shows **many MAC addresses** (one per VM) and is usually a **trunk** carrying several VLANs — so the access-port hardening you apply to user ports (`port-security maximum 1`) will take a hypervisor offline. Size the design to the virtualization reality, not to a single-NIC assumption.
+
+### PoE
+
+**Power over Ethernet (PoE)** delivers electrical power and data over the same twisted-pair cable, so an AP, phone or camera needs no separate power supply. The switch is **power sourcing equipment (PSE)**; the device is a **powered device (PD)**. The switch negotiates how much power to supply, so it does not overload a device or its own power budget.
+
+| Standard | Common name | Watts at the PSE |
+|---|---|---|
+| 802.3af | PoE | 15.4 W |
+| 802.3at | PoE+ | 30 W |
+| 802.3bt Type 3 | PoE++ / UPoE | 60 W |
+| 802.3bt Type 4 | | 90 W |
+
+- **Beginner:** one cable does data *and* power, which is why a ceiling AP has no plug.
+- **Working knowledge:** a device can *link up and run degraded* if it gets less power than it wants — a bt-class AP on an af switch may disable radios silently. Match the standard to the device.
+- **Pro:** watch the **switch power budget**, not just the per-port class. A 48-port switch does not have 48 × 30 W of PoE; when the budget is exhausted, later PDs simply do not power on. `show power inline` is where you confirm allocation versus draw.
+
+---
+
+## The topology architectures
+
+The same components arrange into a handful of standard shapes. The right shape follows the **traffic pattern** — where the conversations actually go — not fashion.
+
+<figure class="fig">
+<svg class="sv6" viewBox="0 0 640 265" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two tier and three tier campus designs compared with spine and leaf">
+  <style>.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}.sv6 .n{fill:#17171A}
+  </style>
+  <text class="hdr" x="14" y="18">3-TIER CAMPUS</text>
+  <rect class="n" x="80" y="28" width="40" height="16" rx="2"/><rect class="n" x="140" y="28" width="40" height="16" rx="2"/>
+  <rect class="n" x="50" y="62" width="40" height="16" rx="2"/><rect class="n" x="110" y="62" width="40" height="16" rx="2"/><rect class="n" x="170" y="62" width="40" height="16" rx="2"/>
+  <rect class="n" x="30" y="96" width="30" height="16" rx="2"/><rect class="n" x="70" y="96" width="30" height="16" rx="2"/>
+  <rect class="n" x="110" y="96" width="30" height="16" rx="2"/><rect class="n" x="150" y="96" width="30" height="16" rx="2"/>
+  <rect class="n" x="190" y="96" width="30" height="16" rx="2"/>
+  <line x1="100" y1="44" x2="70" y2="62" stroke="#8A8A93"/><line x1="100" y1="44" x2="130" y2="62" stroke="#8A8A93"/>
+  <line x1="160" y1="44" x2="130" y2="62" stroke="#8A8A93"/><line x1="160" y1="44" x2="190" y2="62" stroke="#8A8A93"/>
+  <text class="s" x="20" y="132">core / distribution / access</text>
+  <text class="hdr" x="256" y="18">2-TIER (COLLAPSED CORE)</text>
+  <rect class="n" x="300" y="44" width="44" height="16" rx="2"/><rect class="n" x="364" y="44" width="44" height="16" rx="2"/>
+  <rect class="n" x="276" y="96" width="30" height="16" rx="2"/><rect class="n" x="316" y="96" width="30" height="16" rx="2"/>
+  <rect class="n" x="356" y="96" width="30" height="16" rx="2"/><rect class="n" x="396" y="96" width="30" height="16" rx="2"/>
+  <line x1="322" y1="60" x2="291" y2="96" stroke="#8A8A93"/><line x1="322" y1="60" x2="411" y2="96" stroke="#8A8A93"/>
+  <line x1="386" y1="60" x2="291" y2="96" stroke="#8A8A93"/><line x1="386" y1="60" x2="411" y2="96" stroke="#8A8A93"/>
+  <text class="s" x="268" y="132">most enterprises live here</text>
+  <text class="hdr" x="466" y="18">SPINE-LEAF</text>
+  <rect class="n" x="480" y="44" width="40" height="16" rx="2"/><rect class="n" x="540" y="44" width="40" height="16" rx="2"/>
+  <rect class="n" x="466" y="96" width="34" height="16" rx="2"/><rect class="n" x="516" y="96" width="34" height="16" rx="2"/><rect class="n" x="566" y="96" width="34" height="16" rx="2"/>
+  <line x1="500" y1="60" x2="483" y2="96" stroke="#4b7bec"/><line x1="500" y1="60" x2="533" y2="96" stroke="#4b7bec"/><line x1="500" y1="60" x2="583" y2="96" stroke="#4b7bec"/>
+  <line x1="560" y1="60" x2="483" y2="96" stroke="#4b7bec"/><line x1="560" y1="60" x2="533" y2="96" stroke="#4b7bec"/><line x1="560" y1="60" x2="583" y2="96" stroke="#4b7bec"/>
+  <text class="s" x="460" y="132">every leaf to every spine</text>
+  <rect x="14" y="152" width="612" height="46" fill="rgba(75,123,236,.08)" stroke="#4b7bec"/>
+  <text class="k" x="26" y="172" fill="#2f5fd0">Spine-leaf exists because of east-west traffic.</text>
+  <text class="s" x="26" y="190">Any leaf reaches any other in exactly two hops, so latency is predictable regardless of where a</text>
+  <rect x="14" y="208" width="612" height="46" fill="rgba(31,157,107,.10)" stroke="#1f9d6b"/>
+  <text class="k" x="26" y="228" fill="#0f6b47">Campus designs assume north-south: users talking to servers elsewhere.</text>
+  <text class="s" x="26" y="246">Data centres stopped looking like that when applications started talking mostly to each other.</text>
+</svg>
+<figcaption><b>Figure 1.</b> The shape follows the traffic. Campus hierarchies suit users reaching out; spine-leaf suits servers talking to each other.</figcaption>
+</figure>
+
+### Two-tier
+
+The **two-tier** (or **collapsed-core**) design has two layers: **access** switches where endpoints connect, and a combined **distribution/core** layer that aggregates them and does the routing. The core and distribution functions collapse into one pair of L3 switches.
+
+- **When:** most enterprises and single-site campuses. If a three-tier design's core would just connect two distribution switches, you do not need it.
+- **Pro:** the collapsed-core pair is almost always a redundant pair ([StackWise/VSS or vPC](/blog/virtualization-vms-containers-and-network-virtualization)) so there is no spanning-tree-blocked link and no single point of failure at the centre.
+
+### Three-tier
+
+The **three-tier** design separates **access**, **distribution** and **core**. The core does nothing but move traffic between distribution blocks as fast as possible; each distribution block aggregates a set of access switches and is the L3 boundary and policy point for them.
+
+- **When:** large campuses with many distribution blocks — the core keeps the number of interconnections manageable and gives each building/block a clean failure domain.
+- **Pro:** the core is deliberately **feature-light and stable** — no ACLs, no policy, just fast forwarding — so that the busiest part of the network is also the least likely to be touched by a change.
+
+### Spine-leaf
+
+**Spine-leaf** is a two-layer fabric where **every leaf connects to every spine** and nothing connects leaf-to-leaf or spine-to-spine. Any endpoint reaches any other in exactly the same number of hops (leaf → spine → leaf).
+
+- **When:** the data centre. It exists because **east-west** traffic (server-to-server) came to dominate, and a tree design makes east-west traffic climb up and back down through a bottleneck.
+- **Pro:** it is fully routed, usually with BGP, and layer-2 reachability where needed is provided by a [VXLAN overlay](/blog/sdn-controllers-overlays-sd-access-and-sd-wan). Predictable latency and non-blocking bandwidth are the whole point; you scale by adding spines.
+
+### WAN
+
+The **WAN** (wide-area network) connects sites across distances you do not own the cable for — between buildings, cities or continents. It is characterised by **lower bandwidth, higher latency and a service provider in the middle**, which is why the WAN edge is where you shape traffic to the contract rate and apply [QoS](/blog/qos-classification-marking-queuing-and-phb).
+
+- **Working knowledge:** WAN technologies include MPLS L3VPN, metro Ethernet, broadband/internet with [DMVPN](/blog/dmvpn-nhrp-mgre-and-spoke-to-spoke-tunnels) or SD-WAN over the top, and leased lines.
+- **Pro:** the WAN is where the failure modes that IP SLA and tracking exist for actually happen — the link is up but the far end is unreachable. Design the WAN edge around detecting *service* failure, not just link failure.
+
+### Small office/home office (SOHO)
+
+A **SOHO** is a very small site — often a single all-in-one device that is router, switch, firewall, wireless AP and DHCP server in one box, with a handful of endpoints behind it and a broadband uplink.
+
+- **Working knowledge:** the concepts are identical to the enterprise; only the scale collapses. NAT, DHCP, a default route and basic wireless security cover most of it.
+- **Pro:** the interesting SOHO problem is **remote connectivity** back to the enterprise — a site-to-site VPN or an SD-WAN/DMVPN spoke — and doing it over a **dynamic, NATed** broadband address, which is exactly the case DMVPN's NHRP registration solves.
+
+### On-premises and cloud
+
+**On-premises** means infrastructure you run in your own facilities; **cloud** means compute, storage and services rented from a provider and reached over the internet or a private interconnect. Almost every real network today is **hybrid** — some services local, some in the cloud, connected together.
+
+- **Working knowledge:** the network implications are reachability (a VPN or a dedicated interconnect such as Direct Connect / ExpressRoute), addressing that does not overlap, and DNS that resolves consistently across both.
+- **Pro:** the **shared-responsibility model** is the concept to hold onto — the provider secures the infrastructure, you secure your configuration, identities and data. Misconfiguration on the customer side (an open storage bucket, an over-permissive security group) is the dominant cloud failure mode, not a provider breach.
+
+---
+
+## Physical interfaces and cabling
+
+### Single-mode fiber, multimode fiber, copper
+
+Three media, chosen by **distance, speed and cost**.
+
+- **Copper** (twisted pair, Cat5e/6/6a): cheap, ubiquitous, carries PoE, limited to **100 m**. The default for connecting endpoints.
+- **Multimode fiber (MMF)**: a wide core (OM3/OM4) that lets light take multiple paths. Uses cheaper optics; dispersion limits it to a few hundred metres at 10G. The default *inside* a building for switch-to-switch uplinks.
+- **Single-mode fiber (SMF, OS2)**: a ~9 µm core with one light path; costlier optics but reaches **kilometres**. The default *between* buildings and for long WAN/campus runs.
+
+- **Beginner:** copper for short runs to devices, fiber for long runs and high speed between switches.
+- **Pro:** the optic (SFP) and the fiber type must match at both ends. A single-mode optic on multimode fiber often **links up and then throws CRC errors**, which sends people hunting for a bad patch lead. `show interface transceiver` gives you the actual **Rx power in dBm** — a measurement, not a guess — and dirty end-faces are the commonest cause of low light. This is the physical side of everything in [What the counters are telling you](#what-the-counters-are-telling-you).
+
+### Connections (Ethernet shared media and point-to-point)
+
+A **point-to-point** connection has exactly two devices on the link — a switch-to-switch uplink, a router-to-router serial link. There is no contention, so the link runs **full duplex**, and there are no collisions on a healthy one.
+
+**Shared media** means more than two devices share the same collision domain — the original Ethernet hub, or any half-duplex segment. Stations must take turns using **CSMA/CD**: listen before transmitting, and if two transmit at once, detect the collision, back off, and retry.
+
+- **Beginner:** modern switched links are point-to-point and full duplex; shared media is mostly historical.
+- **Working knowledge:** the reason it still matters is the **duplex mismatch** — hard-code one side and the other falls back to half duplex, reintroducing CSMA/CD on a link the other end treats as collision-free. The result is collisions and late collisions at one end, CRC errors at the other, and terrible throughput under load, on a link that shows *up/up*.
+- **Pro:** full duplex is not "faster half duplex" — it removes the collision domain entirely, so there is no CSMA/CD at all. That is why a collision counter climbing on a switched port is *always* a duplex problem, never normal, and why gigabit and above require auto-negotiation rather than allowing hard-coding.
+
+---
+
 ## What the counters are telling you
 
 <figure class="fig">
@@ -69,7 +259,7 @@ draft: false
   <text class="k" x="26" y="232" fill="#0f6b47">Always clear counters before believing them.</text>
   <text class="s" x="26" y="252">A router up for three years shows errors from an incident in 2023. Clear, wait, look again.</text>
 </svg>
-<figcaption><b>Figure 1.</b> <code>show interface</code> is the most information-dense command in IOS, and the one people skim.</figcaption>
+<figcaption><b>Figure 2.</b> <code>show interface</code> is the most information-dense command in IOS, and the one people skim.</figcaption>
 </figure>
 
 <div class="why">
@@ -173,45 +363,6 @@ A drop is a frame the device chose to discard because it had nowhere to put it. 
 
 ---
 
-## Topologies, briefly and honestly
-
-<figure class="fig">
-<svg class="sv6" viewBox="0 0 640 265" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two tier and three tier campus designs compared with spine and leaf">
-  <style>.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}.sv6 .n{fill:#17171A}
-  </style>
-  <text class="hdr" x="14" y="18">3-TIER CAMPUS</text>
-  <rect class="n" x="80" y="28" width="40" height="16" rx="2"/><rect class="n" x="140" y="28" width="40" height="16" rx="2"/>
-  <rect class="n" x="50" y="62" width="40" height="16" rx="2"/><rect class="n" x="110" y="62" width="40" height="16" rx="2"/><rect class="n" x="170" y="62" width="40" height="16" rx="2"/>
-  <rect class="n" x="30" y="96" width="30" height="16" rx="2"/><rect class="n" x="70" y="96" width="30" height="16" rx="2"/>
-  <rect class="n" x="110" y="96" width="30" height="16" rx="2"/><rect class="n" x="150" y="96" width="30" height="16" rx="2"/>
-  <rect class="n" x="190" y="96" width="30" height="16" rx="2"/>
-  <line x1="100" y1="44" x2="70" y2="62" stroke="#8A8A93"/><line x1="100" y1="44" x2="130" y2="62" stroke="#8A8A93"/>
-  <line x1="160" y1="44" x2="130" y2="62" stroke="#8A8A93"/><line x1="160" y1="44" x2="190" y2="62" stroke="#8A8A93"/>
-  <text class="s" x="20" y="132">core / distribution / access</text>
-  <text class="hdr" x="256" y="18">2-TIER (COLLAPSED CORE)</text>
-  <rect class="n" x="300" y="44" width="44" height="16" rx="2"/><rect class="n" x="364" y="44" width="44" height="16" rx="2"/>
-  <rect class="n" x="276" y="96" width="30" height="16" rx="2"/><rect class="n" x="316" y="96" width="30" height="16" rx="2"/>
-  <rect class="n" x="356" y="96" width="30" height="16" rx="2"/><rect class="n" x="396" y="96" width="30" height="16" rx="2"/>
-  <line x1="322" y1="60" x2="291" y2="96" stroke="#8A8A93"/><line x1="322" y1="60" x2="411" y2="96" stroke="#8A8A93"/>
-  <line x1="386" y1="60" x2="291" y2="96" stroke="#8A8A93"/><line x1="386" y1="60" x2="411" y2="96" stroke="#8A8A93"/>
-  <text class="s" x="268" y="132">most enterprises live here</text>
-  <text class="hdr" x="466" y="18">SPINE-LEAF</text>
-  <rect class="n" x="480" y="44" width="40" height="16" rx="2"/><rect class="n" x="540" y="44" width="40" height="16" rx="2"/>
-  <rect class="n" x="466" y="96" width="34" height="16" rx="2"/><rect class="n" x="516" y="96" width="34" height="16" rx="2"/><rect class="n" x="566" y="96" width="34" height="16" rx="2"/>
-  <line x1="500" y1="60" x2="483" y2="96" stroke="#4b7bec"/><line x1="500" y1="60" x2="533" y2="96" stroke="#4b7bec"/><line x1="500" y1="60" x2="583" y2="96" stroke="#4b7bec"/>
-  <line x1="560" y1="60" x2="483" y2="96" stroke="#4b7bec"/><line x1="560" y1="60" x2="533" y2="96" stroke="#4b7bec"/><line x1="560" y1="60" x2="583" y2="96" stroke="#4b7bec"/>
-  <text class="s" x="460" y="132">every leaf to every spine</text>
-  <rect x="14" y="152" width="612" height="46" fill="rgba(75,123,236,.08)" stroke="#4b7bec"/>
-  <text class="k" x="26" y="172" fill="#2f5fd0">Spine-leaf exists because of east-west traffic.</text>
-  <text class="s" x="26" y="190">Any leaf reaches any other in exactly two hops, so latency is predictable regardless of where a</text>
-  <rect x="14" y="208" width="612" height="46" fill="rgba(31,157,107,.10)" stroke="#1f9d6b"/>
-  <text class="k" x="26" y="228" fill="#0f6b47">Campus designs assume north-south: users talking to servers elsewhere.</text>
-  <text class="s" x="26" y="246">Data centres stopped looking like that when applications started talking mostly to each other.</text>
-</svg>
-<figcaption><b>Figure 2.</b> The shape follows the traffic. Campus hierarchies suit users reaching out; spine-leaf suits servers talking to each other.</figcaption>
-</figure>
-
----
 
 ## Reading it
 

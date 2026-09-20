@@ -17,7 +17,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Search, ChevronRight, FlaskConical, ArrowUpRight, X } from 'lucide-react'
-import { EXAMS, ALL_TOPICS, COUNTS, type ExamId } from './curriculum'
+import { EXAMS, ALL_TOPICS, COUNTS, subText, subSlug, type ExamId, type Sub } from './curriculum'
 
 type Filter = ExamId | 'all'
 
@@ -156,32 +156,53 @@ export default function StudyHub() {
   )
 }
 
+function subHref(slug: string, sub: Sub) {
+  return `/blog/${slug}#${subSlug(sub)}`
+}
+
 function TopicRow({
   topic, examShort, domainTitle,
 }: {
-  topic: { n: string; title: string; subs?: string[]; slug?: string; lab?: string
+  topic: { n: string; title: string; subs?: Sub[]; slug?: string; lab?: string
            parts?: { slug: string; title: string; blurb?: string }[] }
   examShort?: string
   domainTitle?: string
 }) {
-  const body = (
-    <>
-      <div className="ccnp-topic-head">
-        <span className="ccnp-n">{topic.n}</span>
-        <span className="ccnp-title">{topic.title}</span>
-        {topic.slug && <span className="ccnp-read">Read</span>}
-        {topic.parts && topic.parts.length > 0 && (
-          <span className="ccnp-read">{topic.parts.length} parts</span>
-        )}
-      </div>
+  const head = (
+    <div className="ccnp-topic-head">
+      <span className="ccnp-n">{topic.n}</span>
+      <span className="ccnp-title">{topic.title}</span>
+      {topic.slug && <span className="ccnp-read">Read</span>}
+      {topic.parts && topic.parts.length > 0 && (
+        <span className="ccnp-read">{topic.parts.length} parts</span>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={`ccnp-topic${topic.slug ? ' is-link' : ''}`}>
+      {topic.slug
+        ? <Link href={`/blog/${topic.slug}`} className="ccnp-topic-headlink">{head}</Link>
+        : head}
+
       {examShort && (
         <p className="ccnp-breadcrumb">{examShort} · {domainTitle}</p>
       )}
+
       {topic.subs && topic.subs.length > 0 && (
         <ul className="ccnp-subs">
-          {topic.subs.map(s => <li key={s}>{s}</li>)}
+          {topic.subs.map(s =>
+            topic.slug ? (
+              <li key={subSlug(s)}>
+                <Link href={subHref(topic.slug, s)} className="ccnp-sub-link">{subText(s)}</Link>
+              </li>
+            ) : (
+              <li key={subSlug(s)}>{subText(s)}</li>
+            ),
+          )}
         </ul>
       )}
+
       {topic.parts && topic.parts.length > 0 && (
         <ol className="ccnp-parts">
           {topic.parts.map((part, i) => (
@@ -195,17 +216,13 @@ function TopicRow({
           ))}
         </ol>
       )}
+
       {topic.lab && (
         <p className="ccnp-lab">
           <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span><b>Lab:</b> {topic.lab}</span>
         </p>
       )}
-    </>
+    </div>
   )
-
-  if (topic.slug) {
-    return <Link href={`/blog/${topic.slug}`} className="ccnp-topic is-link">{body}</Link>
-  }
-  return <div className="ccnp-topic">{body}</div>
 }
