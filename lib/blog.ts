@@ -107,7 +107,17 @@ function parseFile(filename: string): Post {
   }
 
   const html = marked.parse(content, { renderer }) as string
-  const plain = content.replace(/[#*`_>\[\]()!-]/g, ' ').replace(/\s+/g, ' ').trim()
+
+  // Articles carry inline SVG diagrams and HTML teaching components. Their
+  // markup is not prose: counted as words it triples the reading estimate and
+  // fills search with attribute names. Drop the diagrams, keep the text inside
+  // everything else, and leave code blocks alone — those are worth searching.
+  const plain = content
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[#*`_>\[\]()!-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   const words = plain.split(/\s+/).filter(Boolean).length
 
   return {

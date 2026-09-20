@@ -508,6 +508,17 @@ body.gate-locked { overflow: hidden; }
 .article-body .callout,
 .article-body img { max-width: none; }
 
+/* A comparison table with five columns cannot shrink to a phone. Let the
+   table scroll inside its own box instead of widening the whole page —
+   display:block gives it a scroll container and browsers rebuild the table
+   layout inside it, so the columns still line up. */
+.article-body table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+
 /* ---- FIX: .steps was inheriting decimal markers ---- */
 .article-body ol.steps {
   list-style: none;
@@ -2407,3 +2418,310 @@ body:has(.vg-member) > footer { display: none !important; }
   background: var(--color-ink-900); color: #fff; font-family: var(--font-mono); font-size: 0.72rem;
 }
 .lab-body > .lab-step:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+
+/* ============================================================
+   TEACHING COMPONENTS — II
+   Packet walks, captures, console screens, command anatomy.
+
+   Same constraint as above: article HTML is injected with
+   dangerouslySetInnerHTML, so no <script> in a post ever runs.
+   Everything below is CSS only — radio inputs drive the state,
+   :has() and nth-of-type pair each tab with its panel, and all
+   motion is SMIL or keyframes declared inside the SVG.
+   ============================================================ */
+
+/* ---- Wide blocks may break the reading measure ---- */
+.article-body .walk,
+.article-body .cap,
+.article-body .term,
+.article-body .cmd,
+.article-body .fig { max-width: none; }
+
+/* ------------------------------------------------------------
+   PACKET WALK — step through a protocol exchange
+   Tabs are radios; each panel is a full SVG frame plus its
+   explanation, so a step can redraw the whole picture.
+   ------------------------------------------------------------ */
+.walk {
+  border: 1px solid var(--color-ink-800);
+  background: #fff;
+  margin: 1.9rem 0;
+}
+.walk-head {
+  background: var(--color-ink-900); color: var(--color-paper);
+  padding: 0.55rem 1rem;
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 0.8rem; letter-spacing: 0.07em; text-transform: uppercase;
+  display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap;
+}
+.walk-head .walk-hint {
+  font-weight: 400; text-transform: none; letter-spacing: 0;
+  font-size: 0.78rem; color: var(--color-ink-300);
+}
+
+.walk-tabs {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border-bottom: 1px solid var(--color-ink-200);
+  background: var(--color-paper-dim);
+}
+/* The input stays focusable — only its box is hidden. */
+.walk-tabs input {
+  position: absolute; opacity: 0; width: 1px; height: 1px;
+  margin: 0; pointer-events: none;
+}
+.walk-tabs label {
+  cursor: pointer; user-select: none;
+  padding: 0.5rem 0.85rem;
+  font-family: var(--font-heading); font-weight: 600; font-size: 0.83rem;
+  color: var(--color-ink-500);
+  border-right: 1px solid var(--color-ink-200);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.walk-tabs label:hover { color: var(--color-ink-900); background: #fff; }
+.walk-tabs input:checked + label {
+  color: var(--color-signal-600); background: #fff;
+  border-bottom-color: var(--color-signal-500);
+}
+.walk-tabs input:focus-visible + label { outline: 2px solid var(--color-signal-500); outline-offset: -2px; }
+.walk-tabs label .step-n {
+  font-family: var(--font-mono); font-size: 0.72rem;
+  color: var(--color-ink-400); margin-right: 0.35rem;
+}
+.walk-tabs input:checked + label .step-n { color: var(--color-signal-500); }
+
+.walk-panel { display: none; padding: 1rem 1.1rem 1.1rem; }
+.walk:has(.walk-tabs input:nth-of-type(1):checked) .walk-panel:nth-of-type(1),
+.walk:has(.walk-tabs input:nth-of-type(2):checked) .walk-panel:nth-of-type(2),
+.walk:has(.walk-tabs input:nth-of-type(3):checked) .walk-panel:nth-of-type(3),
+.walk:has(.walk-tabs input:nth-of-type(4):checked) .walk-panel:nth-of-type(4),
+.walk:has(.walk-tabs input:nth-of-type(5):checked) .walk-panel:nth-of-type(5),
+.walk:has(.walk-tabs input:nth-of-type(6):checked) .walk-panel:nth-of-type(6),
+.walk:has(.walk-tabs input:nth-of-type(7):checked) .walk-panel:nth-of-type(7),
+.walk:has(.walk-tabs input:nth-of-type(8):checked) .walk-panel:nth-of-type(8) { display: block; }
+
+.walk-panel > :first-child { margin-top: 0; }
+.walk-panel > :last-child { margin-bottom: 0; }
+.walk-panel svg {
+  width: 100%; height: auto; display: block;
+  border: 1px solid var(--color-ink-200); background: #fff;
+}
+.walk-say {
+  margin-top: 0.85rem;
+  font-family: var(--font-heading); font-size: 0.93rem; line-height: 1.6;
+  color: var(--color-ink-700);
+}
+.walk-say b { color: var(--color-ink-950); }
+.walk-say .walk-title {
+  display: block; font-weight: 700; color: var(--color-ink-950);
+  font-size: 1rem; margin-bottom: 0.3rem;
+}
+/* One line of wire format under the picture. */
+.walk-wire {
+  margin-top: 0.7rem; padding: 0.5rem 0.7rem;
+  background: var(--color-ink-950); color: #E8E8EC;
+  font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.6;
+  overflow-x: auto; white-space: pre;
+}
+.walk-wire b { color: #FF8A9C; font-weight: 600; }
+
+/* ------------------------------------------------------------
+   PACKET CAPTURE — what it looks like in Wireshark
+   Three panes, same as the real thing: list, decode tree, bytes.
+   ------------------------------------------------------------ */
+.cap {
+  border: 1px solid var(--color-ink-300);
+  margin: 1.9rem 0; background: #fff;
+  font-family: var(--font-mono);
+  /* The packet list keeps its columns on one line. Scroll the block
+     rather than letting a seven-column table widen the whole page. */
+  overflow-x: auto;
+}
+.cap-head {
+  background: var(--color-ink-100); border-bottom: 1px solid var(--color-ink-300);
+  padding: 0.45rem 0.8rem;
+  font-family: var(--font-heading); font-size: 0.78rem; font-weight: 600;
+  color: var(--color-ink-600);
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+}
+.cap-filter {
+  font-family: var(--font-mono); font-size: 0.76rem;
+  background: #E6F3E6; border: 1px solid #A8CCA8; color: #1c5c1c;
+  padding: 0.1rem 0.45rem; border-radius: 2px;
+}
+.cap-list { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+/* The generic article-table rule turns every table into its own scroll box.
+   The packet list must not do that — .cap is already the scroll container. */
+.article-body .cap-list {
+  margin: 0; font-family: var(--font-mono); max-width: none;
+  display: table; width: 100%; overflow: visible;
+}
+.cap-list th {
+  background: var(--color-paper-dim); color: var(--color-ink-500);
+  font-family: var(--font-heading); font-weight: 600; font-size: 0.7rem;
+  text-align: left; padding: 0.3rem 0.5rem; border: 0;
+  border-bottom: 1px solid var(--color-ink-200); white-space: nowrap;
+}
+.cap-list td {
+  padding: 0.24rem 0.5rem; border: 0;
+  border-bottom: 1px solid var(--color-ink-100);
+  color: var(--color-ink-700); white-space: nowrap;
+  vertical-align: middle;
+}
+.cap-list td:last-child { white-space: normal; }
+.cap-list tr.is-sel td { background: #1F3A93; color: #fff; }
+.cap-list tr.is-sel td b { color: #fff; }
+.cap-list tr.ctrl td { background: #E4E9F7; }
+.cap-list tr.err  td { background: #FFE0E5; color: var(--color-signal-800); }
+.cap-list .no { color: var(--color-ink-400); }
+
+/* Decode tree */
+.cap-tree {
+  border-top: 1px solid var(--color-ink-300);
+  padding: 0.5rem 0.7rem; font-size: 0.75rem; line-height: 1.65;
+  color: var(--color-ink-800); overflow-x: auto;
+}
+.article-body .cap-tree pre {
+  margin: 0; padding: 0; background: none; color: inherit;
+  font-size: inherit; line-height: inherit; max-width: none;
+}
+.cap-tree .f { color: var(--color-ink-500); }          /* field name */
+.cap-tree .v { color: var(--color-ink-950); font-weight: 600; }  /* value */
+.cap-tree mark, .cap-hex mark {
+  background: var(--color-signal-200); color: var(--color-signal-900);
+  padding: 0 0.15em; border-radius: 2px;
+}
+.cap-hex {
+  border-top: 1px solid var(--color-ink-300);
+  background: var(--color-paper-dim);
+  padding: 0.5rem 0.7rem; font-size: 0.73rem; line-height: 1.6;
+  color: var(--color-ink-600); overflow-x: auto;
+}
+.article-body .cap-hex pre {
+  margin: 0; padding: 0; background: none; color: inherit;
+  font-size: inherit; line-height: inherit; max-width: none;
+}
+.cap-note {
+  border-top: 1px solid var(--color-ink-200); background: #fff;
+  padding: 0.55rem 0.8rem;
+  font-family: var(--font-heading); font-size: 0.85rem; line-height: 1.55;
+  color: var(--color-ink-600);
+}
+.cap-note b { color: var(--color-ink-900); }
+
+/* ------------------------------------------------------------
+   CONSOLE SCREEN — what the session actually looks like
+   ------------------------------------------------------------ */
+.term { margin: 1.7rem 0; border: 1px solid var(--color-ink-950); background: var(--color-ink-950); }
+.term-bar {
+  background: #1D1D21; border-bottom: 1px solid #34343A;
+  padding: 0.4rem 0.7rem;
+  font-family: var(--font-heading); font-size: 0.74rem; letter-spacing: 0.04em;
+  color: #9A9AA4; display: flex; align-items: center; gap: 0.5rem;
+}
+.term-dots { display: inline-flex; gap: 0.3rem; }
+.term-dots i { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #3C3C44; display: block; }
+.term-dots i:first-child { background: #D3002D; }
+.article-body .term pre {
+  margin: 0; max-width: none; background: none;
+  padding: 0.8rem 0.9rem; font-size: 0.78rem; line-height: 1.65;
+  color: #D6D6DC; overflow-x: auto;
+}
+.term .p  { color: #6FCF97; }            /* prompt */
+.term .c  { color: #fff; font-weight: 600; }   /* what you typed */
+.term .o  { color: #9A9AA4; }            /* chatter */
+.term .g  { color: #6FCF97; }            /* good */
+.term .r  { color: #FF6B81; }            /* bad */
+.term .y  { color: #F2C94C; }            /* changed / watch this */
+.term mark {
+  background: rgba(211,0,45,0.28); color: #fff;
+  padding: 0 0.15em; border-radius: 2px;
+}
+.term .cur {
+  display: inline-block; width: 0.5em; height: 1em; vertical-align: text-bottom;
+  background: #6FCF97; animation: termBlink 1.1s steps(1) infinite;
+}
+@keyframes termBlink { 50% { opacity: 0; } }
+.term-cap {
+  font-family: var(--font-heading); font-size: 0.8rem; color: var(--color-ink-500);
+  margin-top: 0.45rem;
+}
+.term-cap b { color: var(--color-ink-700); }
+
+/* ------------------------------------------------------------
+   COMMAND ANATOMY — every word of it, explained
+   ------------------------------------------------------------ */
+.cmd { margin: 1.7rem 0; border: 1px solid var(--color-ink-200); background: #fff; }
+.cmd-line {
+  background: var(--color-ink-950); color: #fff;
+  padding: 0.6rem 0.85rem;
+  font-family: var(--font-mono); font-size: 0.84rem; line-height: 1.6;
+  overflow-x: auto; white-space: pre;
+}
+.cmd-line .t { color: #FF8A9C; }          /* the token being broken down */
+.cmd-line .opt { color: #9A9AA4; }        /* optional / placeholder */
+.cmd-parts { margin: 0; padding: 0; }
+.cmd-parts > div {
+  display: grid; grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 0 1rem; padding: 0.55rem 0.85rem;
+  border-top: 1px solid var(--color-ink-100);
+}
+.cmd-parts > div:first-child { border-top: 0; }
+.cmd-parts dt {
+  font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;
+  color: var(--color-signal-600); word-break: break-word;
+}
+.cmd-parts dd {
+  margin: 0; font-family: var(--font-heading); font-size: 0.89rem;
+  line-height: 1.6; color: var(--color-ink-700);
+}
+.cmd-parts dd b { color: var(--color-ink-950); }
+.cmd-parts > div.is-key { background: var(--color-signal-50); }
+.cmd-parts > div.is-key dd { color: var(--color-ink-800); }
+@media (max-width: 640px) {
+  .cmd-parts > div { grid-template-columns: 1fr; gap: 0.2rem; }
+}
+
+/* ------------------------------------------------------------
+   REAL-WORLD callout — where this bites in production
+   ------------------------------------------------------------ */
+.real {
+  padding: 0.8rem 1rem; margin: 1.4rem 0; font-size: 0.95rem;
+  border-left: 3px solid #8256d0; background: rgba(130, 86, 208, 0.07);
+}
+.real > :first-child { margin-top: 0; }
+.real > :last-child { margin-bottom: 0; }
+.real b:first-child {
+  font-family: var(--font-heading); text-transform: uppercase;
+  font-size: 0.72rem; letter-spacing: 0.09em; display: block;
+  margin-bottom: 0.3rem; color: #5b35a0;
+}
+
+/* ------------------------------------------------------------
+   SVG MOTION HELPERS
+   Article SVGs use these class names; motion paths use SMIL.
+   ------------------------------------------------------------ */
+.fig svg .dash, .walk-panel svg .dash {
+  stroke-dasharray: 5 5;
+  animation: dashFlow 0.9s linear infinite;
+}
+@keyframes dashFlow { to { stroke-dashoffset: -20; } }
+
+.fig svg .dash-slow, .walk-panel svg .dash-slow {
+  stroke-dasharray: 4 6;
+  animation: dashFlow 2.2s linear infinite;
+}
+.fig svg .breathe, .walk-panel svg .breathe { animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.fig svg .blink, .walk-panel svg .blink { animation: blinkHard 1.2s steps(1) infinite; }
+@keyframes blinkHard { 50% { opacity: 0.15; } }
+
+/* Someone who has asked for less motion gets a still picture. */
+@media (prefers-reduced-motion: reduce) {
+  .fig svg *, .walk-panel svg *, .term .cur { animation: none !important; }
+  .fig svg animate, .fig svg animateMotion, .fig svg animateTransform,
+  .walk-panel svg animate, .walk-panel svg animateMotion, .walk-panel svg animateTransform {
+    display: none;
+  }
+}
