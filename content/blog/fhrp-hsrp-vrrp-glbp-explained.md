@@ -68,6 +68,120 @@ A host has exactly **one default gateway**. It is a single IP address, learned f
 Rather than teaching hosts about redundancy, FHRP <em>lies to them</em>. Two routers agree to share a third, made-up IP address and — crucially — a made-up MAC address. The host ARPs for the gateway and gets the virtual MAC back. When the active router fails, the standby starts answering for that same virtual MAC and sends a gratuitous ARP to move the switches' MAC tables. The host's ARP cache never changes, because from its point of view nothing happened. It is still talking to the same MAC address; a different box is simply answering to it now.
 </div>
 
+<div class="walk">
+<div class="walk-head">A failover, from the host's point of view <span class="walk-hint">click a step</span></div>
+<div class="walk-tabs">
+  <input type="radio" name="fhw" id="fh1" checked><label for="fh1"><span class="step-n">1</span>The ARP</label>
+  <input type="radio" name="fhw" id="fh2"><label for="fh2"><span class="step-n">2</span>Steady state</label>
+  <input type="radio" name="fhw" id="fh3"><label for="fh3"><span class="step-n">3</span>Active dies</label>
+  <input type="radio" name="fhw" id="fh4"><label for="fh4"><span class="step-n">4</span>The MAC moves</label>
+  <input type="radio" name="fhw" id="fh5"><label for="fh5"><span class="step-n">5</span>Nobody noticed</label>
+</div>
+<div class="walk-panels">
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host ARPs for its default gateway and the active router replies with the virtual MAC address">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.b{stroke:#4b7bec;stroke-width:2.5;fill:none}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+  <rect class="n" x="14" y="80" width="76" height="32" rx="3"/><text class="nt" x="52" y="101" text-anchor="middle">PC</text>
+  <line class="l" x1="90" y1="96" x2="240" y2="96"/>
+  <rect class="n" x="240" y="80" width="60" height="32" rx="3"/><text class="nt" x="270" y="101" text-anchor="middle">SW</text>
+  <line class="l" x1="300" y1="88" x2="420" y2="56"/>
+  <line class="l" x1="300" y1="104" x2="420" y2="140"/>
+  <rect class="n" x="420" y="40" width="130" height="32" rx="3" fill="#1f9d6b"/><text class="nt" x="485" y="61" text-anchor="middle">R1 — Active</text>
+  <rect class="n" x="420" y="124" width="130" height="32" rx="3"/><text class="nt" x="485" y="145" text-anchor="middle">R2 — Standby</text>
+  <path class="b" d="M 90 84 L 420 56"/>
+  <circle r="5" fill="#4b7bec"><animateMotion dur="1.7s" repeatCount="indefinite" path="M 90 84 L 420 56"/></circle>
+  <text class="k" x="176" y="52" text-anchor="middle">who has 10.1.10.1?</text>
+  <text class="s" x="176" y="128" text-anchor="middle" fill="#0f6b47">0000.0C9F.F00A — the virtual MAC</text>
+  <text class="s" x="320" y="184" text-anchor="middle">The reply does not contain R1's real MAC address. It contains an invented one that belongs to the <tspan font-weight="700">group</tspan>.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">The lie begins here</span>
+The host ARPs for its default gateway exactly as it would for any address. The Active router answers — but with the <b>virtual MAC</b>, not its own. The group number is in the last byte: <code>0000.0C9F.F0<b>0A</b></code> is HSRPv2 group 10.
+<br><br>From this moment the host's ARP cache contains an address that belongs to no physical device. Everything else follows from that one substitution.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traffic flows through the active router while the two routers exchange hellos">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.h{stroke:#F2994A;stroke-width:2;stroke-dasharray:4 4;fill:none}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}</style>
+  <rect class="n" x="14" y="80" width="76" height="32" rx="3"/><text class="nt" x="52" y="101" text-anchor="middle">PC</text>
+  <line class="l" x1="90" y1="96" x2="240" y2="96"/>
+  <rect class="n" x="240" y="80" width="60" height="32" rx="3"/><text class="nt" x="270" y="101" text-anchor="middle">SW</text>
+  <path class="g" d="M 90 96 L 240 96 L 300 88 L 420 56"/>
+  <rect class="n" x="420" y="40" width="130" height="32" rx="3" fill="#1f9d6b"/><text class="nt" x="485" y="61" text-anchor="middle">R1 — Active</text>
+  <rect class="n" x="420" y="124" width="130" height="32" rx="3"/><text class="nt" x="485" y="145" text-anchor="middle">R2 — Standby</text>
+  <line class="l" x1="300" y1="104" x2="420" y2="140"/>
+  <path class="h" d="M 470 72 L 470 124"/>
+  <circle r="4.5" fill="#1f9d6b"><animateMotion dur="1.8s" repeatCount="indefinite" path="M 90 96 L 240 96 L 300 88 L 420 56"/></circle>
+  <circle r="4" fill="#F2994A"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 470 72 L 470 124"/></circle>
+  <text class="k" x="486" y="102">hellos</text>
+  <text class="s" x="176" y="70" text-anchor="middle" fill="#0f6b47">all traffic, to 0000.0C9F.F00A</text>
+  <text class="s" x="320" y="182" text-anchor="middle">The switch has learned the virtual MAC on the port facing R1. That entry is the thing that will have to move.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Steady state — and the switch is the one keeping score</span>
+Traffic flows to the virtual MAC, and the <b>switch</b> decides where that goes, from its MAC address table. Right now it points at R1's port. Meanwhile the two routers exchange hellos so each knows the other is alive.
+<br><br>Only Active and Standby send hellos. A third router in the group sits in <code>Listen</code> and says nothing, which is why HSRP does not degrade with more routers — it simply never uses them.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The active router fails and the standby stops hearing hellos">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.dead{stroke:#D3002D;stroke-width:2.5}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}</style>
+  <rect class="n" x="14" y="80" width="76" height="32" rx="3"/><text class="nt" x="52" y="101" text-anchor="middle">PC</text>
+  <line class="l" x1="90" y1="96" x2="240" y2="96"/>
+  <rect class="n" x="240" y="80" width="60" height="32" rx="3"/><text class="nt" x="270" y="101" text-anchor="middle">SW</text>
+  <line class="l" x1="300" y1="88" x2="420" y2="56" stroke-dasharray="4 4"/>
+  <line class="l" x1="300" y1="104" x2="420" y2="140"/>
+  <rect class="n" x="420" y="40" width="130" height="32" rx="3" fill="#D3002D"/><text class="nt" x="485" y="61" text-anchor="middle">R1</text>
+  <line class="dead" x1="432" y1="42" x2="538" y2="70"/><line class="dead" x1="538" y1="42" x2="432" y2="70"/>
+  <rect class="n" x="420" y="124" width="130" height="32" rx="3"/><text class="nt" x="485" y="145" text-anchor="middle">R2 — Standby</text>
+  <text class="k" x="486" y="104">no hellos for 750 ms</text>
+  <text class="s" x="176" y="70" text-anchor="middle" fill="#D3002D">traffic still being sent to 0000.0C9F.F00A</text>
+  <text class="s" x="176" y="128" text-anchor="middle" fill="#D3002D">— and the switch still points it at a dead router</text>
+  <text class="s" x="320" y="182" text-anchor="middle">This is the outage window, and its whole length is the hold timer.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">The gap</span>
+R1 stops. The host does not know and does not care — it keeps sending frames to the virtual MAC, and the switch keeps forwarding them out of a port with nothing behind it. Every one is lost.
+<br><br>The length of this window is <b>the hold time, and nothing else</b>: 10 seconds on defaults, 750 ms with the timers above. That is the entire argument for tuning them, and the whole reason to measure it in the lab rather than trusting a number.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The standby becomes active takes over the virtual MAC and sends a gratuitous ARP to move the switch MAC table entry">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
+  <rect class="n" x="14" y="86" width="76" height="32" rx="3"/><text class="nt" x="52" y="107" text-anchor="middle">PC</text>
+  <line class="l" x1="90" y1="102" x2="240" y2="102"/>
+  <rect class="n" x="240" y="86" width="60" height="32" rx="3"/><text class="nt" x="270" y="107" text-anchor="middle">SW</text>
+  <rect class="n" x="420" y="44" width="130" height="32" rx="3" opacity=".35"/><text class="nt" x="485" y="65" text-anchor="middle">R1 — down</text>
+  <rect class="n" x="420" y="130" width="130" height="32" rx="3" fill="#1f9d6b"/><text class="nt" x="485" y="151" text-anchor="middle">R2 — Active</text>
+  <path class="g" d="M 420 146 L 300 110 L 240 110"/>
+  <circle r="5" fill="#1f9d6b"><animateMotion dur="1.6s" repeatCount="indefinite" path="M 420 146 L 300 110 L 240 110"/></circle>
+  <text class="k" x="300" y="176" text-anchor="middle">Gratuitous ARP: &#8220;0000.0C9F.F00A is over here now&#8221;</text>
+  <text class="s" x="300" y="194" text-anchor="middle">It re-points the <tspan font-weight="700">switch's MAC table</tspan>. It is not aimed at the host at all.</text>
+  <text class="s" x="486" y="112">assumes the virtual MAC</text>
+</svg>
+<p class="walk-say"><span class="walk-title">The MAC moves, not the IP</span>
+R2 becomes Active and <b>starts answering to the same virtual MAC address</b>. Then it sends a gratuitous ARP — and the important thing about that ARP is who it is for. It is not for the host; the host's cache is already correct. It is for <b>the switches</b>, so they move the MAC table entry to the port facing R2.
+<br><br>If failover only moved the IP address, every host would have to re-ARP, and a Windows cache can hold an entry for minutes. Moving the MAC means the hosts do nothing at all.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host ARP cache is unchanged before and after the failover">
+  <style>.s{font-family:ui-sans-serif,system-ui;font-size:11px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
+  <text class="hdr" x="14" y="20">PC, BEFORE THE FAILOVER</text>
+  <rect class="bx" x="14" y="30" width="280" height="44"/>
+  <text class="m" x="26" y="50">10.1.10.1</text>
+  <text class="m" x="120" y="50">00-00-0c-9f-f0-0a</text>
+  <text class="s" x="26" y="66">dynamic</text>
+  <text class="hdr" x="346" y="20">PC, AFTER THE FAILOVER</text>
+  <rect class="bx" x="346" y="30" width="280" height="44" fill="rgba(31,157,107,.10)" stroke="#1f9d6b"/>
+  <text class="m" x="358" y="50">10.1.10.1</text>
+  <text class="m" x="452" y="50" fill="#0f6b47">00-00-0c-9f-f0-0a</text>
+  <text class="s" x="358" y="66">dynamic</text>
+  <text class="k" x="320" y="108" text-anchor="middle">Byte for byte identical. The host was never told anything, and never had to be.</text>
+  <text class="s" x="320" y="136" text-anchor="middle">A different physical router is now answering to that address. That is the entire mechanism —</text>
+  <text class="s" x="320" y="154" text-anchor="middle">and the reason FHRP works with hosts that have no idea redundancy exists.</text>
+  <text class="s" x="320" y="184" text-anchor="middle">What <tspan font-weight="700">did</tspan> change: one entry in the switch's MAC address table.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Run <code>arp -a</code> before and after — nothing moved</span>
+This is the check worth doing yourself once, because it settles the concept permanently. The host's ARP cache is identical either side of a failover. It never re-resolved, never timed out, never noticed.
+<br><br>Which also explains the failure mode in the next section: if something prevents the gratuitous ARP from updating the switches — port security, dynamic ARP inspection, a switch that ignores it — then everything in HSRP reports perfect health while the traffic still goes to a dead router.</p>
+</div>
+</div>
+</div>
+
 That last point is why the **virtual MAC matters more than the virtual IP**. If failover only moved the IP, every host would have to re-ARP, and their caches can hold the old entry for four hours. Moving the MAC means the host needs to do nothing at all.
 
 ---
@@ -91,35 +205,29 @@ Cisco's, and still the most deployed. Two routers, one group, one virtual IP.
 
 Only the **active** and **standby** routers send hellos. A third router in a group sits in `Listen` and says nothing, which is why HSRP does not degrade with more routers — it just never uses them.
 
-### Configuration
+### Configuration, word by word
 
-```cisco
-interface Vlan10
+<div class="cmd">
+<div class="cmd-line">interface Vlan10
  ip address 10.1.10.2 255.255.255.0
- standby version 2
- standby 10 ip 10.1.10.1
- standby 10 priority 110
- standby 10 preempt delay minimum 60
- standby 10 authentication md5 key-string 7 <secret>
- standby 10 timers msec 250 msec 750
- standby 10 track 1 decrement 20
-!
-track 1 interface GigabitEthernet0/1 line-protocol
-```
-
-Line by line, because every one of these matters:
-
-**`standby version 2`** — use it. Version 1 caps groups at 255, uses a virtual MAC with only 8 bits of group, and cannot do millisecond timers or IPv6. Version 2 fixes all of that. **Both routers must run the same version** or they will not see each other and you will get two active routers.
-
-**`standby 10 ip 10.1.10.1`** — the virtual IP. It is in the subnet but assigned to no interface. Configure the same address on both routers.
-
-**`standby 10 priority 110`** — higher wins. Default 100. Leave both at default and the election falls to the highest interface IP, which is not a decision you made.
-
-**`standby 10 preempt`** — **without this, priority only matters once.** The first router up becomes active and keeps the role even when a higher-priority router appears. This is the single most common HSRP misconfiguration.
-
-**`delay minimum 60`** — and this is why preempt alone is not enough. A router that has just rebooted has HSRP up in seconds but its routing protocol has not converged. Without the delay it seizes the active role and blackholes traffic for as long as OSPF takes to settle. Sixty seconds is a sane floor; match it to your IGP.
-
-**`timers msec 250 msec 750`** — hello 250 ms, hold 750 ms. Default 3/10 means up to **ten seconds** of outage. Sub-second is normal on modern hardware. Do not go below 250 ms without knowing your CPU headroom.
+ <span class="t">standby version 2</span>
+ <span class="t">standby 10 ip</span> <span class="opt">10.1.10.1</span>
+ <span class="t">standby 10 priority</span> <span class="opt">110</span>
+ <span class="t">standby 10 preempt delay minimum</span> <span class="opt">60</span>
+ <span class="t">standby 10 authentication md5 key-string</span> <span class="opt">&lt;secret&gt;</span>
+ <span class="t">standby 10 timers msec</span> <span class="opt">250</span> <span class="t">msec</span> <span class="opt">750</span>
+ <span class="t">standby 10 track</span> <span class="opt">1</span> <span class="t">decrement</span> <span class="opt">20</span></div>
+<dl class="cmd-parts">
+<div class="is-key"><dt>standby version 2</dt><dd>Use it. Version 1 caps groups at 255, has only 8 bits of group in the virtual MAC, and cannot do millisecond timers or IPv6. <b>Both routers must run the same version</b> or they will not see each other — and the symptom is two Active routers, identical to an authentication mismatch.</dd></div>
+<div><dt>standby 10 ip<br>10.1.10.1</dt><dd>The virtual IP. In the subnet, assigned to no interface, configured <b>identically on both routers</b>. This is the address the hosts use as their default gateway and the only one they will ever know about.</dd></div>
+<div><dt>priority 110</dt><dd>Higher wins; default 100. Leave both at default and the election falls to the highest interface IP address — a decision nobody made.</dd></div>
+<div class="is-key"><dt>preempt</dt><dd><b>Without this, priority only matters once.</b> The first router up becomes Active and keeps the role even when a higher-priority router appears. This is the single most common HSRP misconfiguration, and it is why a router that was rebooted last month is still carrying traffic it should have handed back.</dd></div>
+<div class="is-key"><dt>delay minimum 60</dt><dd>And this is why preempt alone is not enough. A router that has just rebooted has HSRP up in seconds but its routing protocol has not converged. Without the delay it <b>seizes the Active role and blackholes traffic</b> for as long as the IGP takes to settle. Sixty seconds is a sane floor; match it to your IGP.</dd></div>
+<div><dt>authentication md5<br>key-string</dt><dd>Use MD5, never the plaintext form. HSRPv1's default authentication is the literal string <code>cisco</code>, <b>sent in clear in every hello</b> — you can read it in the capture below. Configure authentication on <b>both</b> routers in the same breath; one side only produces two Active routers.</dd></div>
+<div class="is-key"><dt>timers<br>msec 250 msec 750</dt><dd>Hello 250 ms, hold 750 ms. The defaults of 3 and 10 seconds mean <b>up to ten seconds of outage</b> — far too long for voice or any session with a short timeout. Sub-second is normal on modern hardware. Do not go below 250 ms without knowing your CPU headroom; on virtual routers in a lab it will flap.</dd></div>
+<div><dt>track 1 decrement 20</dt><dd>Lowers the priority when something this router depends on fails. <b>The decrement must be large enough to cross the peer's priority</b> — 110 minus 20 is 90, which loses to 100. Decrement 5 leaves 105, which still wins, and nothing happens at all. See the next section.</dd></div>
+</dl>
+</div>
 
 ### Tracking — the part that makes it actually work
 
@@ -140,18 +248,62 @@ Tracking a route (`track 2`) is stronger than tracking an interface: the uplink 
 
 ### Reading it
 
-```text
-R1# show standby brief
-                     P indicates configured to preempt.
+<div class="term">
+<div class="term-bar"><span class="term-dots"><i></i><i></i><i></i></span>R1 — the one command, and the one column people miss</div>
+<pre><span class="p">R1#</span> <span class="c">show standby brief</span>
+                     <span class="y">P indicates configured to preempt.</span>
                      |
-Interface   Grp  Pri P State    Active          Standby         Virtual IP
-Vl10        10   110 P Active   local           10.1.10.3       10.1.10.1
-Vl20        20   100 P Standby  10.1.10.3       local           10.1.20.1
-```
+Interface   Grp  Pri <span class="y">P</span> State    Active          Standby         Virtual IP
+Vl10        10   110 <span class="y">P</span> <span class="g">Active</span>   local           10.1.10.3       10.1.10.1
+Vl20        20   100 <span class="y">P</span> Standby  10.1.10.3       local           10.1.20.1
+
+<span class="o">! Both VLANs show P, so preempt is set on both. A blank in that column is the</span>
+<span class="o">! commonest HSRP fault in existence, and it is one character wide.</span>
+<span class="o">! Note also that R1 is Active for VLAN 10 and Standby for VLAN 20 — that is</span>
+<span class="o">! deliberate load sharing, not a fault.</span>
+
+<span class="p">R1#</span> <span class="c">show standby vlan10 10</span>
+Vlan10 - Group 10 (version 2)
+  State is <span class="g">Active</span>
+    8 state changes, last state change 04:21:07
+  Virtual IP address is 10.1.10.1
+  Active virtual MAC address is <span class="y">0000.0C9F.F00A</span>    <span class="o">&lt;- the address hosts actually ARP for</span>
+  Hello time 250 msec, hold time 750 msec
+  Preemption enabled, delay min 60 secs
+  Priority 110 (configured 110)
+    Track object 1 state Up decrement 20     <span class="o">&lt;- watch this line when you fail the uplink</span><span class="cur"></span></pre>
+</div>
+<p class="term-cap"><b>Two commands, and the second one is the one that answers questions.</b> <code>show standby brief</code> tells you who is Active. <code>show standby &lt;interface&gt; &lt;group&gt;</code> tells you the virtual MAC, the real timers, and whether tracking is up — which is everything you need when the roles look right but traffic is not flowing.</p>
 
 Read the **P** column first — if it is blank, preempt is off and your priorities are decorative. Here VLAN 10 is active on this router and VLAN 20 on the peer, which is the correct pattern: split the groups so both routers forward.
 
 ---
+
+### Both protocols, side by side on the wire
+
+<div class="cap">
+<div class="cap-head">Capture · VLAN 10 <span class="cap-filter">hsrp || vrrp</span></div>
+<table class="cap-list">
+<thead><tr><th>No.</th><th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Len</th><th>Info</th></tr></thead>
+<tbody>
+<tr class="is-sel"><td class="no">18</td><td>3.002</td><td>10.1.10.2</td><td>224.0.0.2</td><td>HSRP</td><td>62</td><td><b>Hello (state Active)</b></td></tr>
+<tr><td class="no">19</td><td>3.140</td><td>10.1.10.3</td><td>224.0.0.2</td><td>HSRP</td><td>62</td><td>Hello (state Standby)</td></tr>
+<tr class="ctrl"><td class="no">44</td><td>9.001</td><td>10.1.10.2</td><td>224.0.0.18</td><td>VRRP</td><td>54</td><td>Announcement (v2)</td></tr>
+</tbody>
+</table>
+<div class="cap-hex"><pre>HSRPv1 Hello
+0000  01 00 5e 00 00 02 <mark>00 00  0c 07 ac 0a</mark> 08 00 45 c0   ..^...........E.
+0010  00 30 00 00 00 00 <mark>01</mark> <mark>11</mark>  c4 f8 0a 01 0a 02 e0 00   .0..............
+0020  00 02 <mark>07 c1 07 c1</mark> 00 1c  00 00 00 00 <mark>10</mark> 03 0a <mark>6e</mark>   ...............n
+0030  <mark>0a</mark> 00 <mark>63 69 73 63 6f</mark> 00  00 00 0a 01 0a 01         ..cisco.......</pre></div>
+<div class="cap-note"><b>Four things to see here.</b> The <b>source MAC is <code>00:00:0c:07:ac:0a</code></b> — the router sends its hellos <em>from the virtual MAC</em>, which is how switches learn where it lives. <code>01</code> is TTL 1 and <code>11</code> is protocol 17, UDP. <code>07 c1 07 c1</code> is port 1985, source and destination. <code>10</code> is the state field: <b>16 = Active</b> (0 Initial, 1 Learn, 2 Listen, 4 Speak, 8 Standby, 16 Active). <code>6e</code> is priority 110 and <code>0a</code> the group. And then, in plain ASCII, <code><mark>cisco</mark></code> — <b>HSRPv1's default authentication string, readable by anyone on the segment</b>. That is what <code>authentication md5</code> is for.</div>
+<div class="cap-hex"><pre>VRRP v2 Advertisement
+0000  01 00 5e 00 00 12 <mark>00 00  5e 00 01 0a</mark> 08 00 45 c0   ..^.....^.....E.
+0010  00 28 00 00 00 00 <mark>ff</mark> <mark>70</mark>  c6 90 0a 01 0a 02 e0 00   .(.....p........
+0020  00 12 <mark>21</mark> 0a <mark>6e</mark> 01 00 01  5c f1 0a 01 0a 01 00 00   ..!.n...\.......</pre></div>
+<div class="cap-note"><b>And the differences that matter operationally.</b> The virtual MAC is <code>00:00:5e:00:01:0a</code> — the IANA-assigned VRRP range, group 10 in the last byte. <code>ff</code> is <b>TTL 255</b>, which is mandatory: a receiver must discard any advertisement that does not have it, because a TTL below 255 proves the packet was routed and therefore did not originate on this segment. And <code>70</code> is <b>protocol 112 — not UDP at all</b>.
+<br><br>That last byte is the whole reason a firewall rule permitting UDP 1985 does nothing for VRRP, and why the two protocols fail in completely different ways behind the same ACL.</div>
+</div>
 
 ## VRRP
 
@@ -219,6 +371,14 @@ It is Cisco proprietary, and the problem it solves has largely been solved bette
 **Failover takes ten seconds.** Default timers. Set `msec` values.
 
 **Everything looks right but hosts still fail.** Check the switch MAC table for the virtual MAC (`show mac address-table address 0000.0c9f.f00a`). If it points at the old router, the gratuitous ARP did not take — usually a port security or DAI interaction.
+
+
+<div class="real">
+<b>In the real world</b>
+The failure that wastes the most time is the one where HSRP is <em>perfectly healthy</em> and traffic still does not flow. Everything in <code>show standby</code> is green, the right router is Active, the priorities are right — and the switch's MAC address table still points the virtual MAC at the dead router's port, because the gratuitous ARP was dropped. Port security, dynamic ARP inspection and some wireless bridges all do this. The diagnostic is one command on the <b>switch</b>, not the router:
+<br><br><code>show mac address-table address 0000.0c9f.f00a</code>
+<br><br>If that port is not the one facing the current Active router, HSRP has done its job and the Layer 2 network has not. Look there before you touch a single HSRP setting.
+</div>
 
 ---
 

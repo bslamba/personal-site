@@ -46,37 +46,139 @@ You cannot simply ask a server for the time and set your clock to the answer, be
 
 ## How NTP measures a moving target
 
-Every exchange collects **four timestamps**.
+Four numbers, collected by one exchange, and every one of them matters.
 
-<figure class="fig">
-<svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NTP four timestamp exchange between client and server">
-  <style>
-    .ln{stroke:#232327;stroke-width:1.5}
-    .pk{stroke:#D3002D;stroke-width:2;marker-end:url(#p)}
-    .pk2{stroke:#1f9d6b;stroke-width:2;marker-end:url(#q)}
-    .h{font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:800;fill:#17171A}
-    .t{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;fill:#D3002D}
-    .t2{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;fill:#1f9d6b}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-  </style>
-  <defs>
-    <marker id="p" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#D3002D"/></marker>
-    <marker id="q" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f9d6b"/></marker>
-  </defs>
-  <text class="h" x="70" y="24" text-anchor="middle">CLIENT</text>
-  <text class="h" x="500" y="24" text-anchor="middle">SERVER</text>
-  <line class="ln" x1="70" y1="34" x2="70" y2="190"/>
-  <line class="ln" x1="500" y1="34" x2="500" y2="190"/>
-  <line class="pk" x1="76" y1="58" x2="494" y2="96"/>
-  <text class="t" x="40" y="58">t1</text><text class="s" x="120" y="52">request leaves</text>
-  <text class="t" x="516" y="98">t2</text><text class="s" x="516" y="112">arrives</text>
-  <line class="pk2" x1="494" y1="130" x2="76" y2="170"/>
-  <text class="t2" x="516" y="130">t3</text><text class="s" x="400" y="128">reply leaves</text>
-  <text class="t2" x="40" y="172">t4</text><text class="s" x="96" y="186">reply arrives</text>
-  <text class="s" x="320" y="206" text-anchor="middle">delay = (t4 − t1) − (t3 − t2)          offset = ((t2 − t1) + (t3 − t4)) / 2</text>
+<div class="walk">
+<div class="walk-head">The four timestamps <span class="walk-hint">click a step</span></div>
+<div class="walk-tabs">
+  <input type="radio" name="ntpw" id="nt1" checked><label for="nt1"><span class="step-n">1</span>T1</label>
+  <input type="radio" name="ntpw" id="nt2"><label for="nt2"><span class="step-n">2</span>T2</label>
+  <input type="radio" name="ntpw" id="nt3"><label for="nt3"><span class="step-n">3</span>T3</label>
+  <input type="radio" name="ntpw" id="nt4"><label for="nt4"><span class="step-n">4</span>T4</label>
+  <input type="radio" name="ntpw" id="nt5"><label for="nt5"><span class="step-n">5</span>The arithmetic</label>
+</div>
+<div class="walk-panels">
+<div class="walk-panel">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The client stamps the moment it sends — by its own, possibly wrong, clock.">
+  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+  <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
+  <text class="lbl" x="14" y="26">CLIENT</text>
+  <text class="lbl" x="560" y="26">SERVER</text>
+  <line x1="60" y1="34" x2="60" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="580" y1="34" x2="580" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="60" y1="56" x2="580" y2="96" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <line x1="580" y1="116" x2="60" y2="156" stroke="#4b7bec" stroke-width="2.5" opacity="0.2" marker-end="url(#tm)"/>
+  <circle cx="60" cy="56" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="52" opacity="1">T1  12:00:00.000  client transmit</text>
+  <circle cx="580" cy="96" r="5" fill="#D3002D" opacity="0.2"/>
+  <text class="m" x="566" y="92" text-anchor="end" opacity="0.2">T2  12:00:00.012  server receive</text>
+  <circle cx="580" cy="116" r="5" fill="#D3002D" opacity="0.2"/>
+  <text class="m" x="566" y="132" text-anchor="end" opacity="0.2">T3  12:00:00.012  server transmit</text>
+  <circle cx="60" cy="156" r="5" fill="#D3002D" opacity="0.2"/>
+  <text class="m" x="74" y="172" opacity="0.2">T4  12:00:00.025  client receive</text>
+  <text class="k" x="14" y="202" fill="#5C5C64">The client stamps the moment it sends — by its own, possibly wrong, clock.</text>
 </svg>
-<figcaption><b>Figure 1.</b> Round-trip time minus the server's own processing time gives the network delay. Halve it, and you know how stale the timestamp was when it arrived.</figcaption>
-</figure>
+<p class="walk-say"><span class="walk-title">T1 — the client writes down when it asked</span>
+This timestamp goes into the packet's Transmit field. It is measured by the clock the client is trying to correct, so it may be wildly wrong — and that is fine, because the arithmetic at the end only ever uses <b>differences</b>.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The server stamps arrival, by the good clock.">
+  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+  <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
+  <text class="lbl" x="14" y="26">CLIENT</text>
+  <text class="lbl" x="560" y="26">SERVER</text>
+  <line x1="60" y1="34" x2="60" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="580" y1="34" x2="580" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="60" y1="56" x2="580" y2="96" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <line x1="580" y1="116" x2="60" y2="156" stroke="#4b7bec" stroke-width="2.5" opacity="0.2" marker-end="url(#tm)"/>
+  <circle cx="60" cy="56" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="52" opacity="1">T1  12:00:00.000  client transmit</text>
+  <circle cx="580" cy="96" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="92" text-anchor="end" opacity="1">T2  12:00:00.012  server receive</text>
+  <circle cx="580" cy="116" r="5" fill="#D3002D" opacity="0.2"/>
+  <text class="m" x="566" y="132" text-anchor="end" opacity="0.2">T3  12:00:00.012  server transmit</text>
+  <circle cx="60" cy="156" r="5" fill="#D3002D" opacity="0.2"/>
+  <text class="m" x="74" y="172" opacity="0.2">T4  12:00:00.025  client receive</text>
+  <text class="k" x="14" y="202" fill="#5C5C64">The server stamps arrival, by the good clock.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">T2 — the server writes down when it heard</span>
+Now there are two clocks in play. <b>T2 minus T1 contains both the network delay and the error between the clocks</b>, mixed together and impossible to separate from this one number. Separating them is what the other two timestamps are for.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The server stamps its reply. The gap T3 - T2 is time the server spent thinking.">
+  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+  <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
+  <text class="lbl" x="14" y="26">CLIENT</text>
+  <text class="lbl" x="560" y="26">SERVER</text>
+  <line x1="60" y1="34" x2="60" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="580" y1="34" x2="580" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="60" y1="56" x2="580" y2="96" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <line x1="580" y1="116" x2="60" y2="156" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <circle cx="60" cy="56" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="52" opacity="1">T1  12:00:00.000  client transmit</text>
+  <circle cx="580" cy="96" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="92" text-anchor="end" opacity="1">T2  12:00:00.012  server receive</text>
+  <circle cx="580" cy="116" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="132" text-anchor="end" opacity="1">T3  12:00:00.012  server transmit</text>
+  <circle cx="60" cy="156" r="5" fill="#D3002D" opacity="0.2"/>
+  <text class="m" x="74" y="172" opacity="0.2">T4  12:00:00.025  client receive</text>
+  <text class="k" x="14" y="202" fill="#5C5C64">The server stamps its reply. The gap T3 - T2 is time the server spent thinking.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">T3 — and the reason there are four, not three</span>
+The server stamps the moment it transmits. The gap between T2 and T3 is the server's own processing time, and it is included in the packet <b>precisely so the client can subtract it</b>. Without T3, a slow or busy server would look like a distant one and the delay calculation would be wrong.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The client stamps arrival. This one is never in any packet.">
+  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+  <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
+  <text class="lbl" x="14" y="26">CLIENT</text>
+  <text class="lbl" x="560" y="26">SERVER</text>
+  <line x1="60" y1="34" x2="60" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="580" y1="34" x2="580" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="60" y1="56" x2="580" y2="96" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <line x1="580" y1="116" x2="60" y2="156" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <circle cx="60" cy="56" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="52" opacity="1">T1  12:00:00.000  client transmit</text>
+  <circle cx="580" cy="96" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="92" text-anchor="end" opacity="1">T2  12:00:00.012  server receive</text>
+  <circle cx="580" cy="116" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="132" text-anchor="end" opacity="1">T3  12:00:00.012  server transmit</text>
+  <circle cx="60" cy="156" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="172" opacity="1">T4  12:00:00.025  client receive</text>
+  <text class="k" x="14" y="202" fill="#B80027">The client stamps arrival. This one is never in any packet.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">T4 — the one the packet does not carry</span>
+The client records this itself when the reply lands. <b>Only the client ever holds all four numbers</b>, which is why only the client can compute the answer — and why the server keeps no state about the client at all. That is what lets one NTP server handle enormous numbers of clients.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 248" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="offset = -0.20 ms  ·  delay = 25.20 ms">
+  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+  <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
+  <text class="lbl" x="14" y="26">CLIENT</text>
+  <text class="lbl" x="560" y="26">SERVER</text>
+  <line x1="60" y1="34" x2="60" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="580" y1="34" x2="580" y2="178" stroke="#17171A" stroke-width="2"/>
+  <line x1="60" y1="56" x2="580" y2="96" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <line x1="580" y1="116" x2="60" y2="156" stroke="#4b7bec" stroke-width="2.5" opacity="1" marker-end="url(#tm)"/>
+  <circle cx="60" cy="56" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="52" opacity="1">T1  12:00:00.000  client transmit</text>
+  <circle cx="580" cy="96" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="92" text-anchor="end" opacity="1">T2  12:00:00.012  server receive</text>
+  <circle cx="580" cy="116" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="566" y="132" text-anchor="end" opacity="1">T3  12:00:00.012  server transmit</text>
+  <circle cx="60" cy="156" r="5" fill="#D3002D" opacity="1"/>
+  <text class="m" x="74" y="172" opacity="1">T4  12:00:00.025  client receive</text>
+  <text class="k" x="14" y="212" fill="#0f6b47">offset = -0.20 ms  ·  delay = 25.20 ms</text>
+  <rect x="300" y="186" width="326" height="52" fill="#fff" stroke="#1f9d6b"/><text class="m" x="314" y="206" fill="#0f6b47">offset = ((T2-T1) + (T3-T4)) / 2</text><text class="m" x="314" y="228" fill="#0f6b47">delay  = (T4-T1) - (T3-T2)</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Two answers from four numbers</span>
+<b>Offset</b> is how wrong the client's clock is, and it is what gets corrected — slewed gradually if small, stepped if large. <b>Delay</b> is how long the round trip took, and it is used to <em>weigh</em> the answer: a source with a long or variable delay is trusted less than a close, steady one.
+<br><br>The division by two is the whole assumption: it takes the path to be <b>symmetric</b>. When it is not, the error is half the asymmetry, and nothing in the exchange can detect it. That is the ceiling on NTP's accuracy and the reason PTP timestamps in hardware instead.</p>
+</div>
+</div>
+</div>
+
+
 
 - **Delay** = `(t4 − t1) − (t3 − t2)` — total elapsed, minus the time the server spent thinking. What is left is time on the wire.
 - **Offset** = `((t2 − t1) + (t3 − t4)) / 2` — how far the client's clock is from the server's, assuming the path is symmetric.
@@ -84,6 +186,52 @@ Every exchange collects **four timestamps**.
 That assumption is NTP's one weakness. If the forward path is 5 ms and the return path is 15 ms, NTP splits the difference and is wrong by 5 ms with no way to detect it. Asymmetric routing, a congested queue in one direction, or a WAN link with different upstream and downstream rates all produce this. **It is also exactly what PTP's hardware timestamping is designed to eliminate.**
 
 NTP then does something important: **it does not just apply the offset.** It collects many samples, discards outliers, and *slews* the clock — speeding it up or slowing it down slightly until it converges. A clock that jumps backwards breaks databases and log ordering, so NTP avoids stepping unless the error is large (128 ms by default) and refuses entirely beyond 1000 seconds — at which point it logs and gives up, waiting for a human.
+
+### The four timestamps, on the wire
+
+Every number the article has just described lives in one 48-byte packet.
+
+<div class="cap">
+<div class="cap-head">Capture · server reply to a client poll <span class="cap-filter">ntp</span></div>
+<div class="cap-tree"><pre>&#9662; Network Time Protocol (NTP Version 4, server)
+    <span class="f">Flags:</span> <span class="v"><mark>0x24</mark></span>
+      <span class="f">00.. ....</span> = <span class="v">Leap Indicator: no warning (0)</span>
+      <span class="f">..10 0...</span> = <span class="v">Version number: NTP Version 4 (4)</span>
+      <span class="f">.... .100</span> = <span class="v">Mode: <mark>server (4)</mark></span>
+    <span class="f">Peer Clock Stratum:</span> <span class="v"><mark>secondary reference (2)</mark></span>
+    <span class="f">Peer Polling Interval:</span> <span class="v">6 (64 sec)</span>
+    <span class="f">Peer Clock Precision:</span> <span class="v">-23 (0.1 usec)</span>
+    <span class="f">Root Delay / Dispersion:</span> <span class="v">4.88 ms / 10.03 ms</span>
+    <span class="f">Reference ID:</span> <span class="v">17.253.34.253</span>      &#8592; who <em>this</em> server follows
+    <span class="f">Reference Timestamp:</span> <span class="v">12:58:56</span>       &#8592; when it last synchronised
+    <span class="f">Origin Timestamp:</span> <span class="v"><mark>12:00:00.000</mark></span>   &#8592; <b>T1</b>, echoed straight back
+    <span class="f">Receive Timestamp:</span> <span class="v"><mark>12:00:00.012</mark></span>  &#8592; <b>T2</b>
+    <span class="f">Transmit Timestamp:</span> <span class="v"><mark>12:00:00.012</mark></span> &#8592; <b>T3</b></pre></div>
+<div class="cap-hex"><pre>0000  45 b8 00 4c 00 00 00 00  <mark>ff</mark> 11 a4 b4 0a 01 01 01   E..L............
+0010  0a 01 01 32 <mark>00 7b 00 7b</mark>  00 38 00 00 <mark>24</mark> <mark>02</mark> 06 e9   ...2.{.{.8..$...
+0020  00 00 01 38 00 00 02 91  11 fd 22 fd ee 5b 9a 80   ...8......"..[..
+0030  00 00 00 00 <mark>ee 5b 9a c0</mark>  00 00 00 00 ee 5b 9a c0   .....[.......[..
+0040  03 2c a8 00 ee 5b 9a c0  03 4d 68 00               .,...[...Mh.</pre></div>
+<div class="cap-note"><b>The fourth timestamp is not in the packet.</b> T1, T2 and T3 are all here — you can see the three 8-byte timestamps starting at offset 0x34 — but <b>T4 is recorded by the client when this packet arrives</b>. That is the whole trick: only the client ever holds all four numbers, so only the client can compute the answer, and the server keeps no state at all.
+<br><br><code>00 7b 00 7b</code> is UDP port 123 in both directions. <code>24</code> decodes as leap 0, version 4, mode 4. <code>02</code> is the stratum. And <code>ee 5b 9a c0</code> repeats three times — the integer part of the NTP seconds, identical because all three events happened inside the same second; the 32-bit fractions after each are where the milliseconds live.</div>
+</div>
+
+With those four numbers the client computes both answers with arithmetic and no assumptions except one:
+
+```text
+T1  client transmit  12:00:00.000
+T2  server receive   12:00:00.012
+T3  server transmit  12:00:00.012
+T4  client receive   12:00:00.025
+
+offset = ((T2 - T1) + (T3 - T4)) / 2  =  -0.20 ms   ← how wrong my clock is
+delay  = (T4 - T1) - (T3 - T2)        =  25.20 ms   ← how long the round trip took
+```
+
+<div class="warn">
+<b>The assumption, and where it breaks</b>
+Dividing by two assumes the path is <b>symmetric</b> — that the packet took as long going out as coming back. When that is false, the error is <em>half the asymmetry</em>, and no amount of polling will find it because nothing in the exchange can detect it. A satellite link, an asymmetric DSL circuit, or a queue that only builds in one direction will leave a router confidently synchronised and quietly wrong. This is also precisely the problem PTP's hardware timestamping exists to remove.
+</div>
 
 ### Stratum
 
@@ -106,42 +254,30 @@ Each hop adds error. Beyond stratum 3 or 4 in an enterprise, you are accumulatin
 
 ---
 
-## Configuration
+## Configuration, word by word
 
-```cisco
-! ---- Client: point at two or three sources ----
-ntp server 10.0.0.10 prefer
-ntp server 10.0.0.11
-ntp server 216.239.35.0
-
-! ---- Authenticate, so nobody can move your clock ----
-ntp authentication-key 1 md5 <secret>
-ntp authenticate
-ntp trusted-key 1
-ntp server 10.0.0.10 key 1
-
-! ---- Restrict who may query or sync from you ----
-access-list 20 permit 10.0.0.0 0.0.0.255
-ntp access-group peer 20
-
-! ---- Source from a loopback so the address never changes ----
-ntp source Loopback0
-
-! ---- Timestamps on everything, in UTC, with milliseconds ----
-service timestamps log datetime msec localtime show-timezone
-service timestamps debug datetime msec localtime show-timezone
-clock timezone IST 5 30
-```
-
-Four of these deserve emphasis.
-
-**Two or three servers, not one and not two.** One server cannot be checked. Two that disagree give you no way to know which is right. Three lets NTP discard the outlier — this is the actual reason for the recommendation, and it is a statistical argument, not a redundancy one.
-
-**`prefer`** marks a source as preferred when several are otherwise equally good. It does not override a source that is clearly better.
-
-**`ntp source Loopback0`** — if the router sources NTP from whichever interface the route happens to use, the source address changes when routing changes, and any server filtering by address stops accepting it.
-
-**`service timestamps log datetime msec`** — without this, your logs are stamped with uptime (`00:04:12`) rather than a date. Correlating that against another device is guesswork. This one line is often worth more than the NTP configuration itself.
+<div class="cmd">
+<div class="cmd-line"><span class="t">ntp server</span> <span class="opt">10.0.0.10</span> <span class="t">prefer</span>
+<span class="t">ntp server</span> <span class="opt">10.0.0.11</span>
+<span class="t">ntp server</span> <span class="opt">216.239.35.0</span>
+!
+<span class="t">ntp authentication-key</span> <span class="opt">1</span> <span class="t">md5</span> <span class="opt">&lt;secret&gt;</span>
+<span class="t">ntp authenticate</span>
+<span class="t">ntp trusted-key</span> <span class="opt">1</span>
+<span class="t">ntp server</span> <span class="opt">10.0.0.10</span> <span class="t">key</span> <span class="opt">1</span>
+!
+<span class="t">ntp source</span> <span class="opt">Loopback0</span>
+<span class="t">ntp access-group peer</span> <span class="opt">20</span></div>
+<dl class="cmd-parts">
+<div class="is-key"><dt>ntp server × 3</dt><dd><b>Configure three, never two.</b> With one source you cannot tell whether it is wrong. With two you can tell they disagree but not which to believe. With three, NTP's intersection algorithm can discard the outlier — this is the single most important design decision on the page, and it costs nothing.</dd></div>
+<div><dt>prefer</dt><dd>A tie-break, not an override. Among sources the algorithm considers equally good, take this one. It does <b>not</b> force selection of a source that fails the sanity checks, which is exactly the behaviour you want.</dd></div>
+<div class="is-key"><dt>authentication-key 1<br>md5 &lt;secret&gt;</dt><dd>Defines the key. On its own it does <b>nothing</b> — all three of <code>authentication-key</code>, <code>authenticate</code> and <code>trusted-key</code> must be present, plus <code>key 1</code> on the server line. Configure one and miss another and the router carries on syncing happily with no authentication at all, which is the worst outcome: you believe it is protected.</dd></div>
+<div><dt>ntp authenticate</dt><dd>Turns the checking on. Without it the keys are defined and ignored.</dd></div>
+<div><dt>ntp trusted-key 1</dt><dd>Says which defined keys are acceptable. A key that is defined but not trusted will not authenticate anything.</dd></div>
+<div><dt>ntp source Loopback0</dt><dd>Sends from a stable address rather than whichever interface the packet leaves by. Essential when the far end filters by source address, and it stops your identity changing when a link fails over.</dd></div>
+<div class="is-key"><dt>ntp access-group peer 20</dt><dd>Controls who may sync <em>with</em> you and who may query you. NTP is a well-known <b>reflection and amplification vector</b> — an open device answering <code>monlist</code> or ordinary queries from the internet can be used to attack somebody else. Restrict it, and on anything internet-facing also add <code>no ntp allow mode control</code>.</dd></div>
+</dl>
+</div>
 
 ### Making a router a server
 
@@ -154,22 +290,30 @@ ntp master 3
 
 ### Reading it
 
-```text
-R1# show ntp status
-Clock is synchronized, stratum 3, reference is 10.0.0.10
+<div class="term">
+<div class="term-bar"><span class="term-dots"><i></i><i></i><i></i></span>R1 — two commands, read in this order</div>
+<pre><span class="p">R1#</span> <span class="c">show ntp status</span>
+<span class="g">Clock is synchronized</span>, stratum 3, reference is 10.0.0.10
 nominal freq is 250.0000 Hz, actual freq is 249.9999 Hz, precision is 2**18
 reference time is E9A4F2C1.7B3D0A21 (14:22:09.481 IST Sun Sep 20 2026)
-clock offset is 1.8420 msec, root delay is 24.51 msec
+clock offset is <span class="y">1.8420 msec</span>, root delay is 24.51 msec
 root dispersion is 41.22 msec, peer dispersion is 2.10 msec
-```
 
-```text
-R1# show ntp associations
-  address         ref clock       st   when   poll reach  delay  offset   disp
-*~10.0.0.10       .GPS.            2     31     64   377  24.51   1.842   2.10
-+~10.0.0.11       .GPS.            2     44     64   377  26.03   2.115   2.44
- ~216.239.35.0    .GOOG.           1    102   1024   357  88.14  -3.902  14.90
-```
+<span class="o">! If this says "Clock is unsynchronized", stop. Nothing below matters yet.</span>
+
+<span class="p">R1#</span> <span class="c">show ntp associations</span>
+  address         ref clock       st   when   poll <span class="y">reach</span>  delay  offset   disp
+<span class="g">*</span>~10.0.0.10       .GPS.            2     31     64   <span class="g">377</span>  24.51   1.842   2.10
+<span class="g">+</span>~10.0.0.11       .GPS.            2     44     64   <span class="g">377</span>  26.03   2.115   2.44
+ ~216.239.35.0    .GOOG.           1    102   1024   <span class="r">357</span>  88.14  -3.902  14.90
+
+<span class="o">! *  selected    +  candidate that passed the checks    (blank) rejected</span>
+<span class="o">! reach is OCTAL — 377 is all eight of the last eight polls answered.</span>
+<span class="o">! 357 means one was missed. Watch it, do not panic at it.</span>
+<span class="o">! Note the third peer is stratum 1 and still not selected: NTP prefers a close,</span>
+<span class="o">! consistent stratum 2 over a distant stratum 1. Lower stratum does not mean better.</span><span class="cur"></span></pre>
+</div>
+<p class="term-cap"><b>The <code>reach</code> column is octal and that trips people every time.</b> It is a bitmap of the last eight polls, so <code>377</code> is 11111111 — all present. A value dropping through <code>376</code>, <code>374</code>, <code>370</code> is packet loss in progress, and <code>0</code> means nothing is getting through at all. Convert it to binary once and the column becomes the single most informative number in NTP.</p>
 
 Read it in this order:
 
@@ -200,6 +344,11 @@ That correction field is the key idea. A switch is a variable, unpredictable del
 **Use PTP when** you need sub-microsecond: financial trade timestamping (MiFID II requires it), broadcast video, industrial control, mobile base station synchronisation. **Use NTP for everything else**, and note that PTP needs support in every switch along the path — one ordinary switch in the middle reintroduces the jitter you paid to remove.
 
 ---
+
+<div class="real">
+<b>In the real world</b>
+The reason to care is that <b>every security control you own depends on the clock</b>, and they fail in ways that do not mention time. A certificate is not yet valid, so TLS fails with a confusing error. Kerberos rejects a ticket outside its five-minute skew window and users cannot log in. Logs from two devices interleave in the wrong order and an incident timeline becomes unreadable. A RADIUS session appears to end before it began. In every one of those cases the alert points at the application, and the fault is a router whose battery-backed clock drifted after a power cut and never resynchronised because somebody filtered UDP 123 at the firewall. <b>Check <code>show ntp status</code> before you debug anything time-adjacent</b> — it costs five seconds and it is right more often than it has any business being.
+</div>
 
 ## What goes wrong
 

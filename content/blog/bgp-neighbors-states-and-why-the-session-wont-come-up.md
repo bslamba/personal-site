@@ -48,6 +48,117 @@ Because it runs over TCP, BGP inherits TCP's properties for free: ordered delive
 
 ## The state machine
 
+<div class="walk">
+<div class="walk-head">The six states, and where each one gets stuck <span class="walk-hint">click a step</span></div>
+<div class="walk-tabs">
+  <input type="radio" name="bgpw" id="bg1" checked><label for="bg1"><span class="step-n">1</span>Idle</label>
+  <input type="radio" name="bgpw" id="bg2"><label for="bg2"><span class="step-n">2</span>Connect</label>
+  <input type="radio" name="bgpw" id="bg3"><label for="bg3"><span class="step-n">3</span>Active</label>
+  <input type="radio" name="bgpw" id="bg4"><label for="bg4"><span class="step-n">4</span>OpenSent</label>
+  <input type="radio" name="bgpw" id="bg5"><label for="bg5"><span class="step-n">5</span>OpenConfirm</label>
+  <input type="radio" name="bgpw" id="bg6"><label for="bg6"><span class="step-n">6</span>Established</label>
+</div>
+<div class="walk-panels">
+<div class="walk-panel">
+<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the idle state the router has a neighbour statement but is doing nothing">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}.dim{opacity:.35}</style>
+  <rect class="n" x="60" y="66" width="140" height="36" rx="3"/><text class="nt" x="130" y="89" text-anchor="middle">R1 · AS 65001</text>
+  <rect class="n dim" x="440" y="66" width="140" height="36" rx="3"/><text class="nt dim" x="510" y="89" text-anchor="middle">R2 · AS 64500</text>
+  <line x1="200" y1="84" x2="440" y2="84" stroke="#D9D9DE" stroke-width="2" stroke-dasharray="5 5"/>
+  <text class="k" x="320" y="42" text-anchor="middle">IDLE — nothing is happening yet</text>
+  <text class="s" x="320" y="122" text-anchor="middle">A neighbour is configured. No TCP, no packets, no attempt in progress.</text>
+  <text class="s" x="320" y="146" text-anchor="middle" fill="#D3002D">Stuck here means the router will not even try: no route to the peer, the neighbour is shut, or a previous failure backed it off.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Idle — refusing to start</span>
+A session in Idle is not trying. Either there is <b>no route to the peer address</b> in the routing table, the neighbour is administratively <code>shutdown</code>, or BGP has backed off after a failure and is waiting out its timer — and that timer <b>doubles</b> each time, so a session that keeps failing tries progressively less often.
+<br><br>The first check is always the boring one: can you ping the peer address <b>from the source address BGP will use?</b> Not from the router generally — from that specific source.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the connect state the router is waiting for its outbound TCP handshake to complete">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.b{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
+  <rect class="n" x="60" y="66" width="140" height="36" rx="3"/><text class="nt" x="130" y="89" text-anchor="middle">R1 · AS 65001</text>
+  <rect class="n" x="440" y="66" width="140" height="36" rx="3"/><text class="nt" x="510" y="89" text-anchor="middle">R2 · AS 64500</text>
+  <path class="b" d="M 200 78 L 440 78"/>
+  <circle r="5" fill="#F2994A"><animateMotion dur="1.6s" repeatCount="indefinite" path="M 200 78 L 440 78"/></circle>
+  <text class="k" x="320" y="42" text-anchor="middle">CONNECT — TCP SYN to port 179, waiting</text>
+  <text class="s" x="320" y="122" text-anchor="middle">The three-way handshake is in progress. This state is normally over in milliseconds.</text>
+  <text class="s" x="320" y="146" text-anchor="middle">You will rarely catch it. If you do, the peer is slow to answer or something in the path is delaying the SYN.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Connect — a TCP handshake, nothing more</span>
+BGP runs over <b>TCP port 179</b>, and this state is simply "I have sent a SYN and I am waiting". It is so brief you will almost never see it in a show command.
+<br><br>If the handshake succeeds, BGP moves straight on and sends its OPEN. If the connect timer expires first, it drops to <b>Active</b> — which, despite the name, is the worse of the two.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the active state the TCP connection failed and the router is retrying">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}.b{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:6 4}</style>
+  <rect class="n" x="60" y="70" width="140" height="36" rx="3"/><text class="nt" x="130" y="93" text-anchor="middle">R1 · AS 65001</text>
+  <rect class="n" x="440" y="70" width="140" height="36" rx="3"/><text class="nt" x="510" y="93" text-anchor="middle">R2 · AS 64500</text>
+  <path class="b" d="M 200 82 L 440 82"/>
+  <circle r="5" fill="#D3002D"><animateMotion dur="1.8s" repeatCount="indefinite" path="M 200 82 L 380 82"/></circle>
+  <line x1="374" y1="74" x2="392" y2="90" stroke="#D3002D" stroke-width="2.5"/>
+  <line x1="392" y1="74" x2="374" y2="90" stroke="#D3002D" stroke-width="2.5"/>
+  <text class="k" x="320" y="44" text-anchor="middle">ACTIVE — the TCP connection did not complete</text>
+  <text class="s" x="320" y="130" text-anchor="middle">The single most misleading word in BGP. &#8220;Active&#8221; does not mean working —</text>
+  <text class="s" x="320" y="148" text-anchor="middle" fill="#D3002D">it means actively retrying, and failing.</text>
+  <text class="s" x="320" y="170" text-anchor="middle">Causes, in order: no route to the peer, an ACL blocking TCP 179, wrong update-source, wrong peer address.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Active — the word that fools everyone</span>
+A session oscillating between <b>Active</b> and <b>Connect</b> is a session that cannot establish TCP. It is not a BGP problem at all yet — BGP has not exchanged a single byte of its own.
+<br><br>Work down the list in this order: is there a route to the peer address; does an ACL permit TCP 179 <b>in both directions</b>; is <code>update-source</code> set to the interface the far end expects; and does the far end have a <code>neighbor</code> statement for the address your packets will actually arrive from. That last one catches loopback peering constantly.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In OpenSent the router has sent its open message and is checking the one it receives">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}.b{stroke:#4b7bec;stroke-width:2.5;fill:none}</style>
+  <rect class="n" x="60" y="70" width="140" height="36" rx="3"/><text class="nt" x="130" y="93" text-anchor="middle">R1 · AS 65001</text>
+  <rect class="n" x="440" y="70" width="140" height="36" rx="3"/><text class="nt" x="510" y="93" text-anchor="middle">R2 · AS 64500</text>
+  <path class="b" d="M 200 78 L 440 78"/>
+  <path class="b" d="M 440 98 L 200 98"/>
+  <circle r="5" fill="#4b7bec"><animateMotion dur="1.7s" repeatCount="indefinite" path="M 200 78 L 440 78"/></circle>
+  <circle r="5" fill="#4b7bec"><animateMotion dur="1.7s" begin="0.85s" repeatCount="indefinite" path="M 440 98 L 200 98"/></circle>
+  <text class="k" x="320" y="44" text-anchor="middle">OPENSENT — OPEN exchanged, now being checked</text>
+  <text class="s" x="320" y="132" text-anchor="middle">Each side verifies: version 4, the AS number matches my <tspan font-weight="700">remote-as</tspan>, the BGP identifier is</text>
+  <text class="s" x="320" y="150" text-anchor="middle">valid and not my own, and the hold time is acceptable.</text>
+  <text class="s" x="320" y="172" text-anchor="middle" fill="#D3002D">Stuck here or flapping = the OPEN is being rejected. Check the AS numbers on both sides first.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">OpenSent — TCP worked, BGP is arguing</span>
+Reaching this state proves the network path is fine, which is genuinely useful: you can stop looking at routing and ACLs entirely. The dispute is now about the <b>contents</b> of the OPEN.
+<br><br>By far the commonest cause is an AS-number mismatch — your <code>remote-as</code> does not match what the peer says it is. The router will send a <b>NOTIFICATION with code 2, subcode 2</b>, which reads "OPEN Message Error / Bad Peer AS", and you can see it in the capture below. Two identical BGP identifiers produce the same symptom with subcode 3.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In OpenConfirm the router is waiting for the keepalive that confirms the open was accepted">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.b{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
+  <rect class="n" x="60" y="66" width="140" height="36" rx="3"/><text class="nt" x="130" y="89" text-anchor="middle">R1 · AS 65001</text>
+  <rect class="n" x="440" y="66" width="140" height="36" rx="3"/><text class="nt" x="510" y="89" text-anchor="middle">R2 · AS 64500</text>
+  <path class="b" d="M 440 84 L 200 84"/>
+  <circle r="5" fill="#F2994A"><animateMotion dur="1.5s" repeatCount="indefinite" path="M 440 84 L 200 84"/></circle>
+  <text class="k" x="320" y="42" text-anchor="middle">OPENCONFIRM — waiting for a 19-byte KEEPALIVE</text>
+  <text class="s" x="320" y="122" text-anchor="middle">The OPEN was accepted. The only thing left is the KEEPALIVE that says so.</text>
+  <text class="s" x="320" y="146" text-anchor="middle">Like Connect, this state is over almost instantly. Sitting in it points at an MD5 password mismatch.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">OpenConfirm — one message from done</span>
+Brief, and rarely seen. If a session lingers here or cycles through it repeatedly, suspect the <b>MD5 password</b>: a mismatch breaks the TCP session underneath rather than producing a clean BGP error, so the symptom is odd and intermittent rather than a clear rejection. The log line to look for is <code>%TCP-6-BADAUTH</code>.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In established the session is up and update messages carry prefixes">
+  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.g{stroke:#1f9d6b;stroke-width:3;fill:none}</style>
+  <rect class="n" x="60" y="70" width="140" height="36" rx="3" fill="#1f9d6b"/><text class="nt" x="130" y="93" text-anchor="middle">R1 · AS 65001</text>
+  <rect class="n" x="440" y="70" width="140" height="36" rx="3" fill="#1f9d6b"/><text class="nt" x="510" y="93" text-anchor="middle">R2 · AS 64500</text>
+  <path class="g" d="M 200 78 L 440 78"/>
+  <path class="g" d="M 440 98 L 200 98"/>
+  <circle r="4.5" fill="#1f9d6b"><animateMotion dur="1.6s" repeatCount="indefinite" path="M 200 78 L 440 78"/></circle>
+  <circle r="4.5" fill="#1f9d6b"><animateMotion dur="1.6s" begin="0.5s" repeatCount="indefinite" path="M 440 98 L 200 98"/></circle>
+  <text class="k" x="320" y="44" text-anchor="middle">ESTABLISHED — UPDATEs flow, KEEPALIVEs every 60 s</text>
+  <text class="s" x="320" y="134" text-anchor="middle">In <tspan font-family="ui-monospace,Menlo,monospace">show ip bgp summary</tspan> this state is shown as <tspan font-weight="700">a number</tspan> — the prefix count —</text>
+  <text class="s" x="320" y="152" text-anchor="middle">not as the word &#8220;Established&#8221;. A word in that column always means something is wrong.</text>
+  <text class="s" x="320" y="176" text-anchor="middle">Hold time 180 s by default: miss three keepalives and the session is torn down.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Established — and the column that hides it</span>
+The one detail worth burning in: in <code>show ip bgp summary</code> the State/PfxRcd column shows <b>a number when the session is up</b> and a state name when it is not. So scanning that column for the word "Established" finds nothing, and any word you <em>do</em> see is a fault.
+<br><br>An Established session that keeps resetting is usually the hold timer: 180 seconds by default, tripped by three missed keepalives. Lower the timers only after you understand why they were missed — tuning them harder is a common way to make a flap worse.</p>
+</div>
+</div>
+</div>
+
 <figure class="fig">
 <svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BGP finite state machine from Idle through to Established">
   <style>
@@ -112,6 +223,38 @@ Every engineer misreads this once. In <code>show ip bgp summary</code>, the Stat
 | **Route-Refresh** | "Resend me everything." Lets policy change without clearing the session. |
 
 ---
+
+### All three messages, in full
+
+BGP messages are small and regular: a fixed 19-byte header — sixteen bytes of all-ones, a length and a type — and then the body. These are real bytes.
+
+<div class="cap">
+<div class="cap-head">Capture · session coming up, then failing <span class="cap-filter">bgp</span></div>
+<table class="cap-list">
+<thead><tr><th>No.</th><th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Len</th><th>Info</th></tr></thead>
+<tbody>
+<tr class="is-sel"><td class="no">4</td><td>0.041</td><td>10.0.0.1</td><td>10.0.0.2</td><td>BGP</td><td>99</td><td><b>OPEN Message</b></td></tr>
+<tr><td class="no">6</td><td>0.088</td><td>10.0.0.2</td><td>10.0.0.1</td><td>BGP</td><td>99</td><td>OPEN Message</td></tr>
+<tr class="ctrl"><td class="no">7</td><td>0.089</td><td>10.0.0.1</td><td>10.0.0.2</td><td>BGP</td><td>73</td><td>KEEPALIVE Message</td></tr>
+<tr class="err"><td class="no">19</td><td>4.220</td><td>10.0.0.3</td><td>10.0.0.1</td><td>BGP</td><td>75</td><td>NOTIFICATION — Bad Peer AS</td></tr>
+</tbody>
+</table>
+<div class="cap-hex"><pre>OPEN — AS 65001, hold 180, router-id 10.255.255.1
+0000  <mark>ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff</mark>   ................
+0010  <mark>00 2d</mark> <mark>01</mark> <mark>04</mark> <mark>fd e9</mark> <mark>00 b4</mark>  <mark>0a ff ff 01</mark> 10 02 0e 01   .-..............
+0020  04 00 01 00 01 02 00 <mark>41</mark>  04 00 00 fd e9                .......A.....
+
+KEEPALIVE — the entire message
+0000  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff   ................
+0010  <mark>00 13</mark> <mark>04</mark>                                            ...
+
+NOTIFICATION — why the other session died
+0000  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff   ................
+0010  00 15 <mark>03</mark> <mark>02 02</mark>                                      .....</pre></div>
+<div class="cap-note"><b>Read the OPEN left to right and every troubleshooting question is answered.</b> <code>00 2d</code> — 45 bytes. <code>01</code> — type 1, OPEN. <code>04</code> — BGP version 4. <code>fd e9</code> — <b>65001, the sender's AS number</b>, and the one thing your <code>remote-as</code> must match. <code>00 b4</code> — hold time 180. <code>0a ff ff 01</code> — the BGP identifier, 10.255.255.1. Then the capabilities, of which <code>41</code> is code 65: <b>four-octet AS support</b>, which is why a 32-bit AS number can appear in a protocol whose AS field is only 16 bits wide.
+<br><br><b>The KEEPALIVE is 19 bytes and 16 of them are 0xFF.</b> There is no payload at all — the header <em>is</em> the message. One of these every 60 seconds is all that holds a session up.
+<br><br><b>And the NOTIFICATION is the one that tells you why it broke.</b> <code>03</code> is type 3; <code>02 02</code> is code 2 subcode 2, which reads <b>"OPEN Message Error / Bad Peer AS"</b>. That is the exact failure the state walk described at OpenSent, in two bytes. Subcode <code>03</code> would be a bad BGP identifier, <code>06</code> an unacceptable hold time, and code <code>04</code> on its own means the hold timer expired — a session that was up and stopped hearing keepalives.</div>
+</div>
 
 ## eBGP and iBGP are the same protocol with different rules
 
@@ -219,29 +362,52 @@ router bgp 65001
  exit-address-family
 ```
 
-Four lines deserve explanation.
-
-**`bgp router-id`** — pin it. BGP picks the highest loopback otherwise, and the ID changes if that interface goes away, which resets sessions. It also breaks the final best-path tie-breaker in an unpredictable way.
-
-**`update-source Loopback0`** — the source address of BGP's packets must match what the neighbour expects. Peer to a loopback and you must source from a loopback, or the far end sees packets from an address it has no neighbour statement for and refuses them. This has to be configured on **both** ends.
-
-**`network 198.51.100.0 mask 255.255.255.0`** — in BGP this does *not* mean "run BGP on this interface" as it does in OSPF. It means "advertise this prefix, **if an exactly matching route already exists in my routing table**". The mask must match exactly. A `/24` in the table will not be advertised by a `network` statement for a `/23`.
-
-**`soft-reconfiguration inbound`** — stores the neighbour's unmodified updates so you can change inbound policy and re-apply it without tearing down the session. Costs memory. The modern alternative is route refresh, which is negotiated automatically and needs no configuration — check with `show ip bgp neighbors | include Route refresh`.
+<div class="cmd">
+<div class="cmd-line">router bgp 65001
+ <span class="t">bgp router-id</span> <span class="opt">10.0.0.1</span>
+ <span class="t">neighbor</span> <span class="opt">10.0.0.2</span> <span class="t">remote-as</span> <span class="opt">65001</span>
+ <span class="t">neighbor</span> <span class="opt">10.0.0.2</span> <span class="t">update-source Loopback0</span>
+ <span class="t">neighbor</span> <span class="opt">203.0.113.9</span> <span class="t">password</span> <span class="opt">&lt;shared-secret&gt;</span>
+ address-family ipv4 unicast
+  <span class="t">neighbor</span> <span class="opt">10.0.0.2</span> <span class="t">next-hop-self</span>
+  <span class="t">network</span> <span class="opt">198.51.100.0</span> <span class="t">mask</span> <span class="opt">255.255.255.0</span>
+  <span class="t">neighbor</span> <span class="opt">203.0.113.9</span> <span class="t">soft-reconfiguration inbound</span></div>
+<dl class="cmd-parts">
+<div class="is-key"><dt>bgp router-id</dt><dd><b>Pin it.</b> Left alone, BGP picks the highest loopback address — so the ID changes if that interface disappears, and <b>changing the router ID resets every session</b>. It is also the final tie-breaker in best-path selection, which means an unpinned ID makes path selection unpredictable in a way nobody will think to check.</dd></div>
+<div><dt>remote-as</dt><dd>Same AS as yours = <b>iBGP</b>. Different = <b>eBGP</b>. That one number changes the TTL used, whether the next hop is rewritten, and whether routes learned here are passed to other iBGP peers. A typo produces a NOTIFICATION code 2 subcode 2 and a session stuck in OpenSent.</dd></div>
+<div class="is-key"><dt>update-source<br>Loopback0</dt><dd>The source address of BGP's own packets must be the address the far end has a <code>neighbor</code> statement for. Peer to a loopback and you <b>must</b> source from that loopback — otherwise your packets arrive from an interface address the peer has never heard of and are silently ignored. <b>Configure it on both ends</b>; one side alone is the classic loopback-peering failure, and it presents as a session stuck in Active.</dd></div>
+<div><dt>password</dt><dd>MD5 on the TCP session. A mismatch does not produce a clean BGP error — it breaks TCP underneath, so the symptom is an odd flap rather than a rejection. The log line is <code>%TCP-6-BADAUTH</code>, and it is the thing to grep for when a session dies in OpenConfirm.</dd></div>
+<div class="is-key"><dt>next-hop-self</dt><dd>iBGP does <b>not</b> change the next hop, so a route learned from an external peer is passed to your internal peers still pointing at the <em>external</em> router's address — which your internal routers usually have no route to. The route arrives, is marked inaccessible, and is never used. This one line on every iBGP neighbour prevents it.</dd></div>
+<div class="is-key"><dt>network ... mask ...</dt><dd>In BGP this does <b>not</b> mean "run BGP on this interface" the way it does in OSPF. It means <em>advertise this prefix, if an exactly matching route already exists in my routing table</em>. <b>The mask must match exactly</b> — a <code>/24</code> in the table is not advertised by a <code>network</code> statement for a <code>/23</code>. Most "my prefix is not being advertised" tickets are this.</dd></div>
+<div><dt>soft-reconfiguration<br>inbound</dt><dd>Stores the neighbour's unmodified updates so inbound policy can be changed and re-applied without tearing the session down. It costs memory. The modern alternative is <b>route refresh</b>, negotiated automatically and needing no configuration — check for it with <code>show ip bgp neighbors | include Route refresh</code> before enabling soft-reconfiguration on a full table.</dd></div>
+</dl>
+</div>
 
 ### Reading the summary
 
-```text
-R1# show ip bgp summary
+<div class="term">
+<div class="term-bar"><span class="term-dots"><i></i><i></i><i></i></span>R1 — four neighbours, three different faults</div>
+<pre><span class="p">R1#</span> <span class="c">show ip bgp summary</span>
 BGP router identifier 10.0.0.1, local AS number 65001
 BGP table version is 42, 12 network entries using 2976 bytes of memory
 
-Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
-10.0.0.2        4 65001    1893    1901       42    0    0 1d04h           8
-10.0.0.3        4 65001       0       0        1    0    0 never    Active
-203.0.113.9     4 64500   14022   13998       42    0    0 02:14:19        4
-203.0.113.13    4 64501      12      14        1    0    0 00:00:31    OpenSent
-```
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  <span class="y">State/PfxRcd</span>
+10.0.0.2        4 65001    1893    1901       42    0    0 1d04h    <span class="g">       8</span>
+10.0.0.3        4 65001       0       0        1    0    0 never    <span class="r">Active</span>
+203.0.113.9     4 64500   14022   13998       42    0    0 02:14:19 <span class="g">       4</span>
+203.0.113.13    4 64501      12      14        1    0    0 00:00:31 <span class="r">OpenSent</span>
+
+<span class="o">! The last column is the whole command. A NUMBER means Established.</span>
+<span class="o">! A WORD means it is not, and the word tells you how far it got.</span>
+<span class="o">!</span>
+<span class="o">! 10.0.0.2      8 prefixes, up over a day. Healthy.</span>
+<span class="o">! 10.0.0.3      Active, never up, ZERO messages either way -> TCP never formed.</span>
+<span class="o">!               Routing, ACL, or the far end has no neighbor statement for us.</span>
+<span class="o">! 203.0.113.9   Up 2h14m. Fine — but if that keeps resetting to minutes, it is flapping.</span>
+<span class="o">! 203.0.113.13  OpenSent, and 12 messages received -> TCP is FINE, BGP is arguing.</span>
+<span class="o">!               Check remote-as on both sides before anything else.</span><span class="cur"></span></pre>
+</div>
+<p class="term-cap"><b>The message counters tell you which half of the problem you have.</b> Zero received means nothing is arriving and the fault is below BGP — routing, firewall, source address. A non-zero count with a state name means the packets are getting through and BGP is rejecting what is in them, which is a completely different investigation and a much shorter one.</p>
 
 Four neighbours, three distinct stories:
 
@@ -251,6 +417,11 @@ Four neighbours, three distinct stories:
 - **203.0.113.13** — `OpenSent`, messages sent but the session is not forming. Their Open is missing or rejected. **Check the AS number on both sides first** — a wrong `remote-as` produces exactly this.
 
 ---
+
+<div class="real">
+<b>In the real world</b>
+When a session will not come up, the fastest question is not a BGP question. It is: <b>can I open a TCP connection to port 179 from the exact address BGP will use?</b> On the router, <code>telnet 10.0.0.2 179 /source-interface Loopback0</code> answers it in one line — a connection that opens and immediately closes means the peer is listening and the path is clear, so the fault is in the OPEN and you can stop looking at firewalls. A connection that hangs or refuses means you have a network problem and nothing in BGP will fix it. That single test splits the fault space in half before you have read any BGP output at all.
+</div>
 
 ## The checklist that finds it
 
@@ -311,6 +482,90 @@ Set `neighbor ... password CISCO` on one side only. Watch the session drop. Find
 Mirror the R1–R3 link to a machine running Wireshark and filter on `bgp`. Clear the session. In the Open message find: version 4, the sender's AS, the hold time, the BGP identifier, and the capabilities list. Confirm the negotiated hold time is the lower of the two configured values.
 
 **Record:** your `show ip bgp summary` at each failure, and the Open message capture from Task 7.
+
+</div>
+</div>
+
+---
+
+<div class="lab">
+<div class="lab-head">Lab — walk a session through all six states, then break it six ways</div>
+<div class="lab-body">
+
+<div class="lab-target"><b>Target</b>
+Bring up one eBGP and one iBGP session and watch each state transition happen rather than reading about it; capture the OPEN and find the AS number, hold time and router ID in the hex yourself; then produce every common failure deliberately — Idle, Active, OpenSent, a password mismatch, a missing <code>next-hop-self</code> and a <code>network</code> statement with the wrong mask — so that each one maps to a symptom you have seen with your own eyes.</div>
+
+**Topology.** R1 (AS 65001) and R2 (AS 65001) peered iBGP loopback to loopback, with OSPF between them carrying the loopbacks. R3 (AS 64500) connected to R1 over a directly-attached link for eBGP. A prefix 198.51.100.0/24 on a loopback of R1.
+
+<p class="lab-step"><span class="n">1</span>Watch the states go past</p>
+
+```cisco
+R1# debug ip bgp
+R1# terminal monitor
+```
+
+Then configure the eBGP neighbour and watch the log.
+
+<div class="lab-watch"><b>Things to notice</b>
+You will see the transitions named explicitly — Idle to Connect to OpenSent to OpenConfirm to Established — and the whole sequence takes well under a second on a healthy link. <b>Connect and OpenConfirm will flash past</b>; that is exactly why finding a session sitting in either one is diagnostic. Save this log. It is the reference you will compare every broken session against.</div>
+
+<p class="lab-step"><span class="n">2</span>Capture the OPEN and read it by hand</p>
+
+Capture on the link and filter `bgp`. Open the OPEN message.
+
+<div class="lab-watch"><b>Things to notice</b>
+Find, in the hex: the sixteen <code>ff</code> bytes, the length, the type byte <code>01</code>, version <code>04</code>, and then <b>the AS number</b>. Convert it from hex yourself and confirm it matches what the peer is configured with. Then find the hold time and confirm the two ends negotiated <b>the lower of the two values</b> — set one end to <code>timers 10 30</code> and re-capture to watch the negotiated value change.
+<br><br>Also find capability <code>41</code> (65) and note the AS number appears <em>again</em> inside it, in 32 bits. That is how 4-byte AS numbers travel through a 2-byte field.</div>
+
+<p class="lab-step"><span class="n">3</span>Produce Idle, and then Active</p>
+
+1. `neighbor 203.0.113.9 shutdown` → **Idle**.
+2. Remove the shutdown, then remove the route to the peer (or shut the interface toward it) → **Idle** again, for a different reason.
+3. Restore routing, but apply an ACL on the peer denying TCP 179 → **Active**.
+
+<div class="lab-watch"><b>Things to notice</b>
+Compare the message counters in <code>show ip bgp summary</code> for each. All three show zero received — which is the signature of a fault <b>below</b> BGP. Then note the retry behaviour: leave the ACL in place and watch the interval between attempts <b>double</b> each time. A session that has been failing for an hour is barely trying any more, which is why a fixed problem sometimes seems to take minutes to recover.</div>
+
+<p class="lab-step"><span class="n">4</span>Produce OpenSent, and read the NOTIFICATION</p>
+
+Set the wrong `remote-as` on R1 for the R3 session — say 64501 instead of 64500 — with the capture still running.
+
+<div class="lab-watch"><b>Things to notice</b>
+The session reaches OpenSent and stops, and the counters now show messages <b>received</b> — proof that TCP is healthy and the argument is about content. In the capture, find the NOTIFICATION and read the two bytes after the type: <code>02 02</code>, "OPEN Message Error / Bad Peer AS".
+<br><br>Now repeat with both routers configured with <b>the same <code>bgp router-id</code></b>. Same symptom, different subcode — <code>02 03</code>, bad BGP identifier. Two faults that look identical in <code>show ip bgp summary</code> and are told apart instantly by one byte on the wire.</div>
+
+<p class="lab-step"><span class="n">5</span>Break the loopback peering the usual way</p>
+
+Remove `update-source Loopback0` from R1 only, leaving R2's neighbour statement pointing at R1's loopback.
+
+<div class="lab-issues"><b>Possible issues</b>
+<ul>
+<li><b>The session stays up</b> — you removed it from the wrong end, or R2 has a neighbour statement for the physical address too. Check with <code>show ip bgp neighbors | include Local host</code>, which prints the address actually in use.</li>
+<li><b>It fails instantly rather than after the hold time</b> — normal if TCP resets. The slower failure appears when packets are simply ignored.</li>
+<li><b>You cannot tell which end is wrong</b> — that is the lesson. Use <code>telnet &lt;peer&gt; 179 /source-interface Loopback0</code> from each side; the side that cannot connect is the side whose source address the peer does not recognise.</li>
+</ul></div>
+
+<p class="lab-step"><span class="n">6</span>The two faults where the session is perfectly healthy</p>
+
+Both of these leave BGP Established and still deliver nothing.
+
+1. **Missing `next-hop-self`.** Remove it from R1's iBGP neighbour. On R2, `show ip bgp` — the eBGP-learned routes are there, marked with `(inaccessible)` or simply never selected, because their next hop is R3's address and R2 has no route to it.
+2. **Wrong mask on `network`.** Change R1's statement to `network 198.51.100.0 mask 255.255.254.0`. The prefix silently stops being advertised.
+
+<div class="lab-watch"><b>Things to notice</b>
+Neither of these shows up anywhere in <code>show ip bgp summary</code>. The session is up, the prefix counts look plausible, and the routes do not work. <b>This is the category of BGP fault that takes longest to find</b>, because every instinct says to check the session — and the session is fine.
+<br><br>The command that finds the first is <code>show ip bgp</code> on the receiving router, looking at the next-hop column. The command that finds the second is <code>show ip route 198.51.100.0</code> on the advertising router, checking that an exactly matching route exists.</div>
+
+<p class="lab-step"><span class="n">7</span>Kill a healthy session with silence</p>
+
+With the eBGP session Established, apply an ACL that permits the TCP session but drops nothing else, then block BGP's keepalives by filtering established traffic in one direction only.
+
+<div class="lab-watch"><b>Things to notice</b>
+The session stays up for <b>the full hold time</b> — 180 seconds by default — and then drops with a NOTIFICATION of <b>code 4, Hold Timer Expired</b>. Nothing before that moment indicates any problem at all. Now set <code>timers 10 30</code> on both ends and repeat: the failure is detected in 30 seconds instead of three minutes.
+<br><br>That comparison is the argument for tuning BGP timers, and also the warning: aggressive timers on a congested or high-latency link will tear down sessions that were merely slow.</div>
+
+<div class="lab-earned"><b>What you earned</b>
+You can look at one column of <code>show ip bgp summary</code> and know whether your problem is below BGP or inside it — zero messages received means routing or firewall, a state name with messages received means the OPEN is being rejected. You have read an AS number and a hold time out of a hex dump, so a capture is now a tool rather than a wall of bytes. You know that <code>Active</code> means failing, that the retry timer doubles, and that two completely different faults are distinguished by one byte in a NOTIFICATION. And you have met the two faults that leave the session perfectly healthy and the traffic broken, which is the pair that costs everybody else an afternoon.</div>
 
 </div>
 </div>

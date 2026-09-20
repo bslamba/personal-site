@@ -68,6 +68,110 @@ router bgp 65001
 
 ## The comparison, step by step
 
+Three real candidates for the same prefix, and the algorithm run over them one step at a time. Watch what gets eliminated, and — more importantly — what never gets examined at all.
+
+<div class="walk">
+<div class="walk-head">One prefix, three paths, the algorithm in motion <span class="walk-hint">click a step</span></div>
+<div class="walk-tabs">
+  <input type="radio" name="bpw" id="bp1" checked><label for="bp1"><span class="step-n">1</span>Weight</label>
+  <input type="radio" name="bpw" id="bp2"><label for="bp2"><span class="step-n">2</span>Local pref</label>
+  <input type="radio" name="bpw" id="bp3"><label for="bp3"><span class="step-n">3</span>Origin / local</label>
+  <input type="radio" name="bpw" id="bp4"><label for="bp4"><span class="step-n">4</span>AS_PATH</label>
+  <input type="radio" name="bpw" id="bp5"><label for="bp5"><span class="step-n">5</span>Never reached</label>
+</div>
+<div class="walk-panels">
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 1 — WEIGHT, HIGHEST WINS">
+  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+  <text class="k" x="14" y="24" fill="#5C5C64">STEP 1 — WEIGHT, HIGHEST WINS</text>
+  <text class="s" x="14" y="44">All three are 0, the default for a path not learned locally. Nothing is eliminated.</text>
+  <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
+  <text class="h" x="214" y="76">AS_PATH</text><text class="h" x="366" y="76">ORG</text><text class="h" x="420" y="76">MED</text><text class="h" x="474" y="76">TYPE</text>
+  <line x1="10" y1="82" x2="560" y2="82" stroke="#D9D9DE"/>
+  <g opacity="1"><text class="m" x="14" y="96">A</text><text class="m" x="86" y="96">0</text><text class="m" x="146" y="96">100</text><text class="m" x="214" y="96">64500 64502</text><text class="m" x="366" y="96">i</text><text class="m" x="420" y="96">0</text><text class="m" x="474" y="96" fill="#5C5C64">iBGP</text></g>
+  <g opacity="1"><text class="m" x="14" y="120">B</text><text class="m" x="86" y="120">0</text><text class="m" x="146" y="120">100</text><text class="m" x="214" y="120">64501</text><text class="m" x="366" y="120">i</text><text class="m" x="420" y="120">0</text><text class="m" x="474" y="120" fill="#5C5C64">eBGP</text></g>
+  <g opacity="1"><text class="m" x="14" y="144">C</text><text class="m" x="86" y="144">0</text><text class="m" x="146" y="144"> 80</text><text class="m" x="214" y="144">64500</text><text class="m" x="366" y="144">i</text><text class="m" x="420" y="144">0</text><text class="m" x="474" y="144" fill="#5C5C64">eBGP</text></g>
+  <text class="k" x="14" y="182" fill="#5C5C64">Tie. Move to step 2.</text>
+</svg>
+<p class="walk-say"><span class="walk-title">Weight — Cisco-only, and local to one router</span>
+Weight is <b>never advertised</b>. It exists only inside the router you set it on, which makes it the bluntest and most local tool in the list: perfect for forcing one router's choice, useless for influencing a network. Default 0 for learned paths, 32768 for locally originated ones.
+<br><br>Because it is first, weight overrides everything else. That is convenient and dangerous in equal measure — a weight set during an incident three years ago will still be quietly beating your carefully designed local preference today.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 2 — LOCAL PREFERENCE, HIGHEST WINS">
+  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+  <text class="k" x="14" y="24" fill="#B80027">STEP 2 — LOCAL PREFERENCE, HIGHEST WINS</text>
+  <text class="s" x="14" y="44">A and B are 100. C is 80 and is eliminated here.</text>
+  <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
+  <text class="h" x="214" y="76">AS_PATH</text><text class="h" x="366" y="76">ORG</text><text class="h" x="420" y="76">MED</text><text class="h" x="474" y="76">TYPE</text>
+  <line x1="10" y1="82" x2="560" y2="82" stroke="#D9D9DE"/>
+  <g opacity="1"><text class="m" x="14" y="96">A</text><text class="m" x="86" y="96">0</text><text class="m" x="146" y="96">100</text><text class="m" x="214" y="96">64500 64502</text><text class="m" x="366" y="96">i</text><text class="m" x="420" y="96">0</text><text class="m" x="474" y="96" fill="#5C5C64">iBGP</text></g>
+  <g opacity="1"><text class="m" x="14" y="120">B</text><text class="m" x="86" y="120">0</text><text class="m" x="146" y="120">100</text><text class="m" x="214" y="120">64501</text><text class="m" x="366" y="120">i</text><text class="m" x="420" y="120">0</text><text class="m" x="474" y="120" fill="#5C5C64">eBGP</text></g>
+  <g opacity="0.35"><text class="m" x="14" y="144">C</text><text class="m" x="86" y="144">0</text><text class="m" x="146" y="144"> 80</text><text class="m" x="214" y="144">64500</text><text class="m" x="366" y="144">i</text><text class="m" x="420" y="144">0</text><text class="m" x="474" y="144" fill="#D3002D">eBGP</text></g>
+  <text class="k" x="14" y="182" fill="#B80027">C is out. Nothing else about C will ever be looked at.</text>
+  <line x1="10" y1="140" x2="520" y2="140" stroke="#D3002D" stroke-width="1.5"/>
+</svg>
+<p class="walk-say"><span class="walk-title">Local preference — the one you actually design with</span>
+Unlike weight, local pref <b>is</b> advertised to iBGP peers, so it lets you make a consistent decision across your whole AS: "everyone prefer the London transit". Default 100, and <b>higher wins</b> — which is the opposite of almost every other metric in networking and catches people constantly.
+<br><br>Note what just happened to path C. It is eliminated at step 2, so its AS_PATH, its origin and its MED are <b>never compared</b>. If somebody later asks why C was not chosen despite its shorter AS_PATH, the answer is that the algorithm stopped caring three steps earlier.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 3 — LOCALLY ORIGINATED WINS">
+  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+  <text class="k" x="14" y="24" fill="#5C5C64">STEP 3 — LOCALLY ORIGINATED WINS</text>
+  <text class="s" x="14" y="44">Neither A nor B was originated on this router. No effect.</text>
+  <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
+  <text class="h" x="214" y="76">AS_PATH</text><text class="h" x="366" y="76">ORG</text><text class="h" x="420" y="76">MED</text><text class="h" x="474" y="76">TYPE</text>
+  <line x1="10" y1="82" x2="560" y2="82" stroke="#D9D9DE"/>
+  <g opacity="1"><text class="m" x="14" y="96">A</text><text class="m" x="86" y="96">0</text><text class="m" x="146" y="96">100</text><text class="m" x="214" y="96">64500 64502</text><text class="m" x="366" y="96">i</text><text class="m" x="420" y="96">0</text><text class="m" x="474" y="96" fill="#5C5C64">iBGP</text></g>
+  <g opacity="1"><text class="m" x="14" y="120">B</text><text class="m" x="86" y="120">0</text><text class="m" x="146" y="120">100</text><text class="m" x="214" y="120">64501</text><text class="m" x="366" y="120">i</text><text class="m" x="420" y="120">0</text><text class="m" x="474" y="120" fill="#5C5C64">eBGP</text></g>
+  <g opacity="0.35"><text class="m" x="14" y="144">C</text><text class="m" x="86" y="144">0</text><text class="m" x="146" y="144"> 80</text><text class="m" x="214" y="144">64500</text><text class="m" x="366" y="144">i</text><text class="m" x="420" y="144">0</text><text class="m" x="474" y="144" fill="#D3002D">eBGP</text></g>
+  <text class="k" x="14" y="182" fill="#5C5C64">Tie. Move to step 4.</text>
+  <line x1="10" y1="140" x2="520" y2="140" stroke="#D3002D" stroke-width="1.5"/>
+</svg>
+<p class="walk-say"><span class="walk-title">Locally originated — a path you injected yourself</span>
+A route this router put into BGP with a <code>network</code> statement, or by redistribution or aggregation, beats one learned from a peer. It is rarely the deciding step in practice, but it explains a behaviour that surprises people: <b>your own advertisement of a prefix always wins locally</b>, even when a peer is offering a better-looking path to the same thing.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 4 — AS_PATH, SHORTEST WINS">
+  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+  <text class="k" x="14" y="24" fill="#0f6b47">STEP 4 — AS_PATH, SHORTEST WINS</text>
+  <text class="s" x="14" y="44">A is two AS hops. B is one. B wins here, and the comparison stops.</text>
+  <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
+  <text class="h" x="214" y="76">AS_PATH</text><text class="h" x="366" y="76">ORG</text><text class="h" x="420" y="76">MED</text><text class="h" x="474" y="76">TYPE</text>
+  <line x1="10" y1="82" x2="560" y2="82" stroke="#D9D9DE"/>
+  <g opacity="0.35"><text class="m" x="14" y="96">A</text><text class="m" x="86" y="96">0</text><text class="m" x="146" y="96">100</text><text class="m" x="214" y="96">64500 64502</text><text class="m" x="366" y="96">i</text><text class="m" x="420" y="96">0</text><text class="m" x="474" y="96" fill="#D3002D">iBGP</text></g>
+  <g opacity="1"><text class="m" x="14" y="120">B</text><text class="m" x="86" y="120">0</text><text class="m" x="146" y="120">100</text><text class="m" x="214" y="120">64501</text><text class="m" x="366" y="120">i</text><text class="m" x="420" y="120">0</text><text class="m" x="474" y="120" fill="#0f6b47">eBGP</text></g>
+  <g opacity="0.35"><text class="m" x="14" y="144">C</text><text class="m" x="86" y="144">0</text><text class="m" x="146" y="144"> 80</text><text class="m" x="214" y="144">64500</text><text class="m" x="366" y="144">i</text><text class="m" x="420" y="144">0</text><text class="m" x="474" y="144" fill="#D3002D">eBGP</text></g>
+  <text class="k" x="14" y="182" fill="#0f6b47">B is best. Steps 5 to 12 are not evaluated.</text>
+  <line x1="10" y1="92" x2="520" y2="92" stroke="#D3002D" stroke-width="1.5"/><line x1="10" y1="140" x2="520" y2="140" stroke="#D3002D" stroke-width="1.5"/>
+</svg>
+<p class="walk-say"><span class="walk-title">AS_PATH — where most decisions are actually made</span>
+Count the AS numbers, fewest wins. This is the step that settles the majority of real comparisons, which is why <b>AS-path prepending</b> is the standard way to make one of your links less attractive to the outside world.
+<br><br>Two things that are not obvious: a confederation sub-AS does <b>not</b> count toward the length, and an <code>AS_SET</code> from an aggregate counts as <b>one</b> however many AS numbers are in it. Both mean the number you count by eye can differ from the number BGP uses.</p>
+</div>
+<div class="walk-panel">
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEPS 5–12 — NEVER CONSULTED">
+  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+  <text class="k" x="14" y="24" fill="#B26014">STEPS 5–12 — NEVER CONSULTED</text>
+  <text class="s" x="14" y="44">Origin, MED, eBGP-over-iBGP, IGP metric, age, router ID. All irrelevant here.</text>
+  <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
+  <text class="h" x="214" y="76">AS_PATH</text><text class="h" x="366" y="76">ORG</text><text class="h" x="420" y="76">MED</text><text class="h" x="474" y="76">TYPE</text>
+  <line x1="10" y1="82" x2="560" y2="82" stroke="#D9D9DE"/>
+  <g opacity="0.35"><text class="m" x="14" y="96">A</text><text class="m" x="86" y="96">0</text><text class="m" x="146" y="96">100</text><text class="m" x="214" y="96">64500 64502</text><text class="m" x="366" y="96">i</text><text class="m" x="420" y="96">0</text><text class="m" x="474" y="96" fill="#D3002D">iBGP</text></g>
+  <g opacity="1"><text class="m" x="14" y="120">B</text><text class="m" x="86" y="120">0</text><text class="m" x="146" y="120">100</text><text class="m" x="214" y="120">64501</text><text class="m" x="366" y="120">i</text><text class="m" x="420" y="120">0</text><text class="m" x="474" y="120" fill="#0f6b47">eBGP</text></g>
+  <g opacity="0.35"><text class="m" x="14" y="144">C</text><text class="m" x="86" y="144">0</text><text class="m" x="146" y="144"> 80</text><text class="m" x="214" y="144">64500</text><text class="m" x="366" y="144">i</text><text class="m" x="420" y="144">0</text><text class="m" x="474" y="144" fill="#D3002D">eBGP</text></g>
+  <text class="k" x="14" y="182" fill="#B26014">The decision was made at step 4. Everything below it is decoration.</text>
+  <line x1="10" y1="92" x2="520" y2="92" stroke="#D3002D" stroke-width="1.5"/><line x1="10" y1="140" x2="520" y2="140" stroke="#D3002D" stroke-width="1.5"/>
+</svg>
+<p class="walk-say"><span class="walk-title">The point of the whole exercise</span>
+B is also <code>external</code> where A is <code>internal</code>, so step 7 would have chosen B as well. <b>It never ran.</b> That distinction matters enormously when you try to change the outcome: adjusting MED here would do nothing at all, because MED is step 6 and the decision was taken at step 4.
+<br><br>So the practical skill is not memorising twelve steps. It is <b>identifying which step decided</b>, because that tells you the only knob that can change the answer. Everything above it overrides you; everything below it is never reached.</p>
+</div>
+</div>
+</div>
+
+
 ### 0. Is the next hop reachable?
 
 Not a tie-breaker — an entry requirement. If the router has no route to the next hop, the path is not valid and never enters the comparison. This is where most "BGP knows the route but won't use it" cases die, and it is covered in [part 1](/blog/bgp-neighbors-states-and-why-the-session-wont-come-up).
@@ -168,6 +272,29 @@ Now your interior protocol finally gets a say. Two iBGP paths that are equal on 
 
 ---
 
+### The three knobs, and which direction each one works in
+
+<div class="cmd">
+<div class="cmd-line">route-map PREFER-ISP-A permit 10
+ <span class="t">set weight</span> <span class="opt">200</span>
+ <span class="t">set local-preference</span> <span class="opt">200</span>
+!
+route-map MAKE-ME-LESS-ATTRACTIVE permit 10
+ <span class="t">set as-path prepend</span> <span class="opt">65001 65001 65001</span>
+ <span class="t">set metric</span> <span class="opt">50</span>
+!
+router bgp 65001
+ neighbor 192.0.2.9 route-map PREFER-ISP-A <span class="t">in</span>
+ neighbor 192.0.2.9 route-map MAKE-ME-LESS-ATTRACTIVE <span class="t">out</span></div>
+<dl class="cmd-parts">
+<div><dt>set weight</dt><dd><b>Step 1, and this router only.</b> Never advertised, so it influences nothing beyond the box it is typed on. Use it to fix one router's behaviour; never use it to express a network-wide policy, because the other routers will not know about it.</dd></div>
+<div class="is-key"><dt>set local-preference</dt><dd><b>Step 2, and AS-wide.</b> Advertised to every iBGP peer, so setting it once on your border router makes the whole AS agree. <b>Higher wins</b> — the opposite of most metrics. This is the correct tool for "all our outbound traffic should prefer this transit".</dd></div>
+<div class="is-key"><dt>set as-path prepend</dt><dd><b>Step 4, and outbound.</b> Weight and local pref only affect <em>your</em> choice of exit; they cannot influence how traffic comes <b>in</b>. Prepending makes your advertisement look longer to the outside world so other people's routers pick a different entry point. It is a request, not an instruction — anyone can override it with their own local preference, and large transit providers frequently do.</dd></div>
+<div><dt>set metric (MED)</dt><dd><b>Step 6, outbound, and usually ignored.</b> MED suggests to a neighbouring AS which of <em>your</em> links it should use — <b>lowest wins</b>. It is only compared between paths from the <b>same</b> neighbouring AS unless <code>bgp always-compare-med</code> is set, and most providers strip it or override it with local preference long before it is reached. Treat it as a polite request that will probably be ignored.</dd></div>
+<div class="is-key"><dt>route-map ... in / out</dt><dd>The direction is the part people reverse. <b><code>in</code></b> changes attributes on routes you <em>receive</em>, which affects where <b>your</b> traffic exits. <b><code>out</code></b> changes what you <em>advertise</em>, which is the only way to influence where other people's traffic enters. Outbound traffic and inbound traffic are two separate problems and they need two different tools.</dd></div>
+</dl>
+</div>
+
 ## The direction problem
 
 This is the single most useful thing to understand about BGP policy, and it is the thing most people get wrong first.
@@ -217,26 +344,29 @@ Inbound traffic engineering is fundamentally harder than outbound, because the d
 
 ## Reading the decision
 
-```text
-R1# show ip bgp 203.0.113.0/24
+<div class="term">
+<div class="term-bar"><span class="term-dots"><i></i><i></i><i></i></span>R1 — three paths, and the word that names the winner</div>
+<pre><span class="p">R1#</span> <span class="c">show ip bgp 203.0.113.0/24</span>
 BGP routing table entry for 203.0.113.0/24, version 42
-Paths: (3 available, best #2, table default)
+Paths: (3 available, <span class="y">best #2</span>, table default)
   Advertised to update-groups: 1 2
 
-  64500 64502
+  <span class="y">64500 64502</span>                                <span class="o">&lt;- two AS hops</span>
     10.0.0.2 from 10.0.0.2 (10.0.0.2)
-      Origin IGP, metric 0, localpref 100, valid, internal
+      Origin IGP, metric 0, <span class="y">localpref 100</span>, valid, <span class="y">internal</span>
       rx pathid: 0, tx pathid: 0
 
-  64501
+  <span class="g">64501</span>                                      <span class="o">&lt;- one AS hop. This is why it wins.</span>
     192.0.2.9 from 192.0.2.9 (192.0.2.9)
-      Origin IGP, metric 0, localpref 100, valid, external, best
+      Origin IGP, metric 0, <span class="y">localpref 100</span>, valid, external, <span class="g">best</span>
       rx pathid: 0, tx pathid: 0x0
 
   64500
     172.16.0.5 from 172.16.0.5 (172.16.0.5)
-      Origin IGP, metric 0, localpref 80, valid, external
-```
+      Origin IGP, metric 0, <span class="r">localpref 80</span>, valid, external
+                                                 <span class="o">^ eliminated at step 2</span><span class="cur"></span></pre>
+</div>
+<p class="term-cap"><b>Two words carry the whole answer: <code>best</code>, and the <code>localpref</code> that is not 100.</b> Read the attributes in algorithm order rather than down the page — weight (absent, so 0), then localpref, then path length — and stop at the first column where they differ. That column is your only lever.</p>
 
 Work the algorithm by hand:
 
@@ -303,6 +433,97 @@ On R2, advertise the prefix by redistributing a static instead of with `network`
 Make the two paths identical on every attribute through step 8, add `maximum-paths 2`, and confirm two next hops appear in `show ip route 203.0.113.0`.
 
 **Record:** for each task, the output of `show ip bgp 203.0.113.0/24` and the step number that decided. Seven outputs, seven step numbers — that table is the revision material.
+
+</div>
+</div>
+
+---
+
+<div class="real">
+<b>In the real world</b>
+Almost every "BGP is picking the wrong path" ticket is really one of two things. Either <b>somebody is adjusting a knob below the step that is actually deciding</b> — tuning MED when the AS_PATH already settled it, which changes nothing and looks like BGP is broken — or <b>a weight left behind by a previous incident</b> is silently overriding a carefully designed local preference from step 1. Before changing anything, run <code>show ip bgp &lt;prefix&gt;</code> and find the first attribute where the candidates differ. That column is the only one worth touching, and it is very often not the one in the change request.
+</div>
+
+<div class="lab">
+<div class="lab-head">Lab — force each step of the algorithm to be the deciding one</div>
+<div class="lab-body">
+
+<div class="lab-target"><b>Target</b>
+Build a prefix reachable by three different paths and then, one at a time, make <em>each</em> step of the decision process the one that settles it — weight, then local preference, then AS_PATH, then MED — confirming at every stage which attribute changed the answer and which ones became irrelevant. Then demonstrate the direction problem: influence your outbound traffic, fail to influence inbound with the same tool, and fix it with the right one.</div>
+
+**Topology.** R1 in AS 65001 with two eBGP peers — R2 (AS 64500) and R3 (AS 64501) — and one iBGP peer R4. All three can reach 203.0.113.0/24, R2 via a longer AS path than R3.
+
+<p class="lab-step"><span class="n">1</span>Establish the baseline and name the deciding step</p>
+
+```cisco
+R1# show ip bgp 203.0.113.0/24
+```
+
+Work down the attributes in algorithm order and write down **which step decided**, before changing anything.
+
+<div class="lab-watch"><b>Things to notice</b>
+With everything at default, the decision will fall to AS_PATH at step 4. Note the exact attribute values for all three paths — you are going to change them one at a time and this is your control.</div>
+
+<p class="lab-step"><span class="n">2</span>Beat it from above with local preference</p>
+
+```cisco
+route-map PREFER-LONG permit 10
+ set local-preference 200
+!
+router bgp 65001
+ neighbor <R2> route-map PREFER-LONG in
+```
+
+Then `clear ip bgp * soft in`.
+
+<div class="lab-watch"><b>Things to notice</b>
+The path with the <b>longer</b> AS_PATH is now best, because step 2 runs before step 4 and never reaches it. This is the single most important thing to internalise: <b>an earlier step beats any later one, however much better the later attribute looks.</b> Confirm with <code>show ip bgp 203.0.113.0/24</code> that the AS_PATH lengths have not changed at all — only the winner has.</div>
+
+<p class="lab-step"><span class="n">3</span>Beat local preference from above with weight</p>
+
+```cisco
+router bgp 65001
+ neighbor <R3> weight 200
+```
+
+<div class="lab-watch"><b>Things to notice</b>
+Weight is step 1, so it overrides the local preference you just set. Now check R4: <b>R4's choice has not changed at all</b>, because weight was never advertised. You have created the exact situation where two routers in the same AS disagree about the best path — which is how traffic ends up taking a route nobody designed. Remove the weight and watch R1 fall back to agreeing with R4.</div>
+
+<p class="lab-step"><span class="n">4</span>Make MED the deciding step — which takes effort</p>
+
+Remove the weight and the route-map, then make the two eBGP paths **identical** in every respect above step 6: same local preference, same AS_PATH length, same origin. Only then set different MEDs.
+
+<div class="lab-issues"><b>Possible issues</b>
+<ul>
+<li><b>MED appears to do nothing</b> — something above it is still deciding. Recheck with <code>show ip bgp</code> that the AS_PATH lengths genuinely match; prepending on one side is the usual culprit.</li>
+<li><b>The paths are from different neighbouring AS numbers</b> — MED is only compared between paths from the <b>same</b> AS by default. Either use two links to the same peer AS or set <code>bgp always-compare-med</code>, and note in your own words why that command is considered risky.</li>
+<li><b>Lower MED did not win</b> — check you have not reversed it. MED is <b>lowest wins</b>, unlike local preference.</li>
+</ul>
+The effort this step takes is the lesson. MED is so far down the list that in a real network something almost always decides before it.</div>
+
+<p class="lab-step"><span class="n">5</span>Try to influence inbound traffic with the wrong tool</p>
+
+Set a very high local preference for routes learned from R2, then check, from R2's side, which path **R2** uses to reach your prefix.
+
+<div class="lab-watch"><b>Things to notice</b>
+Nothing changed for R2. Local preference is <b>never advertised outside your AS</b>, so it cannot possibly influence what somebody else does — it only chose your own exit. This is the direction problem, and producing it deliberately once is the cheapest way never to confuse the two again.</div>
+
+<p class="lab-step"><span class="n">6</span>Now do it with the right tool</p>
+
+```cisco
+route-map LESS-ATTRACTIVE permit 10
+ set as-path prepend 65001 65001 65001
+!
+router bgp 65001
+ neighbor <R2> route-map LESS-ATTRACTIVE out
+```
+
+<div class="lab-watch"><b>Things to notice</b>
+Check on R2 that your prefix now carries a four-AS path instead of one, and that R2 has switched to entering your AS via R3. Then do the thing that shows prepending's real limitation: on R2, set a high local preference for the prepended path. <b>R2 goes back to using it.</b> Your three prepends are step 4; R2's local preference is step 2, and step 2 wins.
+<br><br>That is why prepending is a request rather than an instruction, and why a transit provider can ignore it entirely.</div>
+
+<div class="lab-earned"><b>What you earned</b>
+You can look at <code>show ip bgp &lt;prefix&gt;</code> and name the step that decided, which tells you the only attribute worth changing — and stops you spending an afternoon adjusting a MED that is never evaluated. You have watched an earlier step override a later one in both directions, and watched weight create a disagreement between two routers in the same AS. And you know from having tried it that outbound and inbound are separate problems: local preference for where your traffic leaves, prepending for where other people's traffic arrives, and even then only as a suggestion the other side may override.</div>
 
 </div>
 </div>
