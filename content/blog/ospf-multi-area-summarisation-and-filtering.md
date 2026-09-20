@@ -41,16 +41,8 @@ It is also the cost. **Every topology change floods to every router, and every r
 Areas fix it by putting a wall in the way.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three OSPF areas joined through area 0 with ABRs at the boundaries">
-  <style>
-    .ar { fill:#F1EEE9; stroke:#B5B5BC; stroke-width:1.5 }
-    .bb { fill:#FFE0E5; stroke:#D3002D; stroke-width:1.5 }
-    .r { fill:#17171A } .abr { fill:#D3002D } .asbr { fill:#1f9d6b }
-    .rt { fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:10px; font-weight:700 }
-    .at { font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:800; fill:#5C5C64 }
-    .abt { font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:800; fill:#D3002D }
-    .l { stroke:#8A8A93; stroke-width:1.5 }
-    .s { font-family:ui-sans-serif,system-ui; font-size:9.5px; fill:#5C5C64 }
+<svg class="sv1" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three OSPF areas joined through area 0 with ABRs at the boundaries">
+  <style>.sv1 .ar{ fill:#F1EEE9; stroke:#B5B5BC; stroke-width:1.5 }.sv1 .bb{ fill:#FFE0E5; stroke:#D3002D; stroke-width:1.5 }.sv1 .r{ fill:#17171A }.sv1 .abr{ fill:#D3002D }.sv1 .asbr{ fill:#1f9d6b }.sv1 .rt{ fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:10px; font-weight:700 }.sv1 .at{ font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:800; fill:#5C5C64 }.sv1 .abt{ font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:800; fill:#D3002D }.sv1 .l{ stroke:#8A8A93; stroke-width:1.5 }.sv1 .s{ font-family:ui-sans-serif,system-ui; font-size:9.5px; fill:#5C5C64 }
   </style>
   <rect class="bb" x="210" y="20" width="220" height="86" rx="4"/>
   <text class="abt" x="320" y="40" text-anchor="middle">AREA 0 · BACKBONE</text>
@@ -116,8 +108,8 @@ The same subnet exists in every router's database, but **it is carried by a diff
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A Type 1 never leaves its area. Not summarised, not filtered, not negotiable.">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv2" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A Type 1 never leaves its area. Not summarised, not filtered, not negotiable.">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv2 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect x="14" y="40" width="180" height="80" fill="rgba(75,123,236,.07)" stroke="#4b7bec" stroke-dasharray="4 3"/>
   <text class="ar" x="24" y="58" fill="#2b5ab8">AREA 2</text>
   <rect x="230" y="40" width="180" height="80" fill="rgba(31,157,107,.07)" stroke="#1f9d6b" stroke-dasharray="4 3"/>
@@ -143,8 +135,8 @@ R1 describes its own links in a <b>Type 1 Router LSA</b>, flooded to every route
 <br><br>It is also why you cannot summarise or filter inside an area. Two routers with different maps would run Dijkstra over different topologies, and the results would not agree.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The ABR is a translator, and this is the only place a Type 3 is born.">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv3" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The ABR is a translator, and this is the only place a Type 3 is born.">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect x="14" y="40" width="180" height="80" fill="rgba(75,123,236,.07)" stroke="#4b7bec" stroke-dasharray="4 3"/>
   <text class="ar" x="24" y="58" fill="#2b5ab8">AREA 2</text>
   <rect x="230" y="40" width="180" height="80" fill="rgba(31,157,107,.07)" stroke="#1f9d6b" stroke-dasharray="4 3"/>
@@ -170,8 +162,8 @@ The ABR does not forward the Type 1. It <b>originates a new Type 3 Summary LSA</
 <br><br>That is the real reason multi-area OSPF scales: a router in the backbone runs SPF over the backbone's topology and treats every other area as <b>a list of prefixes with distances</b> — which is distance-vector behaviour, bolted onto a link-state protocol precisely at the boundary. It is also why a flap inside area 2 does not trigger a full SPF everywhere: it only changes a cost in a Type 3.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Type 3 LSAs are re-originated at each ABR, never forwarded.">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv4" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Type 3 LSAs are re-originated at each ABR, never forwarded.">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect x="14" y="40" width="180" height="80" fill="rgba(75,123,236,.07)" stroke="#4b7bec" stroke-dasharray="4 3"/>
   <text class="ar" x="24" y="58" fill="#2b5ab8">AREA 2</text>
   <rect x="230" y="40" width="180" height="80" fill="rgba(31,157,107,.07)" stroke="#1f9d6b" stroke-dasharray="4 3"/>
@@ -197,8 +189,8 @@ ABR2 does not pass ABR1's LSA along. It <b>creates its own Type 3</b>, advertisi
 <br><br>That single rule is the reason every inter-area path must transit the backbone, the reason two non-backbone areas cannot exchange routes directly, and the reason <b>virtual links</b> exist — a virtual link is a way to say "pretend this path is part of area 0" when a new area cannot be physically attached to it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Summarisation happens at the boundary, or not at all.">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv5" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Summarisation happens at the boundary, or not at all.">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .ar{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv5 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect x="14" y="40" width="180" height="80" fill="rgba(75,123,236,.07)" stroke="#4b7bec" stroke-dasharray="4 3"/>
   <text class="ar" x="24" y="58" fill="#2b5ab8">AREA 2</text>
   <rect x="230" y="40" width="180" height="80" fill="rgba(31,157,107,.07)" stroke="#1f9d6b" stroke-dasharray="4 3"/>

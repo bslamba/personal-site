@@ -81,8 +81,8 @@ Three real candidates for the same prefix, and the algorithm run over them one s
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 1 — WEIGHT, HIGHEST WINS">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+<svg class="sv1" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 1 — WEIGHT, HIGHEST WINS">
+  <style>.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv1 .h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
   <text class="k" x="14" y="24" fill="#5C5C64">STEP 1 — WEIGHT, HIGHEST WINS</text>
   <text class="s" x="14" y="44">All three are 0, the default for a path not learned locally. Nothing is eliminated.</text>
   <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
@@ -98,8 +98,8 @@ Weight is <b>never advertised</b>. It exists only inside the router you set it o
 <br><br>Because it is first, weight overrides everything else. That is convenient and dangerous in equal measure — a weight set during an incident three years ago will still be quietly beating your carefully designed local preference today.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 2 — LOCAL PREFERENCE, HIGHEST WINS">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+<svg class="sv2" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 2 — LOCAL PREFERENCE, HIGHEST WINS">
+  <style>.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv2 .h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
   <text class="k" x="14" y="24" fill="#B80027">STEP 2 — LOCAL PREFERENCE, HIGHEST WINS</text>
   <text class="s" x="14" y="44">A and B are 100. C is 80 and is eliminated here.</text>
   <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
@@ -116,8 +116,8 @@ Unlike weight, local pref <b>is</b> advertised to iBGP peers, so it lets you mak
 <br><br>Note what just happened to path C. It is eliminated at step 2, so its AS_PATH, its origin and its MED are <b>never compared</b>. If somebody later asks why C was not chosen despite its shorter AS_PATH, the answer is that the algorithm stopped caring three steps earlier.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 3 — LOCALLY ORIGINATED WINS">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+<svg class="sv3" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 3 — LOCALLY ORIGINATED WINS">
+  <style>.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv3 .h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
   <text class="k" x="14" y="24" fill="#5C5C64">STEP 3 — LOCALLY ORIGINATED WINS</text>
   <text class="s" x="14" y="44">Neither A nor B was originated on this router. No effect.</text>
   <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
@@ -133,8 +133,8 @@ Unlike weight, local pref <b>is</b> advertised to iBGP peers, so it lets you mak
 A route this router put into BGP with a <code>network</code> statement, or by redistribution or aggregation, beats one learned from a peer. It is rarely the deciding step in practice, but it explains a behaviour that surprises people: <b>your own advertisement of a prefix always wins locally</b>, even when a peer is offering a better-looking path to the same thing.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 4 — AS_PATH, SHORTEST WINS">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEP 4 — AS_PATH, SHORTEST WINS">
+  <style>.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv4 .h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
   <text class="k" x="14" y="24" fill="#0f6b47">STEP 4 — AS_PATH, SHORTEST WINS</text>
   <text class="s" x="14" y="44">A is two AS hops. B is one. B wins here, and the comparison stops.</text>
   <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
@@ -151,8 +151,8 @@ Count the AS numbers, fewest wins. This is the step that settles the majority of
 <br><br>Two things that are not obvious: a confederation sub-AS does <b>not</b> count toward the length, and an <code>AS_SET</code> from an aggregate counts as <b>one</b> however many AS numbers are in it. Both mean the number you count by eye can differ from the number BGP uses.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEPS 5–12 — NEVER CONSULTED">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
+<svg class="sv5" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STEPS 5–12 — NEVER CONSULTED">
+  <style>.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv5 .h{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}</style>
   <text class="k" x="14" y="24" fill="#B26014">STEPS 5–12 — NEVER CONSULTED</text>
   <text class="s" x="14" y="44">Origin, MED, eBGP-over-iBGP, IGP metric, age, router ID. All irrelevant here.</text>
   <text class="h" x="14" y="76">PATH</text><text class="h" x="86" y="76">WEIGHT</text><text class="h" x="146" y="76">LOCPRF</text>
@@ -300,15 +300,8 @@ router bgp 65001
 This is the single most useful thing to understand about BGP policy, and it is the thing most people get wrong first.
 
 <figure class="fig">
-<svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Local preference controls outbound traffic, AS path prepending influences inbound traffic">
-  <style>
-    .n { fill:#17171A } .me { fill:#D3002D }
-    .nt { fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700 }
-    .l { stroke:#8A8A93; stroke-width:1.5 }
-    .out { stroke:#1f9d6b; stroke-width:3; fill:none; marker-end:url(#g) }
-    .in { stroke:#D3002D; stroke-width:3; fill:none; marker-end:url(#r); stroke-dasharray:6 4 }
-    .lb { font-family:ui-sans-serif,system-ui; font-size:11px; fill:#5C5C64 }
-    .k { font-family:ui-sans-serif,system-ui; font-size:11.5px; font-weight:700 }
+<svg class="sv6" viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Local preference controls outbound traffic, AS path prepending influences inbound traffic">
+  <style>.sv6 .n{ fill:#17171A }.sv6 .me{ fill:#D3002D }.sv6 .nt{ fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700 }.sv6 .l{ stroke:#8A8A93; stroke-width:1.5 }.sv6 .out{ stroke:#1f9d6b; stroke-width:3; fill:none; marker-end:url(#g) }.sv6 .in{ stroke:#D3002D; stroke-width:3; fill:none; marker-end:url(#r); stroke-dasharray:6 4 }.sv6 .lb{ font-family:ui-sans-serif,system-ui; font-size:11px; fill:#5C5C64 }.sv6 .k{ font-family:ui-sans-serif,system-ui; font-size:11.5px; font-weight:700 }
   </style>
   <defs>
     <marker id="g" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#1f9d6b"/></marker>

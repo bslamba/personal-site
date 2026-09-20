@@ -34,14 +34,8 @@ Everything a network engineer builds for redundancy — two distribution switche
 A host has exactly **one default gateway**. It is a single IP address, learned from DHCP or typed in, and the host has no mechanism to discover that it has stopped working. There is no protocol running on a laptop that says "my gateway is dead, let me find another one." The host will keep ARPing for a router that is not there, and every packet destined off-subnet will be dropped, until somebody fixes it or DHCP renews.
 
 <figure class="fig">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A host with a single default gateway is isolated when that router fails, despite a second router being present">
-  <style>
-    .n{fill:#17171A}.dead{fill:#D3002D}.alive{fill:#1f9d6b}
-    .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}
-    .dx{stroke:#D3002D;stroke-width:2.5}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#D3002D}
+<svg class="sv1" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A host with a single default gateway is isolated when that router fails, despite a second router being present">
+  <style>.sv1 .n{fill:#17171A}.sv1 .dead{fill:#D3002D}.sv1 .alive{fill:#1f9d6b}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .l{stroke:#8A8A93;stroke-width:1.5}.sv1 .dx{stroke:#D3002D;stroke-width:2.5}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#D3002D}
   </style>
   <rect class="n" x="24" y="90" width="90" height="34" rx="3"/><text class="nt" x="69" y="112" text-anchor="middle">PC</text>
   <text class="s" x="69" y="142" text-anchor="middle">gateway 10.1.1.1</text>
@@ -79,8 +73,8 @@ Rather than teaching hosts about redundancy, FHRP <em>lies to them</em>. Two rou
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host ARPs for its default gateway and the active router replies with the virtual MAC address">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.b{stroke:#4b7bec;stroke-width:2.5;fill:none}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+<svg class="sv2" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host ARPs for its default gateway and the active router replies with the virtual MAC address">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .l{stroke:#8A8A93;stroke-width:1.5}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .b{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
   <rect class="n" x="14" y="80" width="76" height="32" rx="3"/><text class="nt" x="52" y="101" text-anchor="middle">PC</text>
   <line class="l" x1="90" y1="96" x2="240" y2="96"/>
   <rect class="n" x="240" y="80" width="60" height="32" rx="3"/><text class="nt" x="270" y="101" text-anchor="middle">SW</text>
@@ -99,8 +93,8 @@ The host ARPs for its default gateway exactly as it would for any address. The A
 <br><br>From this moment the host's ARP cache contains an address that belongs to no physical device. Everything else follows from that one substitution.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traffic flows through the active router while the two routers exchange hellos">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.h{stroke:#F2994A;stroke-width:2;stroke-dasharray:4 4;fill:none}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}</style>
+<svg class="sv3" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traffic flows through the active router while the two routers exchange hellos">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .g{stroke:#1f9d6b;stroke-width:3;fill:none}.sv3 .h{stroke:#F2994A;stroke-width:2;stroke-dasharray:4 4;fill:none}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}</style>
   <rect class="n" x="14" y="80" width="76" height="32" rx="3"/><text class="nt" x="52" y="101" text-anchor="middle">PC</text>
   <line class="l" x1="90" y1="96" x2="240" y2="96"/>
   <rect class="n" x="240" y="80" width="60" height="32" rx="3"/><text class="nt" x="270" y="101" text-anchor="middle">SW</text>
@@ -120,8 +114,8 @@ Traffic flows to the virtual MAC, and the <b>switch</b> decides where that goes,
 <br><br>Only Active and Standby send hellos. A third router in the group sits in <code>Listen</code> and says nothing, which is why HSRP does not degrade with more routers — it simply never uses them.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The active router fails and the standby stops hearing hellos">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.dead{stroke:#D3002D;stroke-width:2.5}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The active router fails and the standby stops hearing hellos">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .dead{stroke:#D3002D;stroke-width:2.5}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}</style>
   <rect class="n" x="14" y="80" width="76" height="32" rx="3"/><text class="nt" x="52" y="101" text-anchor="middle">PC</text>
   <line class="l" x1="90" y1="96" x2="240" y2="96"/>
   <rect class="n" x="240" y="80" width="60" height="32" rx="3"/><text class="nt" x="270" y="101" text-anchor="middle">SW</text>
@@ -140,8 +134,8 @@ R1 stops. The host does not know and does not care — it keeps sending frames t
 <br><br>The length of this window is <b>the hold time, and nothing else</b>: 10 seconds on defaults, 750 ms with the timers above. That is the entire argument for tuning them, and the whole reason to measure it in the lab rather than trusting a number.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The standby becomes active takes over the virtual MAC and sends a gratuitous ARP to move the switch MAC table entry">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
+<svg class="sv5" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The standby becomes active takes over the virtual MAC and sends a gratuitous ARP to move the switch MAC table entry">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .l{stroke:#8A8A93;stroke-width:1.5}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .g{stroke:#1f9d6b;stroke-width:3;fill:none}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
   <rect class="n" x="14" y="86" width="76" height="32" rx="3"/><text class="nt" x="52" y="107" text-anchor="middle">PC</text>
   <line class="l" x1="90" y1="102" x2="240" y2="102"/>
   <rect class="n" x="240" y="86" width="60" height="32" rx="3"/><text class="nt" x="270" y="107" text-anchor="middle">SW</text>
@@ -158,8 +152,8 @@ R2 becomes Active and <b>starts answering to the same virtual MAC address</b>. T
 <br><br>If failover only moved the IP address, every host would have to re-ARP, and a Windows cache can hold an entry for minutes. Moving the MAC means the hosts do nothing at all.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host ARP cache is unchanged before and after the failover">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:11px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv6" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host ARP cache is unchanged before and after the failover">
+  <style>.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:11px;fill:#5C5C64}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv6 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.sv6 .bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <text class="hdr" x="14" y="20">PC, BEFORE THE FAILOVER</text>
   <rect class="bx" x="14" y="30" width="280" height="44"/>
   <text class="m" x="26" y="50">10.1.10.1</text>

@@ -42,13 +42,8 @@ That is almost always what you want, and occasionally it is useless:
 In every case the destination is identical and the decision is not about the destination at all.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Normal routing sends both subnets out the same link because the destination is the same, while policy-based routing splits them by source">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
-    .l{stroke:#8A8A93;stroke-width:1.5}
+<svg class="sv1" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Normal routing sends both subnets out the same link because the destination is the same, while policy-based routing splits them by source">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}.sv1 .l{stroke:#8A8A93;stroke-width:1.5}
   </style>
   <text class="hdr" x="14" y="16" fill="#D3002D">ROUTING ALONE — ONE ANSWER FOR BOTH</text>
   <rect class="n" x="14" y="44" width="86" height="26" rx="3"/><text class="nt" x="57" y="62" text-anchor="middle">GUEST</text>
@@ -101,8 +96,8 @@ In every case the destination is identical and the decision is not about the des
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet arriving on an interface with a policy is checked against the route map before the routing table">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.bx{fill:#F1EEE9;stroke:#B5B5BC}.hot{fill:rgba(211,0,45,.14);stroke:#D3002D}</style>
+<svg class="sv2" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet arriving on an interface with a policy is checked against the route map before the routing table">
+  <style>.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .bx{fill:#F1EEE9;stroke:#B5B5BC}.sv2 .hot{fill:rgba(211,0,45,.14);stroke:#D3002D}</style>
   <defs><marker id="pm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <rect class="bx" x="20" y="60" width="96" height="32" rx="3"/><text class="m" x="68" y="80" text-anchor="middle">packet in</text>
   <line x1="120" y1="76" x2="146" y2="76" stroke="#8A8A93" stroke-width="1.5" marker-end="url(#pm)"/>
@@ -122,8 +117,8 @@ PBR is configured on the interface the packet <b>arrives on</b>. If you want to 
 <br><br>This is the first thing to check when a policy "is not working": <code>show ip policy</code> lists which interfaces have one, and half the time it is on the wrong side.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet matching a permit clause is sent to the policy next hop and the routing table is bypassed">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.bx{fill:#F1EEE9;stroke:#B5B5BC}.hot{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.dim{opacity:.35}</style>
+<svg class="sv3" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet matching a permit clause is sent to the policy next hop and the routing table is bypassed">
+  <style>.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .bx{fill:#F1EEE9;stroke:#B5B5BC}.sv3 .hot{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.sv3 .dim{opacity:.35}</style>
   <defs><marker id="pm2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1f9d6b"/></marker></defs>
   <rect class="bx" x="20" y="60" width="96" height="32" rx="3"/><text class="m" x="68" y="80" text-anchor="middle">10.1.9.50</text>
   <rect class="hot" x="150" y="60" width="150" height="32" rx="3"/><text class="m" x="225" y="80" text-anchor="middle" fill="#0f6b47">permit · match</text>
@@ -141,8 +136,8 @@ The packet is sent to the next hop the policy names, and the routing table is no
 <br><br><b>The counters are the proof.</b> <code>show route-map</code> shows a <code>Policy routing matches</code> count that increments per packet. If it is not moving, the packet is not matching, whatever the ACL looks like.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet that matches nothing falls through to the routing table and is forwarded normally">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.bx{fill:#F1EEE9;stroke:#B5B5BC}.hot{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv4" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet that matches nothing falls through to the routing table and is forwarded normally">
+  <style>.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .bx{fill:#F1EEE9;stroke:#B5B5BC}.sv4 .hot{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <defs><marker id="pm3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <rect class="bx" x="20" y="60" width="96" height="32" rx="3"/><text class="m" x="68" y="80" text-anchor="middle">10.1.5.20</text>
   <line x1="120" y1="76" x2="146" y2="76" stroke="#8A8A93" stroke-width="1.5" marker-end="url(#pm3)"/>
@@ -161,8 +156,8 @@ This is the behaviour that makes PBR safe to deploy. A policy that matches only 
 <br><br>It is also why a typo in your ACL produces <b>no visible error</b>. The traffic keeps working; it simply takes the normal path, and you conclude that PBR "is not doing anything" when in fact it is doing exactly what it was told.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 205" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet matching a deny clause is exempted from the policy and routed normally rather than dropped">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv5" viewBox="0 0 640 205" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet matching a deny clause is exempted from the policy and routed normally rather than dropped">
+  <style>.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <defs><marker id="pm4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <rect class="bx" x="20" y="60" width="96" height="32" rx="3"/><text class="m" x="68" y="80" text-anchor="middle">packet in</text>
   <line x1="120" y1="76" x2="146" y2="76" stroke="#8A8A93" stroke-width="1.5" marker-end="url(#pm4)"/>
@@ -182,8 +177,8 @@ This is the single most misread thing in the topic, and it is misread because th
 <br><br>Used deliberately it is excellent: a <code>deny</code> clause first, matching the traffic that must always route normally (management, monitoring, the address of the next hop itself), then a <code>permit</code> clause catching everything else. Used accidentally — by someone expecting ACL semantics — it silently does the opposite of what they intended.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="If the policy next hop becomes unreachable the matched traffic is black-holed unless availability verification is configured">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv6" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="If the policy next hop becomes unreachable the matched traffic is black-holed unless availability verification is configured">
+  <style>.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <rect class="bx" x="20" y="56" width="96" height="32" rx="3"/><text class="m" x="68" y="76" text-anchor="middle">10.1.9.50</text>
   <rect x="150" y="56" width="150" height="32" rx="3" fill="rgba(31,157,107,.16)" stroke="#1f9d6b"/><text class="m" x="225" y="76" text-anchor="middle" fill="#0f6b47">permit · match</text>
   <rect x="380" y="56" width="120" height="32" rx="3" fill="#FFF1F3" stroke="#D3002D"/><text class="m" x="440" y="76" text-anchor="middle" fill="#B80027">ISP-B down</text>

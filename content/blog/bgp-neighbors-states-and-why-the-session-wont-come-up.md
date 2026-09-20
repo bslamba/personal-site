@@ -60,8 +60,8 @@ Because it runs over TCP, BGP inherits TCP's properties for free: ordered delive
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the idle state the router has a neighbour statement but is doing nothing">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}.dim{opacity:.35}</style>
+<svg class="sv1" viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the idle state the router has a neighbour statement but is doing nothing">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}.sv1 .dim{opacity:.35}</style>
   <rect class="n" x="60" y="66" width="140" height="36" rx="3"/><text class="nt" x="130" y="89" text-anchor="middle">R1 · AS 65001</text>
   <rect class="n dim" x="440" y="66" width="140" height="36" rx="3"/><text class="nt dim" x="510" y="89" text-anchor="middle">R2 · AS 64500</text>
   <line x1="200" y1="84" x2="440" y2="84" stroke="#D9D9DE" stroke-width="2" stroke-dasharray="5 5"/>
@@ -74,8 +74,8 @@ A session in Idle is not trying. Either there is <b>no route to the peer address
 <br><br>The first check is always the boring one: can you ping the peer address <b>from the source address BGP will use?</b> Not from the router generally — from that specific source.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the connect state the router is waiting for its outbound TCP handshake to complete">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.b{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
+<svg class="sv2" viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the connect state the router is waiting for its outbound TCP handshake to complete">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.sv2 .b{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="60" y="66" width="140" height="36" rx="3"/><text class="nt" x="130" y="89" text-anchor="middle">R1 · AS 65001</text>
   <rect class="n" x="440" y="66" width="140" height="36" rx="3"/><text class="nt" x="510" y="89" text-anchor="middle">R2 · AS 64500</text>
   <path class="b" d="M 200 78 L 440 78"/>
@@ -89,8 +89,8 @@ BGP runs over <b>TCP port 179</b>, and this state is simply "I have sent a SYN a
 <br><br>If the handshake succeeds, BGP moves straight on and sends its OPEN. If the connect timer expires first, it drops to <b>Active</b> — which, despite the name, is the worse of the two.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the active state the TCP connection failed and the router is retrying">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}.b{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:6 4}</style>
+<svg class="sv3" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In the active state the TCP connection failed and the router is retrying">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}.sv3 .b{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:6 4}</style>
   <rect class="n" x="60" y="70" width="140" height="36" rx="3"/><text class="nt" x="130" y="93" text-anchor="middle">R1 · AS 65001</text>
   <rect class="n" x="440" y="70" width="140" height="36" rx="3"/><text class="nt" x="510" y="93" text-anchor="middle">R2 · AS 64500</text>
   <path class="b" d="M 200 82 L 440 82"/>
@@ -107,8 +107,8 @@ A session oscillating between <b>Active</b> and <b>Connect</b> is a session that
 <br><br>Work down the list in this order: is there a route to the peer address; does an ACL permit TCP 179 <b>in both directions</b>; is <code>update-source</code> set to the interface the far end expects; and does the far end have a <code>neighbor</code> statement for the address your packets will actually arrive from. That last one catches loopback peering constantly.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In OpenSent the router has sent its open message and is checking the one it receives">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}.b{stroke:#4b7bec;stroke-width:2.5;fill:none}</style>
+<svg class="sv4" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In OpenSent the router has sent its open message and is checking the one it receives">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}.sv4 .b{stroke:#4b7bec;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="60" y="70" width="140" height="36" rx="3"/><text class="nt" x="130" y="93" text-anchor="middle">R1 · AS 65001</text>
   <rect class="n" x="440" y="70" width="140" height="36" rx="3"/><text class="nt" x="510" y="93" text-anchor="middle">R2 · AS 64500</text>
   <path class="b" d="M 200 78 L 440 78"/>
@@ -125,8 +125,8 @@ Reaching this state proves the network path is fine, which is genuinely useful: 
 <br><br>By far the commonest cause is an AS-number mismatch — your <code>remote-as</code> does not match what the peer says it is. The router will send a <b>NOTIFICATION with code 2, subcode 2</b>, which reads "OPEN Message Error / Bad Peer AS", and you can see it in the capture below. Two identical BGP identifiers produce the same symptom with subcode 3.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In OpenConfirm the router is waiting for the keepalive that confirms the open was accepted">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.b{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
+<svg class="sv5" viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In OpenConfirm the router is waiting for the keepalive that confirms the open was accepted">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.sv5 .b{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="60" y="66" width="140" height="36" rx="3"/><text class="nt" x="130" y="89" text-anchor="middle">R1 · AS 65001</text>
   <rect class="n" x="440" y="66" width="140" height="36" rx="3"/><text class="nt" x="510" y="89" text-anchor="middle">R2 · AS 64500</text>
   <path class="b" d="M 440 84 L 200 84"/>
@@ -139,8 +139,8 @@ Reaching this state proves the network path is fine, which is genuinely useful: 
 Brief, and rarely seen. If a session lingers here or cycles through it repeatedly, suspect the <b>MD5 password</b>: a mismatch breaks the TCP session underneath rather than producing a clean BGP error, so the symptom is odd and intermittent rather than a clear rejection. The log line to look for is <code>%TCP-6-BADAUTH</code>.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In established the session is up and update messages carry prefixes">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.g{stroke:#1f9d6b;stroke-width:3;fill:none}</style>
+<svg class="sv6" viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="In established the session is up and update messages carry prefixes">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.sv6 .g{stroke:#1f9d6b;stroke-width:3;fill:none}</style>
   <rect class="n" x="60" y="70" width="140" height="36" rx="3" fill="#1f9d6b"/><text class="nt" x="130" y="93" text-anchor="middle">R1 · AS 65001</text>
   <rect class="n" x="440" y="70" width="140" height="36" rx="3" fill="#1f9d6b"/><text class="nt" x="510" y="93" text-anchor="middle">R2 · AS 64500</text>
   <path class="g" d="M 200 78 L 440 78"/>
@@ -160,15 +160,8 @@ The one detail worth burning in: in <code>show ip bgp summary</code> the State/P
 </div>
 
 <figure class="fig">
-<svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BGP finite state machine from Idle through to Established">
-  <style>
-    .b { fill:#fff; stroke:#232327; stroke-width:1.5 }
-    .bad { fill:#D3002D; stroke:#D3002D } .ok { fill:#1f9d6b; stroke:#1f9d6b }
-    .t { font-family:ui-sans-serif,system-ui; font-size:11.5px; font-weight:700; fill:#17171A }
-    .tw { font-family:ui-sans-serif,system-ui; font-size:11.5px; font-weight:700; fill:#fff }
-    .s { font-family:ui-sans-serif,system-ui; font-size:9.5px; fill:#5C5C64 }
-    .ar { stroke:#8A8A93; stroke-width:1.5; fill:none; marker-end:url(#h) }
-    .arb { stroke:#D3002D; stroke-width:1.5; fill:none; marker-end:url(#hr); stroke-dasharray:5 4 }
+<svg class="sv7" viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BGP finite state machine from Idle through to Established">
+  <style>.sv7 .b{ fill:#fff; stroke:#232327; stroke-width:1.5 }.sv7 .bad{ fill:#D3002D; stroke:#D3002D }.sv7 .ok{ fill:#1f9d6b; stroke:#1f9d6b }.sv7 .t{ font-family:ui-sans-serif,system-ui; font-size:11.5px; font-weight:700; fill:#17171A }.sv7 .tw{ font-family:ui-sans-serif,system-ui; font-size:11.5px; font-weight:700; fill:#fff }.sv7 .s{ font-family:ui-sans-serif,system-ui; font-size:9.5px; fill:#5C5C64 }.sv7 .ar{ stroke:#8A8A93; stroke-width:1.5; fill:none; marker-end:url(#h) }.sv7 .arb{ stroke:#D3002D; stroke-width:1.5; fill:none; marker-end:url(#hr); stroke-dasharray:5 4 }
   </style>
   <defs>
     <marker id="h" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker>

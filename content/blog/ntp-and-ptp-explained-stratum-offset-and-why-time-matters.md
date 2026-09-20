@@ -59,8 +59,8 @@ Four numbers, collected by one exchange, and every one of them matters.
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The client stamps the moment it sends — by its own, possibly wrong, clock.">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+<svg class="sv1" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The client stamps the moment it sends — by its own, possibly wrong, clock.">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
   <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
   <text class="lbl" x="14" y="26">CLIENT</text>
   <text class="lbl" x="560" y="26">SERVER</text>
@@ -82,8 +82,8 @@ Four numbers, collected by one exchange, and every one of them matters.
 This timestamp goes into the packet's Transmit field. It is measured by the clock the client is trying to correct, so it may be wildly wrong — and that is fine, because the arithmetic at the end only ever uses <b>differences</b>.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The server stamps arrival, by the good clock.">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+<svg class="sv2" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The server stamps arrival, by the good clock.">
+  <style>.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
   <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
   <text class="lbl" x="14" y="26">CLIENT</text>
   <text class="lbl" x="560" y="26">SERVER</text>
@@ -105,8 +105,8 @@ This timestamp goes into the packet's Transmit field. It is measured by the cloc
 Now there are two clocks in play. <b>T2 minus T1 contains both the network delay and the error between the clocks</b>, mixed together and impossible to separate from this one number. Separating them is what the other two timestamps are for.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The server stamps its reply. The gap T3 - T2 is time the server spent thinking.">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+<svg class="sv3" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The server stamps its reply. The gap T3 - T2 is time the server spent thinking.">
+  <style>.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
   <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
   <text class="lbl" x="14" y="26">CLIENT</text>
   <text class="lbl" x="560" y="26">SERVER</text>
@@ -128,8 +128,8 @@ Now there are two clocks in play. <b>T2 minus T1 contains both the network delay
 The server stamps the moment it transmits. The gap between T2 and T3 is the server's own processing time, and it is included in the packet <b>precisely so the client can subtract it</b>. Without T3, a slow or busy server would look like a distant one and the delay calculation would be wrong.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The client stamps arrival. This one is never in any packet.">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+<svg class="sv4" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The client stamps arrival. This one is never in any packet.">
+  <style>.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
   <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
   <text class="lbl" x="14" y="26">CLIENT</text>
   <text class="lbl" x="560" y="26">SERVER</text>
@@ -151,8 +151,8 @@ The server stamps the moment it transmits. The gap between T2 and T3 is the serv
 The client records this itself when the reply lands. <b>Only the client ever holds all four numbers</b>, which is why only the client can compute the answer — and why the server keeps no state about the client at all. That is what lets one NTP server handle enormous numbers of clients.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 248" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="offset = -0.20 ms  ·  delay = 25.20 ms">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+<svg class="sv5" viewBox="0 0 640 248" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="offset = -0.20 ms  ·  delay = 25.20 ms">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
   <defs><marker id="tm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b7bec"/></marker></defs>
   <text class="lbl" x="14" y="26">CLIENT</text>
   <text class="lbl" x="560" y="26">SERVER</text>

@@ -34,14 +34,8 @@ draft: false
 ## The engine, and it is simple
 
 <figure class="fig">
-<svg viewBox="0 0 640 245" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet is tested against each ACL line in order and the first match decides, with an implicit deny at the end">
-  <style>
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}
-    .no{fill:#F1EEE9;stroke:#B5B5BC}.hit{fill:rgba(31,157,107,.16);stroke:#1f9d6b}
-    .imp{fill:#FFF1F3;stroke:#D3002D}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}
+<svg class="sv1" viewBox="0 0 640 245" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet is tested against each ACL line in order and the first match decides, with an implicit deny at the end">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv1 .no{fill:#F1EEE9;stroke:#B5B5BC}.sv1 .hit{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.sv1 .imp{fill:#FFF1F3;stroke:#D3002D}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}
   </style>
   <text class="hdr" x="14" y="20">PACKET: 10.1.1.50 → 192.0.2.10 TCP 443</text>
   <rect class="no" x="14" y="30" width="612" height="28"/>
@@ -106,8 +100,8 @@ A wildcard's ignored bits do not have to be contiguous. <code>10.1.0.0 0.0.254.2
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The goal is to stop one subnet reaching one server while leaving its other traffic alone">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv2" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The goal is to stop one subnet reaching one server while leaving its other traffic alone">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect class="n" x="14" y="70" width="90" height="32" rx="3"/><text class="nt" x="59" y="91" text-anchor="middle">10.1.1.0/24</text>
   <rect class="n" x="180" y="70" width="56" height="32" rx="3"/><text class="nt" x="208" y="91" text-anchor="middle">R1</text>
   <rect class="n" x="330" y="70" width="56" height="32" rx="3"/><text class="nt" x="358" y="91" text-anchor="middle">R2</text>
@@ -124,8 +118,8 @@ A wildcard's ignored bits do not have to be contiguous. <code>10.1.0.0 0.0.254.2
 One source subnet, one destination server, block that combination and nothing else. Every placement decision below follows from a single question: <b>can the ACL type you chose actually see the destination?</b></p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A standard ACL placed near the source blocks the subnet from reaching everything">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.x{stroke:#D3002D;stroke-width:2.5}</style>
+<svg class="sv3" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A standard ACL placed near the source blocks the subnet from reaching everything">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}.sv3 .x{stroke:#D3002D;stroke-width:2.5}</style>
   <rect class="n" x="14" y="70" width="90" height="32" rx="3"/><text class="nt" x="59" y="91" text-anchor="middle">10.1.1.0/24</text>
   <rect class="n" x="180" y="70" width="56" height="32" rx="3" fill="#D3002D"/><text class="nt" x="208" y="91" text-anchor="middle">R1</text>
   <rect class="n" x="330" y="70" width="56" height="32" rx="3"/><text class="nt" x="358" y="91" text-anchor="middle">R2</text>
@@ -143,8 +137,8 @@ This is why the placement rule exists. A standard ACL can only test the source a
 <br><br>It looks correct in <code>show run</code>, the syntax is fine, and the helpdesk call is "the whole floor lost the network".</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A standard ACL placed near the destination blocks only the path to that server">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.ok{stroke:#1f9d6b;stroke-width:2.5}</style>
+<svg class="sv4" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A standard ACL placed near the destination blocks only the path to that server">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .ok{stroke:#1f9d6b;stroke-width:2.5}</style>
   <rect class="n" x="14" y="70" width="90" height="32" rx="3"/><text class="nt" x="59" y="91" text-anchor="middle">10.1.1.0/24</text>
   <rect class="n" x="180" y="70" width="56" height="32" rx="3"/><text class="nt" x="208" y="91" text-anchor="middle">R1</text>
   <rect class="n" x="330" y="70" width="56" height="32" rx="3" fill="#D3002D"/><text class="nt" x="358" y="91" text-anchor="middle">R2</text>
@@ -165,8 +159,8 @@ By putting the list on the last interface before Server A, the only traffic it c
 <br><br>That is the whole logic of "standard goes near the destination": you are using topology to supply the information the ACL cannot express.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An extended ACL near the source blocks precisely the one flow and saves carrying it across the network">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.ok{stroke:#1f9d6b;stroke-width:2.5}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
+<svg class="sv5" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An extended ACL near the source blocks precisely the one flow and saves carrying it across the network">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .l{stroke:#8A8A93;stroke-width:1.5}.sv5 .ok{stroke:#1f9d6b;stroke-width:2.5}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
   <rect class="n" x="14" y="70" width="90" height="32" rx="3"/><text class="nt" x="59" y="91" text-anchor="middle">10.1.1.0/24</text>
   <rect class="n" x="180" y="70" width="56" height="32" rx="3" fill="#1f9d6b"/><text class="nt" x="208" y="91" text-anchor="middle">R1</text>
   <rect class="n" x="330" y="70" width="56" height="32" rx="3"/><text class="nt" x="358" y="91" text-anchor="middle">R2</text>
@@ -186,8 +180,8 @@ An extended ACL can name both ends of the conversation, so there is no reason to
 <br><br>Applied <b><code>in</code></b> on the user-facing interface it is also <b>cheaper</b>: the router filters before doing a routing lookup at all.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An ACL applied in the wrong direction never sees the traffic it was written for">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}</style>
+<svg class="sv6" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An ACL applied in the wrong direction never sees the traffic it was written for">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}</style>
   <rect class="n" x="60" y="70" width="90" height="32" rx="3"/><text class="nt" x="105" y="91" text-anchor="middle">USERS</text>
   <rect class="n" x="280" y="62" width="80" height="48" rx="3"/><text class="nt" x="320" y="91" text-anchor="middle">R1</text>
   <rect class="n" x="490" y="70" width="90" height="32" rx="3"/><text class="nt" x="535" y="91" text-anchor="middle">SERVERS</text>

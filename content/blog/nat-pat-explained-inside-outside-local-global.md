@@ -41,15 +41,8 @@ There are only two questions:
 2. **Where are you standing when you look at it?** On the private side is **local**. On the public side is **global**.
 
 <figure class="fig">
-<svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The four NAT address terms shown as a grid across the NAT router">
-  <style>
-    .n{fill:#17171A}.nat{fill:#D3002D}
-    .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}
-    .div{stroke:#D3002D;stroke-width:1.5;stroke-dasharray:5 4}
-    .h{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:800;fill:#D3002D}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .a{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;fill:#17171A}
+<svg class="sv1" viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The four NAT address terms shown as a grid across the NAT router">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nat{fill:#D3002D}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .l{stroke:#8A8A93;stroke-width:1.5}.sv1 .div{stroke:#D3002D;stroke-width:1.5;stroke-dasharray:5 4}.sv1 .h{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:800;fill:#D3002D}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .a{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;fill:#17171A}
   </style>
   <text class="h" x="150" y="22" text-anchor="middle">INSIDE  (local view)</text>
   <text class="h" x="500" y="22" text-anchor="middle">OUTSIDE  (global view)</text>
@@ -203,8 +196,8 @@ NAT and routing do not happen in a fixed order. They happen in **opposite orders
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Going from inside to outside the packet is routed first and translated last so an inbound ACL sees the private address">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}</style>
+<svg class="sv2" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Going from inside to outside the packet is routed first and translated last so an inbound ACL sees the private address">
+  <style>.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}</style>
   <defs><marker id="nm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <text class="k" x="20" y="28" fill="#0f6b47">INSIDE &#8594; OUTSIDE — translate LAST</text>
   <rect x="20" y="56" width="96" height="28" rx="3" fill="#F1EEE9" stroke="#B5B5BC"/>
@@ -226,8 +219,8 @@ NAT and routing do not happen in a fixed order. They happen in **opposite orders
 The router decides where the packet is going <b>before</b> it rewrites the source. So anything you attach to the inside interface — an ACL, a policy route, a class-map — sees the <b>original private address</b>.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coming from outside to inside the packet is translated first and routed afterwards so an inbound ACL sees the public address">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}</style>
+<svg class="sv3" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coming from outside to inside the packet is translated first and routed afterwards so an inbound ACL sees the public address">
+  <style>.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}</style>
   <defs><marker id="nm" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <text class="k" x="20" y="28" fill="#B80027">OUTSIDE &#8594; INSIDE — translate FIRST</text>
   <rect x="20" y="56" width="96" height="28" rx="3" fill="#F1EEE9" stroke="#B5B5BC"/>
@@ -249,8 +242,8 @@ The router decides where the packet is going <b>before</b> it rewrites the sourc
 Coming the other way the router must undo the translation before it can know which internal host to route to. The inbound ACL still runs first, so it sees the <b>public</b> address — the one the outside world used.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The same ACL written against the wrong address in each direction never matches">
-  <style>.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}.no{fill:#FFF1F3;stroke:#D3002D}</style>
+<svg class="sv4" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The same ACL written against the wrong address in each direction never matches">
+  <style>.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}.sv4 .no{fill:#FFF1F3;stroke:#D3002D}</style>
   <text class="k" x="20" y="26">THE SAME SESSION, TWO DIRECTIONS, TWO DIFFERENT ADDRESSES</text>
   <rect class="ok" x="20" y="42" width="286" height="54"/>
   <text class="s" x="32" y="62" font-weight="700" fill="#0f6b47">on the INSIDE interface, in</text>
@@ -271,14 +264,8 @@ This is the practical payoff of the inside-local / inside-global vocabulary. An 
 
 
 <figure class="fig">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NAT order of operations differs by direction">
-  <style>
-    .b{fill:#fff;stroke:#232327;stroke-width:1.4}
-    .bn{fill:#D3002D;stroke:#D3002D}
-    .t{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#17171A}
-    .tw{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#fff}
-    .h{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:800}
-    .ar{stroke:#8A8A93;stroke-width:1.5;marker-end:url(#m)}
+<svg class="sv5" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NAT order of operations differs by direction">
+  <style>.sv5 .b{fill:#fff;stroke:#232327;stroke-width:1.4}.sv5 .bn{fill:#D3002D;stroke:#D3002D}.sv5 .t{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#17171A}.sv5 .tw{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#fff}.sv5 .h{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:800}.sv5 .ar{stroke:#8A8A93;stroke-width:1.5;marker-end:url(#m)}
   </style>
   <defs><marker id="m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <text class="h" x="20" y="28" fill="#1f9d6b">INSIDE → OUTSIDE</text>

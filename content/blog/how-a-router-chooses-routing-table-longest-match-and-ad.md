@@ -43,14 +43,8 @@ draft: false
 A router answers two completely separate questions, at two different times, using two different mechanisms. Conflating them is the single biggest source of confusion in this topic.
 
 <figure class="fig">
-<svg viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The control plane uses metric and administrative distance to decide what goes in the routing table, and the data plane uses longest prefix match to forward each packet">
-  <style>
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
-    .cp{fill:rgba(75,123,236,.08);stroke:#4b7bec}.dp{fill:rgba(31,157,107,.08);stroke:#1f9d6b}
-    .bx{fill:#F1EEE9;stroke:#B5B5BC}
+<svg class="sv1" viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The control plane uses metric and administrative distance to decide what goes in the routing table, and the data plane uses longest prefix match to forward each packet">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}.sv1 .cp{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv1 .dp{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv1 .bx{fill:#F1EEE9;stroke:#B5B5BC}
   </style>
   <rect class="cp" x="14" y="30" width="290" height="180" stroke-dasharray="4 3"/>
   <text class="hdr" x="26" y="50" fill="#2b5ab8">CONTROL PLANE — occasionally</text>
@@ -98,8 +92,8 @@ A router answers two completely separate questions, at two different times, usin
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three routing protocols each offer routes for the same destination">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.bx{fill:#F1EEE9;stroke:#B5B5BC}.hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
+<svg class="sv2" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three routing protocols each offer routes for the same destination">
+  <style>.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv2 .bx{fill:#F1EEE9;stroke:#B5B5BC}.sv2 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
   <text class="hdr" x="14" y="22" fill="#8A8A93">WHAT EACH PROTOCOL IS OFFERING</text>
   <rect class="bx" x="14" y="34" width="290" height="56"/>
   <text class="k" x="26" y="54" fill="#2b5ab8">OSPF</text>
@@ -120,8 +114,8 @@ Each routing protocol maintains its own database and its own idea of the best pa
 <br><br>Note that the static route is for a <b>different prefix</b>: <code>/25</code>, not <code>/24</code>. That will matter enormously in step 5 and not at all in step 3.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Each protocol uses its own metric to reduce its offering to a single best path">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}.no{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv3" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Each protocol uses its own metric to reduce its offering to a single best path">
+  <style>.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv3 .ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}.sv3 .no{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <text class="k" x="14" y="28" fill="#2b5ab8">STEP 1 — METRIC, inside each protocol only</text>
   <rect class="ok" x="14" y="42" width="290" height="34"/>
   <text class="m" x="26" y="64" fill="#0f6b47">OSPF: via A cost 30  ✓ kept</text>
@@ -136,8 +130,8 @@ This happens entirely <b>inside</b> each protocol, using a metric that is meanin
 <br><br>If a protocol has several equal-cost paths it submits all of them, and they are installed together for <b>equal-cost load balancing</b>.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Administrative distance decides between protocols offering the same prefix and mask">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}.no{fill:#FFF1F3;stroke:#D3002D}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Administrative distance decides between protocols offering the same prefix and mask">
+  <style>.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv4 .ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}.sv4 .no{fill:#FFF1F3;stroke:#D3002D}</style>
   <text class="k" x="14" y="28" fill="#2b5ab8">STEP 2 — ADMINISTRATIVE DISTANCE, same prefix only</text>
   <rect class="ok" x="14" y="42" width="290" height="40"/>
   <text class="m" x="26" y="60" fill="#0f6b47">EIGRP  10.1.1.0/24  AD 90</text>
@@ -155,8 +149,8 @@ Two protocols both offering <b>10.1.1.0/24</b>. The router cannot compare their 
 <br><br><b>The losing route is not discarded.</b> It sits in OSPF's database, and if the EIGRP route is withdrawn it is installed within milliseconds. That is the mechanism behind a <b>floating static route</b> — a static with its AD deliberately raised above a protocol's, so it waits in the wings.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The routing table now holds routes of different prefix lengths from different sources">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
+<svg class="sv5" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The routing table now holds routes of different prefix lengths from different sources">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv5 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
   <rect x="14" y="30" width="612" height="104" fill="#fff" stroke="#4b7bec"/>
   <text class="hdr" x="26" y="50" fill="#2b5ab8">THE RIB — WHAT SHOW IP ROUTE PRINTS</text>
   <text class="m" x="26" y="74">D    10.1.1.0/24   [90/3072]  via 10.0.0.3</text>
@@ -170,8 +164,8 @@ Two protocols both offering <b>10.1.1.0/24</b>. The router cannot compare their 
 <br><br>CEF then compiles this into the <b>FIB</b>, a structure optimised for one operation and one only: find the longest matching prefix, fast, in hardware. <code>show ip cef</code> shows it, and on a healthy router it agrees with the RIB.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet is forwarded using the longest matching prefix regardless of which protocol supplied it">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.ok{fill:rgba(31,157,107,.14);stroke:#1f9d6b}.no{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv6" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A packet is forwarded using the longest matching prefix regardless of which protocol supplied it">
+  <style>.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv6 .ok{fill:rgba(31,157,107,.14);stroke:#1f9d6b}.sv6 .no{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <text class="k" x="14" y="26">packet for <tspan font-family="ui-monospace,Menlo,monospace">10.1.1.200</tspan> — which entry wins?</text>
   <rect class="no" x="14" y="38" width="612" height="30" opacity=".5"/>
   <text class="m" x="26" y="58" opacity=".55">D    10.1.1.0/24     matches — 24 bits     AD 90</text>

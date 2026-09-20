@@ -39,14 +39,8 @@ Three switches, cabled in a triangle for redundancy. That is good design — any
 A switch floods a broadcast out of every port except the one it arrived on. So SW1 floods to SW2 and SW3. SW2 floods what it received to SW3. SW3 floods what it received to SW2. Those copies arrive and get flooded again.
 
 <figure class="fig">
-<svg viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three switches in a triangle with a broadcast frame multiplying around the loop">
-  <style>
-    .sw { fill:#17171A }
-    .swt { fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:13px; font-weight:700 }
-    .lk { stroke:#8A8A93; stroke-width:2 }
-    .fr { fill:#D3002D }
-    .lbl { fill:#5C5C64; font-family:ui-sans-serif,system-ui; font-size:11px }
-    .big { fill:#D3002D; font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700 }
+<svg class="sv1" viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three switches in a triangle with a broadcast frame multiplying around the loop">
+  <style>.sv1 .sw{ fill:#17171A }.sv1 .swt{ fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:13px; font-weight:700 }.sv1 .lk{ stroke:#8A8A93; stroke-width:2 }.sv1 .fr{ fill:#D3002D }.sv1 .lbl{ fill:#5C5C64; font-family:ui-sans-serif,system-ui; font-size:11px }.sv1 .big{ fill:#D3002D; font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700 }
   </style>
   <line class="lk" x1="320" y1="62" x2="150" y2="190"/>
   <line class="lk" x1="320" y1="62" x2="490" y2="190"/>
@@ -88,15 +82,8 @@ An IPv4 header has a TTL field: every router decrements it and a packet that loo
 The switched network is a graph. Spanning tree reduces that graph to a **tree** — a shape with no cycles by definition — while keeping every switch connected. The blocked links are not wasted: they are standing by, and when an active link fails, spanning tree recalculates and brings one of them up.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The same triangle with one port blocked, leaving a loop-free tree">
-  <style>
-    .sw { fill:#17171A } .rootsw { fill:#D3002D }
-    .swt { fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:13px; font-weight:700 }
-    .lk { stroke:#1f9d6b; stroke-width:3 }
-    .blk { stroke:#B5B5BC; stroke-width:2; stroke-dasharray:6 5 }
-    .pt { fill:#232327; font-family:ui-sans-serif,system-ui; font-size:10px; font-weight:700 }
-    .lbl { fill:#5C5C64; font-family:ui-sans-serif,system-ui; font-size:11px }
-    .x { fill:#D3002D; font-family:ui-sans-serif,system-ui; font-size:15px; font-weight:800 }
+<svg class="sv2" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The same triangle with one port blocked, leaving a loop-free tree">
+  <style>.sv2 .sw{ fill:#17171A }.sv2 .rootsw{ fill:#D3002D }.sv2 .swt{ fill:#FAF8F5; font-family:ui-sans-serif,system-ui; font-size:13px; font-weight:700 }.sv2 .lk{ stroke:#1f9d6b; stroke-width:3 }.sv2 .blk{ stroke:#B5B5BC; stroke-width:2; stroke-dasharray:6 5 }.sv2 .pt{ fill:#232327; font-family:ui-sans-serif,system-ui; font-size:10px; font-weight:700 }.sv2 .lbl{ fill:#5C5C64; font-family:ui-sans-serif,system-ui; font-size:11px }.sv2 .x{ fill:#D3002D; font-family:ui-sans-serif,system-ui; font-size:15px; font-weight:800 }
   </style>
   <line class="lk" x1="320" y1="62" x2="150" y2="180"/>
   <line class="lk" x1="320" y1="62" x2="490" y2="180"/>
@@ -209,8 +196,8 @@ Everything spanning tree does reduces to three decisions, made in this order. Ge
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Every switch boots claiming to be the root bridge and announces it in its own BPDUs">
-  <style>.sw{fill:#17171A}.swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.lk{stroke:#8A8A93;stroke-width:2}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.claim{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#B26014}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
+<svg class="sv3" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Every switch boots claiming to be the root bridge and announces it in its own BPDUs">
+  <style>.sv3 .sw{fill:#17171A}.sv3 .swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv3 .lk{stroke:#8A8A93;stroke-width:2}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .claim{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#B26014}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
   <line class="lk" x1="320" y1="72" x2="160" y2="180"/>
   <line class="lk" x1="320" y1="72" x2="480" y2="180"/>
   <line class="lk" x1="160" y1="190" x2="480" y2="190"/>
@@ -231,8 +218,8 @@ A switch that has just booted has heard nothing, so it believes it is the root a
 <br><br>Nothing is configured here yet except SW1's priority, which somebody set to 24576 deliberately. That single decision is about to settle the whole topology.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The switch with the lowest bridge ID becomes root and the others relay its BPDUs">
-  <style>.sw{fill:#17171A}.root{fill:#D3002D}.swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.lk{stroke:#8A8A93;stroke-width:2}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
+<svg class="sv4" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The switch with the lowest bridge ID becomes root and the others relay its BPDUs">
+  <style>.sv4 .sw{fill:#17171A}.sv4 .root{fill:#D3002D}.sv4 .swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv4 .lk{stroke:#8A8A93;stroke-width:2}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
   <line class="lk" x1="320" y1="72" x2="160" y2="180"/>
   <line class="lk" x1="320" y1="72" x2="480" y2="180"/>
   <line class="lk" x1="160" y1="190" x2="480" y2="190"/>
@@ -253,8 +240,8 @@ Lowest Bridge ID wins: priority first, MAC address only as a tie-break. SW1 wins
 <br><br>Leave the priorities at default and the winner is whichever switch has the lowest MAC, which usually means <b>the oldest</b>. That is the argument for setting it by hand.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Each non root switch picks its single lowest cost port back to the root as its root port">
-  <style>.sw{fill:#17171A}.root{fill:#D3002D}.swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.lk{stroke:#8A8A93;stroke-width:2}.rp{stroke:#1f9d6b;stroke-width:3.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.tag{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#0f6b47}</style>
+<svg class="sv5" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Each non root switch picks its single lowest cost port back to the root as its root port">
+  <style>.sv5 .sw{fill:#17171A}.sv5 .root{fill:#D3002D}.sv5 .swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv5 .lk{stroke:#8A8A93;stroke-width:2}.sv5 .rp{stroke:#1f9d6b;stroke-width:3.5}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.sv5 .tag{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#0f6b47}</style>
   <line class="rp" x1="320" y1="72" x2="160" y2="180"/>
   <line class="rp" x1="320" y1="72" x2="480" y2="180"/>
   <line class="lk" x1="160" y1="190" x2="480" y2="190"/>
@@ -274,8 +261,8 @@ Every non-root switch picks the <b>single</b> port with the lowest accumulated c
 <br><br>Cost accumulates on <b>ingress</b>: a switch adds the cost of the port the BPDU arrived on to the Root Path Cost already in it. That is why a slow link anywhere on a path penalises everything behind it, and why <code>spanning-tree cost</code> on one interface is such a precise tool for steering the topology.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="On the segment between the two non root switches one port is elected designated and is allowed to forward">
-  <style>.sw{fill:#17171A}.root{fill:#D3002D}.swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.lk{stroke:#8A8A93;stroke-width:2}.rp{stroke:#1f9d6b;stroke-width:3.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+<svg class="sv6" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="On the segment between the two non root switches one port is elected designated and is allowed to forward">
+  <style>.sv6 .sw{fill:#17171A}.sv6 .root{fill:#D3002D}.sv6 .swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv6 .lk{stroke:#8A8A93;stroke-width:2}.sv6 .rp{stroke:#1f9d6b;stroke-width:3.5}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
   <line class="rp" x1="320" y1="72" x2="160" y2="180"/>
   <line class="rp" x1="320" y1="72" x2="480" y2="180"/>
   <line class="lk" x1="160" y1="190" x2="480" y2="190" stroke="#4b7bec" stroke-width="3"/>
@@ -295,8 +282,8 @@ Every link in the network needs exactly one port allowed to forward onto it. The
 <br><br>The root bridge is a special case worth remembering: <b>every port on the root is designated</b>, because its cost to the root is zero and nothing can beat that. That is a quick sanity check — if a port on the switch you believe is root shows as anything other than <code>Desg</code>, it is not the root.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The one remaining port blocks leaving a loop free tree with traffic flowing">
-  <style>.sw{fill:#17171A}.root{fill:#D3002D}.swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.rp{stroke:#1f9d6b;stroke-width:3.5}.blk{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:6 5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
+<svg class="sv7" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The one remaining port blocks leaving a loop free tree with traffic flowing">
+  <style>.sv7 .sw{fill:#17171A}.sv7 .root{fill:#D3002D}.sv7 .swt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv7 .rp{stroke:#1f9d6b;stroke-width:3.5}.sv7 .blk{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:6 5}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
   <line class="rp" x1="320" y1="72" x2="160" y2="180"/>
   <line class="rp" x1="320" y1="72" x2="480" y2="180"/>
   <line class="blk" x1="160" y1="190" x2="480" y2="190"/>
@@ -369,15 +356,8 @@ Change one variable — make SW3's direct link 100 Mb — and SW3's cost via SW2
 Classic 802.1D moves a port through states on timers:
 
 <figure class="fig">
-<svg viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STP port state progression from blocking to forwarding">
-  <style>
-    .bx { fill:#fff; stroke:#232327; stroke-width:1.5 }
-    .bxf { fill:#1f9d6b; stroke:#1f9d6b }
-    .bxb { fill:#D3002D; stroke:#D3002D }
-    .t { font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700; fill:#17171A }
-    .tw { font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700; fill:#fff }
-    .s { font-family:ui-sans-serif,system-ui; font-size:10px; fill:#5C5C64 }
-    .ar { stroke:#8A8A93; stroke-width:1.5; marker-end:url(#a) }
+<svg class="sv8" viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="STP port state progression from blocking to forwarding">
+  <style>.sv8 .bx{ fill:#fff; stroke:#232327; stroke-width:1.5 }.sv8 .bxf{ fill:#1f9d6b; stroke:#1f9d6b }.sv8 .bxb{ fill:#D3002D; stroke:#D3002D }.sv8 .t{ font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700; fill:#17171A }.sv8 .tw{ font-family:ui-sans-serif,system-ui; font-size:12px; font-weight:700; fill:#fff }.sv8 .s{ font-family:ui-sans-serif,system-ui; font-size:10px; fill:#5C5C64 }.sv8 .ar{ stroke:#8A8A93; stroke-width:1.5; marker-end:url(#a) }
   </style>
   <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A8A93"/></marker></defs>
   <rect class="bx bxb" x="14" y="40" width="108" height="38" rx="3"/>

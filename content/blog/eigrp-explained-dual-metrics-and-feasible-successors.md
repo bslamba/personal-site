@@ -70,8 +70,8 @@ Everything EIGRP does quickly, it does because it worked out the answer **before
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A router has two paths to the same destination with different reported and feasible distances">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv1" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A router has two paths to the same destination with different reported and feasible distances">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv1 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect class="n" x="20" y="80" width="66" height="32" rx="3"/><text class="nt" x="53" y="101" text-anchor="middle">R1</text>
   <rect class="n" x="250" y="34" width="66" height="32" rx="3"/><text class="nt" x="283" y="55" text-anchor="middle">R2</text>
   <rect class="n" x="250" y="126" width="66" height="32" rx="3"/><text class="nt" x="283" y="147" text-anchor="middle">R3</text>
@@ -91,8 +91,8 @@ Everything EIGRP does quickly, it does because it worked out the answer **before
 <br><br>The second path is only useful if R1 can be certain it does not loop back through R1 itself. Working that out without asking anybody is the whole trick.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The feasibility condition compares the neighbour reported distance against the current best feasible distance">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#17171A}.ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}</style>
+<svg class="sv2" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The feasibility condition compares the neighbour reported distance against the current best feasible distance">
+  <style>.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#17171A}.sv2 .ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}</style>
   <rect class="ok" x="70" y="34" width="500" height="54"/>
   <text class="m" x="320" y="68" text-anchor="middle" fill="#0f6b47">RD of the alternative  &lt;  FD of the current best</text>
   <text class="k" x="320" y="112" text-anchor="middle">2560 &lt; 3072 — true, so R3 is a feasible successor</text>
@@ -106,8 +106,8 @@ A neighbour is a <b>feasible successor</b> if its reported distance is strictly 
 <br><br>It is <b>conservative</b>. Some perfectly good loop-free paths fail the test and are not kept, which is the price of never having to check.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="When the successor fails the feasible successor is promoted immediately with no queries">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv3" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="When the successor fails the feasible successor is promoted immediately with no queries">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect class="n" x="20" y="80" width="66" height="32" rx="3"/><text class="nt" x="53" y="101" text-anchor="middle">R1</text>
   <rect class="n" x="250" y="34" width="66" height="32" rx="3" opacity=".4"/><text class="nt" x="283" y="55" text-anchor="middle">R2</text>
   <rect class="n" x="250" y="126" width="66" height="32" rx="3"/><text class="nt" x="283" y="147" text-anchor="middle">R3</text>
@@ -126,8 +126,8 @@ The successor dies and the feasible successor is promoted <b>immediately</b> —
 <br><br>This is what people mean when they say EIGRP converges in milliseconds. It is not that EIGRP computes quickly; it is that <b>the computation already happened</b>, minutes ago, and the answer was sitting in the topology table waiting.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With no feasible successor the router goes active and floods queries to every neighbour">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.q{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With no feasible successor the router goes active and floods queries to every neighbour">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .q{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="270" y="82" width="80" height="34" rx="3" fill="#F2994A"/><text class="nt" x="310" y="104" text-anchor="middle">R1 ACTIVE</text>
   <rect class="n" x="40" y="26" width="66" height="28" rx="3"/><text class="nt" x="73" y="45" text-anchor="middle">R4</text>
   <rect class="n" x="40" y="146" width="66" height="28" rx="3"/><text class="nt" x="73" y="165" text-anchor="middle">R5</text>
@@ -145,8 +145,8 @@ With no pre-proven backup, EIGRP cannot invent one safely. The route goes <b>Act
 <br><br>The router cannot install anything until <b>every query is answered</b>. That is the fundamental cost of DUAL: convergence is fast when the answer was precomputed and bounded by the slowest router in the query radius when it was not.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="If a query is not answered within three minutes the route goes stuck in active">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.bad{fill:#FFF1F3;stroke:#D3002D}</style>
+<svg class="sv5" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="If a query is not answered within three minutes the route goes stuck in active">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv5 .bad{fill:#FFF1F3;stroke:#D3002D}</style>
   <rect class="bad" x="40" y="30" width="560" height="60"/>
   <text class="k" x="320" y="56" text-anchor="middle" fill="#B80027">One unanswered query holds the whole route Active</text>
   <text class="s" x="320" y="78" text-anchor="middle">A router three hops away that is busy, or on a flapping link, or simply gone — and R1 waits.</text>

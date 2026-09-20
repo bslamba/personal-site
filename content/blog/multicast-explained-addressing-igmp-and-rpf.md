@@ -40,17 +40,8 @@ Broadcast is worse in a different way — it reaches machines that did not ask, 
 Multicast is the third option: **one sender, one copy per link, replicated only where the paths diverge.**
 
 <figure class="fig">
-<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Unicast sends one copy per receiver across the shared link; multicast sends one copy and replicates it at the router">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5;fill:none}
-    .hot{stroke:#D3002D;stroke-width:3;fill:none}
-    .ok{stroke:#1f9d6b;stroke-width:3;fill:none}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .bad{fill:#D3002D}.good{fill:#0f6b47}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93;letter-spacing:.08em}
-    .p{fill:#D3002D}.pg{fill:#1f9d6b}
+<svg class="sv1" viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Unicast sends one copy per receiver across the shared link; multicast sends one copy and replicates it at the router">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .l{stroke:#8A8A93;stroke-width:1.5;fill:none}.sv1 .hot{stroke:#D3002D;stroke-width:3;fill:none}.sv1 .ok{stroke:#1f9d6b;stroke-width:3;fill:none}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .bad{fill:#D3002D}.sv1 .good{fill:#0f6b47}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93;letter-spacing:.08em}.sv1 .p{fill:#D3002D}.sv1 .pg{fill:#1f9d6b}
   </style>
   <text class="hdr" x="14" y="16">UNICAST — ONE COPY PER RECEIVER</text>
   <rect class="n" x="14" y="60" width="72" height="32" rx="3"/><text class="nt" x="50" y="81" text-anchor="middle">SERVER</text>
@@ -119,12 +110,8 @@ An Ethernet frame needs a destination MAC. A multicast group maps to one by a fi
 The group address has 28 usable bits. Only 23 survive. **Five bits are thrown away, so 32 different groups land on the same MAC address.**
 
 <figure class="fig">
-<svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Of the 32 bits of a multicast group address, four are the fixed 224/4 prefix, five are discarded, and only the low 23 bits are copied into the destination MAC address">
-  <style>
-    .lbl{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;fill:#17171A;letter-spacing:.5px}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.07em}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
+<svg class="sv2" viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Of the 32 bits of a multicast group address, four are the fixed 224/4 prefix, five are discarded, and only the low 23 bits are copied into the destination MAC address">
+  <style>.sv2 .lbl{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;fill:#17171A;letter-spacing:.5px}.sv2 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.07em}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
   </style>
   <text class="hdr" x="14" y="18">GROUP  239.1.1.1  — 32 BITS</text>
   <rect x="10" y="30" width="44" height="22" fill="#ECECEF" stroke="#B5B5BC"/>
@@ -179,12 +166,8 @@ Step through the whole lifecycle — a host joining, the stream arriving, the pe
 <div class="walk-panels">
 
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Before any host joins, the router forwards nothing onto the segment">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}
-    .dim{opacity:.35}
+<svg class="sv3" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Before any host joins, the router forwards nothing onto the segment">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}.sv3 .dim{opacity:.35}
   </style>
   <rect class="n dim" x="14" y="76" width="82" height="32" rx="3"/><text class="nt dim" x="55" y="97" text-anchor="middle">SOURCE</text>
   <text class="s dim" x="55" y="124" text-anchor="middle">10.10.10.10</text>
@@ -204,12 +187,8 @@ This is the state multicast starts in and the one people forget. A perfectly hea
 </div>
 
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The PC sends an unsolicited IGMPv2 membership report to the group address">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .blue{stroke:#4b7bec;stroke-width:2.5;fill:none}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}
+<svg class="sv4" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The PC sends an unsolicited IGMPv2 membership report to the group address">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .blue{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}
   </style>
   <rect class="n" x="14" y="76" width="82" height="32" rx="3" opacity=".35"/><text class="nt" x="55" y="97" text-anchor="middle" opacity=".35">SOURCE</text>
   <line class="l" x1="96" y1="92" x2="240" y2="92" opacity=".35"/>
@@ -233,12 +212,8 @@ IGMPv2    type <b>0x16</b> (Membership Report)  max-resp 0  group 239.1.1.1</div
 </div>
 
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The multicast stream now flows from the source through the router to the PC">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .ok{stroke:#1f9d6b;stroke-width:3;fill:none}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}
+<svg class="sv5" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The multicast stream now flows from the source through the router to the PC">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .l{stroke:#8A8A93;stroke-width:1.5}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .ok{stroke:#1f9d6b;stroke-width:3;fill:none}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}
   </style>
   <rect class="n" x="14" y="76" width="82" height="32" rx="3"/><text class="nt" x="55" y="97" text-anchor="middle">SOURCE</text>
   <line class="ok" x1="96" y1="92" x2="240" y2="92"/>
@@ -258,12 +233,8 @@ The data itself is plain UDP to the group address. Nothing about it is negotiate
 </div>
 
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The router sends a periodic general query to 224.0.0.1 and the host answers">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .q{stroke:#F2994A;stroke-width:2.5;fill:none}.blue{stroke:#4b7bec;stroke-width:2.5;fill:none}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}
+<svg class="sv6" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The router sends a periodic general query to 224.0.0.1 and the host answers">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .l{stroke:#8A8A93;stroke-width:1.5}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .q{stroke:#F2994A;stroke-width:2.5;fill:none}.sv6 .blue{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}
   </style>
   <rect class="n" x="240" y="76" width="70" height="32" rx="3"/><text class="nt" x="275" y="97" text-anchor="middle">R1</text>
   <text class="s" x="275" y="124" text-anchor="middle">querier</text>
@@ -286,13 +257,8 @@ IGMPv2    type <b>0x11</b> (Membership Query)  max-resp <b>100</b> = 10.0 s  gro
 </div>
 
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One host reports and the other hosts hear it and stay silent">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .blue{stroke:#4b7bec;stroke-width:2.5;fill:none}
-    .mute{stroke:#B5B5BC;stroke-width:1.5;stroke-dasharray:4 4;fill:none}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}
+<svg class="sv7" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One host reports and the other hosts hear it and stay silent">
+  <style>.sv7 .n{fill:#17171A}.sv7 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .l{stroke:#8A8A93;stroke-width:1.5}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv7 .blue{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv7 .mute{stroke:#B5B5BC;stroke-width:1.5;stroke-dasharray:4 4;fill:none}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}
   </style>
   <rect class="n" x="210" y="76" width="70" height="32" rx="3"/><text class="nt" x="245" y="97" text-anchor="middle">R1</text>
   <line class="l" x1="280" y1="92" x2="360" y2="92"/>
@@ -316,12 +282,8 @@ Because reports are addressed to the group, every member hears every other membe
 </div>
 
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host sends a leave to 224.0.0.2 and the router replies with a group specific query before removing the state">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .red{stroke:#D3002D;stroke-width:2.5;fill:none}.q{stroke:#F2994A;stroke-width:2.5;fill:none}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}
+<svg class="sv8" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host sends a leave to 224.0.0.2 and the router replies with a group specific query before removing the state">
+  <style>.sv8 .n{fill:#17171A}.sv8 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv8 .l{stroke:#8A8A93;stroke-width:1.5}.sv8 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv8 .red{stroke:#D3002D;stroke-width:2.5;fill:none}.sv8 .q{stroke:#F2994A;stroke-width:2.5;fill:none}.sv8 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}
   </style>
   <rect class="n" x="240" y="86" width="70" height="32" rx="3"/><text class="nt" x="275" y="107" text-anchor="middle">R1</text>
   <line class="l" x1="310" y1="102" x2="420" y2="102"/>
@@ -432,13 +394,8 @@ A switch does not run IGMP. To a switch, a multicast frame is a frame with a gro
 IGMP snooping (RFC 4541) fixes it: the switch listens to the IGMP conversation it is forwarding, notes which port each report came from, and builds a Layer 2 forwarding entry for the group MAC containing only those ports.
 
 <figure class="fig">
-<svg viewBox="0 0 640 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Without snooping the switch floods multicast to all ports, with snooping it forwards only to ports that sent reports">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}
-    .bad{stroke:#D3002D;stroke-width:2.5}.ok{stroke:#1f9d6b;stroke-width:2.5}
-    .mute{stroke:#D9D9DE;stroke-width:1.5}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
+<svg class="sv9" viewBox="0 0 640 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Without snooping the switch floods multicast to all ports, with snooping it forwards only to ports that sent reports">
+  <style>.sv9 .n{fill:#17171A}.sv9 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv9 .l{stroke:#8A8A93;stroke-width:1.5}.sv9 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv9 .bad{stroke:#D3002D;stroke-width:2.5}.sv9 .ok{stroke:#1f9d6b;stroke-width:2.5}.sv9 .mute{stroke:#D9D9DE;stroke-width:1.5}.sv9 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
   </style>
   <text class="hdr" x="14" y="16" fill="#D3002D">NO SNOOPING — FLOODED</text>
   <rect class="n" x="24" y="46" width="56" height="30" rx="3"/><text class="nt" x="52" y="66" text-anchor="middle">SW</text>
@@ -490,12 +447,8 @@ So multicast forwarding uses a completely different test. The router ignores the
 That is **Reverse Path Forwarding**. Look up the *source* address in the unicast routing table, take the outgoing interface, and compare it with the interface the packet actually came in on. Same interface — accept and forward. Different — **drop, silently**.
 
 <figure class="fig">
-<svg viewBox="0 0 640 236" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two identical multicast packets reach R4 by different paths; the one arriving on the interface that points back at the source is forwarded, the other is dropped by the RPF check">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .ok{stroke:#1f9d6b;stroke-width:2.5;fill:none}.bad{stroke:#D3002D;stroke-width:2.5;fill:none}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
+<svg class="sv10" viewBox="0 0 640 236" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two identical multicast packets reach R4 by different paths; the one arriving on the interface that points back at the source is forwarded, the other is dropped by the RPF check">
+  <style>.sv10 .n{fill:#17171A}.sv10 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv10 .ok{stroke:#1f9d6b;stroke-width:2.5;fill:none}.sv10 .bad{stroke:#D3002D;stroke-width:2.5;fill:none}.sv10 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv10 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
   </style>
   <rect class="n" x="14" y="98" width="86" height="32" rx="3"/><text class="nt" x="57" y="119" text-anchor="middle">SOURCE</text>
   <text class="s" x="57" y="146" text-anchor="middle">10.10.10.10</text>

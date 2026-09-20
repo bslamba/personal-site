@@ -31,14 +31,8 @@ draft: false
 Two switches, three VLANs. Without trunking you need three cables — one per VLAN, each a plain access port at both ends. Six VLANs, six cables. Any new VLAN means physically patching another link.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Without trunking each VLAN needs its own cable between switches; with trunking one tagged link carries all of them">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .v10{stroke:#4b7bec;stroke-width:2.5}.v20{stroke:#1f9d6b;stroke-width:2.5}.v30{stroke:#F2994A;stroke-width:2.5}
-    .tr{stroke:#17171A;stroke-width:4}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
+<svg class="sv1" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Without trunking each VLAN needs its own cable between switches; with trunking one tagged link carries all of them">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .v10{stroke:#4b7bec;stroke-width:2.5}.sv1 .v20{stroke:#1f9d6b;stroke-width:2.5}.sv1 .v30{stroke:#F2994A;stroke-width:2.5}.sv1 .tr{stroke:#17171A;stroke-width:4}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
   </style>
   <text class="hdr" x="14" y="16" fill="#D3002D">ONE CABLE PER VLAN — DOES NOT SCALE</text>
   <rect class="n" x="24" y="52" width="60" height="58" rx="3"/><text class="nt" x="54" y="86" text-anchor="middle">SW1</text>
@@ -77,14 +71,8 @@ Two switches, three VLANs. Without trunking you need three cables — one per VL
 An untagged Ethernet frame is: destination MAC, source MAC, EtherType, payload. 802.1Q inserts its four bytes **between the source MAC and the EtherType** — so the EtherType moves four bytes to the right, and `0x8100` takes its place.
 
 <figure class="fig">
-<svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The four byte 802.1Q tag is inserted after the source MAC address, pushing the EtherType right, and its second half splits into priority, DEI and a twelve bit VLAN ID">
-  <style>
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.07em}
-    .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}
-    .mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}
-    .fld{fill:#F1EEE9;stroke:#B5B5BC}
-    .tag{fill:rgba(211,0,45,.12);stroke:#D3002D}
-    .k{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}
+<svg class="sv2" viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The four byte 802.1Q tag is inserted after the source MAC address, pushing the EtherType right, and its second half splits into priority, DEI and a twelve bit VLAN ID">
+  <style>.sv2 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.07em}.sv2 .lbl{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv2 .mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv2 .fld{fill:#F1EEE9;stroke:#B5B5BC}.sv2 .tag{fill:rgba(211,0,45,.12);stroke:#D3002D}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700}
   </style>
   <text class="hdr" x="14" y="16">UNTAGGED</text>
   <rect class="fld" x="14" y="26" width="120" height="26"/><text class="mono" x="74" y="43" text-anchor="middle">DST MAC</text>
@@ -172,8 +160,8 @@ The tag exists only between the switches. Step through the whole journey:
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A plain untagged frame leaves the PC and arrives on an access port">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}.f{fill:#F1EEE9;stroke:#B5B5BC}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
+<svg class="sv3" viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A plain untagged frame leaves the PC and arrives on an access port">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}.sv3 .f{fill:#F1EEE9;stroke:#B5B5BC}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
   <rect class="n" x="14" y="66" width="76" height="30" rx="3"/><text class="nt" x="52" y="86" text-anchor="middle">PC-A</text>
   <line class="l" x1="90" y1="81" x2="210" y2="81"/>
   <rect class="n" x="210" y="66" width="66" height="30" rx="3"/><text class="nt" x="243" y="86" text-anchor="middle">SW1</text>
@@ -191,8 +179,8 @@ The tag exists only between the switches. Step through the whole journey:
 This matters more than it sounds. A PC, a printer, a camera — none of them tag. Everything about VLAN membership at the edge is a decision the <b>switch</b> makes based on <code>switchport access vlan 20</code>. The exceptions are servers with trunked NICs, hypervisors, and IP phones, which is exactly why those three are where VLAN problems cluster.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The switch inserts the four byte tag as the frame leaves the trunk port">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}.f{fill:#F1EEE9;stroke:#B5B5BC}.t{fill:rgba(211,0,45,.12);stroke:#D3002D}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
+<svg class="sv4" viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The switch inserts the four byte tag as the frame leaves the trunk port">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}.sv4 .f{fill:#F1EEE9;stroke:#B5B5BC}.sv4 .t{fill:rgba(211,0,45,.12);stroke:#D3002D}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
   <rect class="n" x="14" y="66" width="66" height="30" rx="3"/><text class="nt" x="47" y="86" text-anchor="middle">SW1</text>
   <text class="s" x="47" y="112" text-anchor="middle">Gi1/0/24</text>
   <line class="l" x1="80" y1="81" x2="230" y2="81" stroke-width="3.5"/>
@@ -215,8 +203,8 @@ Tagging happens at the <b>egress trunk port</b>, not on ingress. That is why a f
 <br><br>Note the FCS: the frame is materially different, so the checksum at the end is recomputed. A switch is not forwarding the frame — it is <b>rewriting</b> it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Frames from several VLANs share the trunk, each carrying its own VLAN ID">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
+<svg class="sv5" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Frames from several VLANs share the trunk, each carrying its own VLAN ID">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
   <rect class="n" x="24" y="66" width="66" height="34" rx="3"/><text class="nt" x="57" y="88" text-anchor="middle">SW1</text>
   <rect class="n" x="550" y="66" width="66" height="34" rx="3"/><text class="nt" x="583" y="88" text-anchor="middle">SW2</text>
   <line x1="90" y1="83" x2="550" y2="83" stroke="#17171A" stroke-width="4"/>
@@ -236,8 +224,8 @@ Isolation between VLANs is not weakened by sharing the cable. A switch receiving
 <br><br>What <em>is</em> shared is bandwidth and fate. All four VLANs share one link's capacity, and all four go down together. That is the argument for an EtherChannel underneath the trunk rather than a single cable.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The far switch removes the tag before sending the frame out of an access port to the destination PC">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.f{fill:#F1EEE9;stroke:#B5B5BC}.t{fill:rgba(211,0,45,.12);stroke:#D3002D}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
+<svg class="sv6" viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The far switch removes the tag before sending the frame out of an access port to the destination PC">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .l{stroke:#8A8A93;stroke-width:1.5}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}.sv6 .f{fill:#F1EEE9;stroke:#B5B5BC}.sv6 .t{fill:rgba(211,0,45,.12);stroke:#D3002D}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
   <rect class="n" x="14" y="66" width="66" height="30" rx="3"/><text class="nt" x="47" y="86" text-anchor="middle">SW2</text>
   <line class="l" x1="80" y1="81" x2="200" y2="81"/>
   <rect class="n" x="200" y="66" width="76" height="30" rx="3"/><text class="nt" x="238" y="86" text-anchor="middle">PC-B</text>
@@ -258,8 +246,8 @@ The receiving switch reads VLAN 20 off the tag, does its normal MAC lookup <b>wi
 <br><br>This is why a packet capture taken at a PC never shows a VLAN tag, and why "I can't see the VLAN in Wireshark" is not evidence of anything. To see tags you must capture <b>on the trunk</b>, or configure the SPAN session to encapsulate replicate.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Frames in the native VLAN cross the trunk with no tag at all, and a mismatch merges two different VLANs">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.f{fill:#F1EEE9;stroke:#B5B5BC}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
+<svg class="sv7" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Frames in the native VLAN cross the trunk with no tag at all, and a mismatch merges two different VLANs">
+  <style>.sv7 .n{fill:#17171A}.sv7 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .f{fill:#F1EEE9;stroke:#B5B5BC}.sv7 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}</style>
   <rect class="n" x="24" y="56" width="66" height="34" rx="3"/><text class="nt" x="57" y="78" text-anchor="middle">SW1</text>
   <rect class="n" x="550" y="56" width="66" height="34" rx="3"/><text class="nt" x="583" y="78" text-anchor="middle">SW2</text>
   <line x1="90" y1="73" x2="550" y2="73" stroke="#17171A" stroke-width="4"/>

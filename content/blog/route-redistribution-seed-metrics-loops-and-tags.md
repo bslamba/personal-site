@@ -44,13 +44,8 @@ Every other routing topic is one protocol being internally consistent. Redistrib
 An OSPF cost of 20 and an EIGRP composite metric of 3072 are not different values of the same thing. They are different things. There is no conversion, no formula, no meaningful comparison — so redistribution does the only thing it can: it **discards the original metric entirely** and stamps on a new one that you chose, or that the protocol defaulted to.
 
 <figure class="fig">
-<svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A route crossing a redistribution boundary loses its original metric and is stamped with a new seed metric that carries no information about the real path">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}
-    .eig{fill:rgba(75,123,236,.08);stroke:#4b7bec}.osp{fill:rgba(31,157,107,.08);stroke:#1f9d6b}
+<svg class="sv1" viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A route crossing a redistribution boundary loses its original metric and is stamped with a new seed metric that carries no information about the real path">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv1 .eig{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv1 .osp{fill:rgba(31,157,107,.08);stroke:#1f9d6b}
   </style>
   <rect class="eig" x="14" y="40" width="240" height="104" stroke-dasharray="4 3"/>
   <text class="k" x="26" y="60" fill="#2b5ab8">EIGRP</text>
@@ -122,8 +117,8 @@ One redistribution point is straightforward. The trouble starts when you add a s
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With a single redistribution point routes can only travel one way across the boundary">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv2" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With a single redistribution point routes can only travel one way across the boundary">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv2 .b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv2 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect class="a" x="14" y="40" width="230" height="110" stroke-dasharray="4 3"/><text class="k" x="26" y="60" fill="#2b5ab8">EIGRP 100</text>
   <rect class="b" x="396" y="40" width="230" height="110" stroke-dasharray="4 3"/><text class="k" x="408" y="60" fill="#0f6b47">OSPF 1</text>
   <rect class="n" x="40" y="86" width="104" height="30" rx="3"/><text class="nt" x="92" y="106" text-anchor="middle">10.1.1.0/24</text>
@@ -140,8 +135,8 @@ With a single boundary router, a route originated in EIGRP is translated once in
 <br><br>It is also a single point of failure for <b>every</b> prefix crossing between the two domains, which no serious design accepts. So you add a second one.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Adding a second redistribution point creates a path for routes to travel back into the domain they came from">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv3" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Adding a second redistribution point creates a path for routes to travel back into the domain they came from">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv3 .b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect class="a" x="14" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="26" y="60" fill="#2b5ab8">EIGRP 100</text>
   <rect class="b" x="396" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="408" y="60" fill="#0f6b47">OSPF 1</text>
   <rect class="n" x="40" y="96" width="104" height="30" rx="3"/><text class="nt" x="92" y="116" text-anchor="middle">10.1.1.0/24</text>
@@ -161,8 +156,8 @@ Both routers now redistribute EIGRP into OSPF and OSPF into EIGRP. That is the c
 <br><br>The critical thing to understand is that <b>neither protocol can detect this</b>. Split horizon and route poisoning protect a protocol from its own routes; they know nothing about a route that left, changed identity, and returned wearing a different protocol's badge.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The route leaves the EIGRP domain through R1 and becomes an OSPF external route">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.l{stroke:#8A8A93;stroke-width:1.5}.hot{stroke:#4b7bec;stroke-width:3}</style>
+<svg class="sv4" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The route leaves the EIGRP domain through R1 and becomes an OSPF external route">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv4 .b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .hot{stroke:#4b7bec;stroke-width:3}</style>
   <rect class="a" x="14" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="26" y="60" fill="#2b5ab8">EIGRP 100</text>
   <rect class="b" x="396" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="408" y="60" fill="#0f6b47">OSPF 1</text>
   <rect class="n" x="40" y="96" width="104" height="30" rx="3"/><text class="nt" x="92" y="116" text-anchor="middle">10.1.1.0/24</text>
@@ -182,8 +177,8 @@ R1 takes the EIGRP route out of its routing table, discards the composite metric
 <br><br>Everything so far is correct and intended. This is what you asked redistribution to do.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="R2 receives the OSPF external route and redistributes it back into the EIGRP domain it originally came from">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.hot{stroke:#4b7bec;stroke-width:3}.back{stroke:#D3002D;stroke-width:3}</style>
+<svg class="sv5" viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="R2 receives the OSPF external route and redistributes it back into the EIGRP domain it originally came from">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv5 .b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv5 .hot{stroke:#4b7bec;stroke-width:3}.sv5 .back{stroke:#D3002D;stroke-width:3}</style>
   <rect class="a" x="14" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="26" y="60" fill="#2b5ab8">EIGRP 100</text>
   <rect class="b" x="396" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="408" y="60" fill="#0f6b47">OSPF 1</text>
   <rect class="n" x="40" y="96" width="104" height="30" rx="3"/><text class="nt" x="92" y="116" text-anchor="middle">10.1.1.0/24</text>
@@ -202,8 +197,8 @@ R2 is doing nothing wrong. It has an OSPF route to 10.1.1.0/24 in its routing ta
 <br><br>This is the moment the circuit closes. Whether it becomes a loop or merely an embarrassment is decided entirely by the next step.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Administrative distance decides whether the returning route beats the original one">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.ok{fill:rgba(31,157,107,.10);stroke:#1f9d6b}.no{fill:#FFF1F3;stroke:#D3002D}</style>
+<svg class="sv6" viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Administrative distance decides whether the returning route beats the original one">
+  <style>.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;fill:#17171A}.sv6 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv6 .ok{fill:rgba(31,157,107,.10);stroke:#1f9d6b}.sv6 .no{fill:#FFF1F3;stroke:#D3002D}</style>
   <text class="hdr" x="14" y="20">EIGRP &#8596; OSPF — PROTECTED BY ACCIDENT</text>
   <rect class="ok" x="14" y="30" width="300" height="76"/>
   <text class="m" x="26" y="52">native:    EIGRP internal   AD  90</text>
@@ -225,8 +220,8 @@ AD is a <b>preference between sources</b>, not a judgement about whether a route
 <br><br>With EIGRP and OSPF you are usually saved by the external AD of 170 — which exists precisely for this. With <b>RIP and OSPF</b> you are not: an OSPF external at 110 beats a native RIP route at 120, so the returning copy wins and a router inside the RIP domain starts forwarding toward OSPF to reach a prefix that is sitting next to it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 252" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="When the returning route wins the traffic circulates between the two boundary routers">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.loop{stroke:#D3002D;stroke-width:3;fill:none}</style>
+<svg class="sv7" viewBox="0 0 640 252" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="When the returning route wins the traffic circulates between the two boundary routers">
+  <style>.sv7 .n{fill:#17171A}.sv7 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv7 .a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv7 .b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv7 .loop{stroke:#D3002D;stroke-width:3;fill:none}</style>
   <rect class="a" x="14" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="26" y="60" fill="#2b5ab8">domain A</text>
   <rect class="b" x="396" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="408" y="60" fill="#0f6b47">domain B</text>
   <rect class="n" x="40" y="96" width="104" height="30" rx="3" opacity=".4"/><text class="nt" x="92" y="116" text-anchor="middle">10.1.1.0/24</text>
@@ -244,8 +239,8 @@ Once the returning copy wins, a boundary router forwards traffic for the prefix 
 <br><br>That TTL is the reason this fault is so much less dramatic than a Layer 2 loop and so much harder to notice. Nothing melts. CPU does not spike. You get <b>one unreachable prefix</b>, a <code>traceroute</code> that bounces between two routers until it gives up, and a ticket that says "the finance subnet is down" with no alarms anywhere.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 225" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tagging routes on the way out and refusing tagged routes on the way back closes the loop">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.ok{stroke:#1f9d6b;stroke-width:3}.x{stroke:#D3002D;stroke-width:3}</style>
+<svg class="sv8" viewBox="0 0 640 225" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tagging routes on the way out and refusing tagged routes on the way back closes the loop">
+  <style>.sv8 .n{fill:#17171A}.sv8 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv8 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv8 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv8 .a{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv8 .b{fill:rgba(31,157,107,.08);stroke:#1f9d6b}.sv8 .ok{stroke:#1f9d6b;stroke-width:3}.sv8 .x{stroke:#D3002D;stroke-width:3}</style>
   <rect class="a" x="14" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="26" y="60" fill="#2b5ab8">EIGRP 100</text>
   <rect class="b" x="396" y="40" width="230" height="130" stroke-dasharray="4 3"/><text class="k" x="408" y="60" fill="#0f6b47">OSPF 1</text>
   <rect class="n" x="40" y="96" width="104" height="30" rx="3"/><text class="nt" x="92" y="116" text-anchor="middle">10.1.1.0/24</text>

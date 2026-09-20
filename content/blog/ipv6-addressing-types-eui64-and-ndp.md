@@ -44,12 +44,8 @@ draft: false
 ## The address plan
 
 <figure class="fig">
-<svg viewBox="0 0 640 235" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The IPv6 address space divided into global unicast, unique local, link local and multicast ranges">
-  <style>
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}
+<svg class="sv1" viewBox="0 0 640 235" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The IPv6 address space divided into global unicast, unique local, link local and multicast ranges">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}
   </style>
   <text class="hdr" x="14" y="20">THE FOUR YOU WILL ACTUALLY MEET</text>
   <rect x="14" y="30" width="612" height="40" fill="rgba(31,157,107,.12)" stroke="#1f9d6b"/>
@@ -106,14 +102,8 @@ Two compression rules, and you may apply the second only once.
 ### Modified EUI-64 — a MAC becomes an interface ID
 
 <figure class="fig">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A 48-bit MAC address is split, FFFE is inserted in the middle, and the seventh bit is flipped to produce a 64-bit interface identifier">
-  <style>
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;fill:#17171A}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}
-    .ins{fill:rgba(242,153,74,.20);stroke:#F2994A}
-    .flip{fill:rgba(211,0,45,.14);stroke:#D3002D}
+<svg class="sv2" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A 48-bit MAC address is split, FFFE is inserted in the middle, and the seventh bit is flipped to produce a 64-bit interface identifier">
+  <style>.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;fill:#17171A}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}.sv2 .ins{fill:rgba(242,153,74,.20);stroke:#F2994A}.sv2 .flip{fill:rgba(211,0,45,.14);stroke:#D3002D}
   </style>
   <text class="hdr" x="14" y="20">1 · THE MAC, 48 BITS</text>
   <text class="m" x="14" y="42">00:1a:2b : 3c:4d:5e</text>
@@ -177,8 +167,8 @@ Only 24 bits are used, so different addresses can share a solicited-node group:
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The interface generates a link local address from its MAC as soon as it comes up">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}</style>
+<svg class="sv3" viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The interface generates a link local address from its MAC as soon as it comes up">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}</style>
   <rect class="n" x="40" y="60" width="130" height="36" rx="3"/><text class="nt" x="105" y="83" text-anchor="middle">HOST</text>
   <text class="m" x="200" y="70">MAC 00:1a:2b:3c:4d:5e</text>
   <text class="m" x="200" y="92" fill="#2b5ab8">fe80::21a:2bff:fe3c:4d5e</text>
@@ -191,8 +181,8 @@ The interface comes up and immediately has an <code>FE80::</code> address, built
 <br><br>This is the bootstrap that makes everything else possible: the host now has a usable source address for the messages it is about to send.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Duplicate address detection sends a neighbour solicitation for the host own address from the unspecified address">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#B26014}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.q{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
+<svg class="sv4" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Duplicate address detection sends a neighbour solicitation for the host own address from the unspecified address">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#B26014}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv4 .q{stroke:#F2994A;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="40" y="66" width="110" height="34" rx="3"/><text class="nt" x="95" y="88" text-anchor="middle">HOST</text>
   <rect class="n" x="470" y="66" width="130" height="34" rx="3" opacity=".4"/><text class="nt" x="535" y="88" text-anchor="middle">everyone else</text>
   <path class="q" d="M 150 83 L 470 83"/>
@@ -208,8 +198,8 @@ Before using any address, the host sends a Neighbour Solicitation <b>for its own
 <br><br>IPv4 has nothing equivalent that is mandatory. Gratuitous ARP is a convention; DAD is part of the protocol, and every IPv6 address you ever see passed it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host solicits a router and the router advertises the prefix and its own link local address as the gateway">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.q{stroke:#F2994A;stroke-width:2.5;fill:none}.a{stroke:#1f9d6b;stroke-width:2.5;fill:none}</style>
+<svg class="sv5" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host solicits a router and the router advertises the prefix and its own link local address as the gateway">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv5 .q{stroke:#F2994A;stroke-width:2.5;fill:none}.sv5 .a{stroke:#1f9d6b;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="40" y="70" width="110" height="34" rx="3"/><text class="nt" x="95" y="92" text-anchor="middle">HOST</text>
   <rect class="n" x="490" y="70" width="110" height="34" rx="3"/><text class="nt" x="545" y="92" text-anchor="middle">ROUTER</text>
   <path class="q" d="M 150 78 L 490 78"/>
@@ -226,8 +216,8 @@ The host multicasts an <b>RS</b> to all routers and a router answers with an <b>
 <br><br>That is the piece with no IPv4 equivalent: the <b>default gateway is learned from the network itself</b>, not from DHCP and not from configuration. It is also why a rogue RA is such an effective attack, and why <code>ipv6 nd raguard</code> exists.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host combines the advertised prefix with its own interface identifier to form a global address">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#17171A}.p{fill:rgba(31,157,107,.14);stroke:#1f9d6b}.i{fill:rgba(75,123,236,.14);stroke:#4b7bec}</style>
+<svg class="sv6" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The host combines the advertised prefix with its own interface identifier to form a global address">
+  <style>.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#17171A}.sv6 .p{fill:rgba(31,157,107,.14);stroke:#1f9d6b}.sv6 .i{fill:rgba(75,123,236,.14);stroke:#4b7bec}</style>
   <text class="k" x="14" y="30">from the router's RA</text>
   <rect class="p" x="14" y="40" width="250" height="30"/>
   <text class="m" x="26" y="60" fill="#0f6b47">2001:db8:acad:1::/64</text>
@@ -246,8 +236,8 @@ Stateless Address Autoconfiguration is exactly this addition: the router supplie
 <br><br>And because <code>/64</code> is what SLAAC requires, <b>a subnet longer than /64 breaks it silently</b>. That is the rule behind "always use /64", and the exception is point-to-point links, where <code>/127</code> is correct per RFC 6164.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Neighbour solicitation and advertisement resolve an address to a MAC in place of ARP">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.q{stroke:#F2994A;stroke-width:2.5;fill:none}.a{stroke:#1f9d6b;stroke-width:2.5;fill:none}</style>
+<svg class="sv7" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Neighbour solicitation and advertisement resolve an address to a MAC in place of ARP">
+  <style>.sv7 .n{fill:#17171A}.sv7 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv7 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv7 .q{stroke:#F2994A;stroke-width:2.5;fill:none}.sv7 .a{stroke:#1f9d6b;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="30" y="70" width="100" height="34" rx="3"/><text class="nt" x="80" y="92" text-anchor="middle">HOST A</text>
   <rect class="n" x="510" y="70" width="100" height="34" rx="3"/><text class="nt" x="560" y="92" text-anchor="middle">HOST B</text>
   <rect class="n" x="280" y="118" width="100" height="30" rx="3" opacity=".3"/><text class="nt" x="330" y="138" text-anchor="middle">HOST C</text>

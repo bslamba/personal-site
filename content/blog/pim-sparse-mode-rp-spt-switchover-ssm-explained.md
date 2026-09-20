@@ -38,14 +38,8 @@ Dense mode solved this by flooding the traffic everywhere and waiting for router
 Sparse mode solves it with a prior agreement: **one router in the domain is the rendezvous point for a group, and every router is told which one.** Receivers join toward the RP. Sources register with the RP. Neither needs to know anything about the other.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Receivers build a shared tree towards the rendezvous point while the source registers with it, and the two halves meet at the RP">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .rp{fill:#8256d0}
-    .j{stroke:#4b7bec;stroke-width:2.5;fill:none}.d{stroke:#1f9d6b;stroke-width:2.5;fill:none}
-    .reg{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:5 4}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
+<svg class="sv1" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Receivers build a shared tree towards the rendezvous point while the source registers with it, and the two halves meet at the RP">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .rp{fill:#8256d0}.sv1 .j{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv1 .d{stroke:#1f9d6b;stroke-width:2.5;fill:none}.sv1 .reg{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:5 4}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
   </style>
   <rect class="rp" x="272" y="18" width="96" height="34" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <text class="s" x="320" y="66" text-anchor="middle">10.255.255.1 — the agreed meeting place</text>
@@ -126,8 +120,8 @@ This is the part that is genuinely hard to hold in your head, because the path t
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="All routers know the RP address but no state exists for the group">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
+<svg class="sv2" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="All routers know the RP address but no state exists for the group">
+  <style>.sv2 .n{fill:#17171A}.sv2 .rp{fill:#8256d0}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .l{stroke:#8A8A93;stroke-width:1.5}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <rect class="n" x="14" y="120" width="80" height="30" rx="3"/><text class="nt" x="54" y="140" text-anchor="middle">SOURCE</text>
   <rect class="n" x="140" y="120" width="56" height="30" rx="3"/><text class="nt" x="168" y="140" text-anchor="middle">R1</text>
@@ -145,8 +139,8 @@ This is the part that is genuinely hard to hold in your head, because the path t
 Every PIM router in the domain has been told the same RP address — by hand, by Auto-RP or by BSR. That is the only shared knowledge in the system. <code>show ip mroute</code> is empty on all of them.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The receiver's router sends a star comma G join hop by hop towards the RP, building the shared tree">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.j{stroke:#4b7bec;stroke-width:3;fill:none}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+<svg class="sv3" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The receiver's router sends a star comma G join hop by hop towards the RP, building the shared tree">
+  <style>.sv3 .n{fill:#17171A}.sv3 .rp{fill:#8256d0}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}.sv3 .j{stroke:#4b7bec;stroke-width:3;fill:none}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <rect class="n" x="14" y="120" width="80" height="30" rx="3"/><text class="nt" x="54" y="140" text-anchor="middle">SOURCE</text>
   <rect class="n" x="140" y="120" width="56" height="30" rx="3"/><text class="nt" x="168" y="140" text-anchor="middle">R1</text>
@@ -168,8 +162,8 @@ PIM       type <b>3</b> (Join/Prune)  upstream-nbr 10.0.24.2  holdtime <b>210</b
   source  10.255.255.1   flags <b>S W R</b>  ← the RP, flagged as a wildcard = (*,G)</div>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The source starts sending and its designated router encapsulates each packet in a unicast PIM register to the RP">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.j{stroke:#4b7bec;stroke-width:3;fill:none}.reg{stroke:#D3002D;stroke-width:3;fill:none;stroke-dasharray:6 4}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The source starts sending and its designated router encapsulates each packet in a unicast PIM register to the RP">
+  <style>.sv4 .n{fill:#17171A}.sv4 .rp{fill:#8256d0}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .j{stroke:#4b7bec;stroke-width:3;fill:none}.sv4 .reg{stroke:#D3002D;stroke-width:3;fill:none;stroke-dasharray:6 4}.sv4 .g{stroke:#1f9d6b;stroke-width:3;fill:none}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B80027}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <rect class="n" x="14" y="120" width="80" height="30" rx="3"/><text class="nt" x="54" y="140" text-anchor="middle">SOURCE</text>
   <rect class="n" x="140" y="120" width="56" height="30" rx="3"/><text class="nt" x="168" y="140" text-anchor="middle">R1</text>
@@ -192,8 +186,8 @@ The source just starts sending. It performs no signalling of any kind. Its DR se
 <br><br>This works, and it is <b>expensive</b>. Register packets are built and consumed in software on both ends. It has to stop, and step 5 is how.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Now knowing the source address the RP sends an S comma G join back towards it, building a native path">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.j{stroke:#4b7bec;stroke-width:3;fill:none}.reg{stroke:#D3002D;stroke-width:2;fill:none;stroke-dasharray:6 4;opacity:.45}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+<svg class="sv5" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Now knowing the source address the RP sends an S comma G join back towards it, building a native path">
+  <style>.sv5 .n{fill:#17171A}.sv5 .rp{fill:#8256d0}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .l{stroke:#8A8A93;stroke-width:1.5}.sv5 .j{stroke:#4b7bec;stroke-width:3;fill:none}.sv5 .reg{stroke:#D3002D;stroke-width:2;fill:none;stroke-dasharray:6 4;opacity:.45}.sv5 .g{stroke:#1f9d6b;stroke-width:3;fill:none}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <rect class="n" x="14" y="120" width="80" height="30" rx="3"/><text class="nt" x="54" y="140" text-anchor="middle">SOURCE</text>
   <rect class="n" x="140" y="120" width="56" height="30" rx="3"/><text class="nt" x="168" y="140" text-anchor="middle">R1</text>
@@ -212,8 +206,8 @@ The source just starts sending. It performs no signalling of any kind. Its DR se
 The Register told the RP something it could not have known: <b>the source's unicast address</b>. With that, the RP can do what any router does — send an <code>(S, G)</code> join back toward <code>10.10.10.10</code>, hop by hop, RPF-checked at every step. For a few tens of milliseconds both paths exist: the unicast tunnel still carrying traffic, and a native tree being built underneath it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Once native traffic arrives the RP sends a register stop and the tunnel is torn down">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.stop{stroke:#F2994A;stroke-width:3;fill:none}.g{stroke:#1f9d6b;stroke-width:3;fill:none}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.x{stroke:#D3002D;stroke-width:2.5}</style>
+<svg class="sv6" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Once native traffic arrives the RP sends a register stop and the tunnel is torn down">
+  <style>.sv6 .n{fill:#17171A}.sv6 .rp{fill:#8256d0}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .l{stroke:#8A8A93;stroke-width:1.5}.sv6 .stop{stroke:#F2994A;stroke-width:3;fill:none}.sv6 .g{stroke:#1f9d6b;stroke-width:3;fill:none}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#B26014}.sv6 .x{stroke:#D3002D;stroke-width:2.5}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <rect class="n" x="14" y="120" width="80" height="30" rx="3"/><text class="nt" x="54" y="140" text-anchor="middle">SOURCE</text>
   <rect class="n" x="140" y="120" width="56" height="30" rx="3"/><text class="nt" x="168" y="140" text-anchor="middle">R1</text>
@@ -234,8 +228,8 @@ Native traffic reaches the RP over the tree built in step 4. The RP now has the 
 <br><br>The DR does not forget. It sends a <b>Null Register</b> — a Register with no data in it — roughly once a minute to confirm the source is still there, and the RP answers each with another Register-Stop. That keep-alive is why <code>show ip mroute</code> on the RP keeps an <code>(S, G)</code> alive for a source nobody is currently watching.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The last hop router joins the shortest path tree directly towards the source, bypassing the RP">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.j{stroke:#4b7bec;stroke-width:3;fill:none}.g{stroke:#1f9d6b;stroke-width:3;fill:none;opacity:.35}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+<svg class="sv7" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The last hop router joins the shortest path tree directly towards the source, bypassing the RP">
+  <style>.sv7 .n{fill:#17171A}.sv7 .rp{fill:#8256d0}.sv7 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .l{stroke:#8A8A93;stroke-width:1.5}.sv7 .j{stroke:#4b7bec;stroke-width:3;fill:none}.sv7 .g{stroke:#1f9d6b;stroke-width:3;fill:none;opacity:.35}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <rect class="n" x="14" y="130" width="80" height="30" rx="3"/><text class="nt" x="54" y="150" text-anchor="middle">SOURCE</text>
   <rect class="n" x="140" y="130" width="56" height="30" rx="3"/><text class="nt" x="168" y="150" text-anchor="middle">R1</text>
@@ -257,8 +251,8 @@ The moment the first packet arrives, R4 knows the source address — it is in th
 <br><br>On Cisco this is the default and it happens immediately: <code>ip pim spt-threshold</code> defaults to <b>0 kbps</b>. Other vendors and the RFC allow a rate threshold so that low-rate groups stay on the shared tree and save state.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With traffic arriving on the shortest path the router prunes itself off the shared tree and the RP is no longer in the path">
-  <style>.n{fill:#17171A}.rp{fill:#8256d0;opacity:.4}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.g{stroke:#1f9d6b;stroke-width:3.5;fill:none}.pr{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:5 4}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
+<svg class="sv8" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With traffic arriving on the shortest path the router prunes itself off the shared tree and the RP is no longer in the path">
+  <style>.sv8 .n{fill:#17171A}.sv8 .rp{fill:#8256d0;opacity:.4}.sv8 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv8 .l{stroke:#8A8A93;stroke-width:1.5}.sv8 .g{stroke:#1f9d6b;stroke-width:3.5;fill:none}.sv8 .pr{stroke:#D3002D;stroke-width:2.5;fill:none;stroke-dasharray:5 4}.sv8 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv8 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
   <rect class="rp" x="278" y="20" width="84" height="30" rx="3"/><text class="nt" x="320" y="40" text-anchor="middle">RP</text>
   <text class="s" x="320" y="66" text-anchor="middle" fill="#8256d0">idle — still the meeting place for the next receiver</text>
   <rect class="n" x="14" y="130" width="80" height="30" rx="3"/><text class="nt" x="54" y="150" text-anchor="middle">SOURCE</text>
@@ -370,12 +364,8 @@ Static RP has no failover. Auto-RP and BSR have slow failover and pick one winne
 That leaves one problem — a source registered with RP-east is unknown to RP-west, so a receiver near RP-west never learns about it. **MSDP** fixes exactly that.
 
 <figure class="fig">
-<svg viewBox="0 0 640 248" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two routers share one anycast RP address and exchange source active messages over MSDP so each knows about the other's sources">
-  <style>
-    .n{fill:#17171A}.rp{fill:#8256d0}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .l{stroke:#8A8A93;stroke-width:1.5}.msdp{stroke:#8256d0;stroke-width:2.5;fill:none;stroke-dasharray:6 4}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
+<svg class="sv9" viewBox="0 0 640 248" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two routers share one anycast RP address and exchange source active messages over MSDP so each knows about the other's sources">
+  <style>.sv9 .n{fill:#17171A}.sv9 .rp{fill:#8256d0}.sv9 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv9 .l{stroke:#8A8A93;stroke-width:1.5}.sv9 .msdp{stroke:#8256d0;stroke-width:2.5;fill:none;stroke-dasharray:6 4}.sv9 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv9 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
   </style>
   <rect class="rp" x="120" y="36" width="130" height="34" rx="3"/><text class="nt" x="185" y="58" text-anchor="middle">RP-EAST</text>
   <rect class="rp" x="390" y="36" width="130" height="34" rx="3"/><text class="nt" x="455" y="58" text-anchor="middle">RP-WEST</text>

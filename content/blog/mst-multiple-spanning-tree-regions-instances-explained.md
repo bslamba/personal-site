@@ -34,14 +34,8 @@ Rapid PVST+ is excellent and it is what most networks run. It also runs an indep
 With 400 VLANs on a trunk, that is 400 BPDUs every two seconds on that one link, and 400 state machines on the switch — to produce, in almost every real design, **two** distinct topologies: odd VLANs up the left uplink, even VLANs up the right.
 
 <figure class="fig">
-<svg viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PVST plus runs one spanning tree instance per VLAN while MST maps many VLANs onto two instances">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .bx{fill:#F1EEE9;stroke:#B5B5BC}
-    .i1{fill:rgba(75,123,236,.16);stroke:#4b7bec}.i2{fill:rgba(31,157,107,.16);stroke:#1f9d6b}
+<svg class="sv1" viewBox="0 0 640 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PVST plus runs one spanning tree instance per VLAN while MST maps many VLANs onto two instances">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .bx{fill:#F1EEE9;stroke:#B5B5BC}.sv1 .i1{fill:rgba(75,123,236,.16);stroke:#4b7bec}.sv1 .i2{fill:rgba(31,157,107,.16);stroke:#1f9d6b}
   </style>
   <text class="hdr" x="14" y="16" fill="#D3002D">RAPID PVST+ — ONE INSTANCE PER VLAN</text>
   <rect class="bx" x="14" y="28" width="40" height="22"/><text class="s" x="34" y="43" text-anchor="middle">v10</text>
@@ -107,8 +101,8 @@ Comparing a 4094-entry table in every BPDU would be absurd, so MST hashes it: an
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With default MST configuration every VLAN is in instance zero and every switch shares the same default digest">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
+<svg class="sv2" viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With default MST configuration every VLAN is in instance zero and every switch shares the same default digest">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .l{stroke:#8A8A93;stroke-width:1.5}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
   <rect class="n" x="60" y="60" width="76" height="34" rx="3"/><text class="nt" x="98" y="82" text-anchor="middle">SW1</text>
   <rect class="n" x="282" y="60" width="76" height="34" rx="3"/><text class="nt" x="320" y="82" text-anchor="middle">SW2</text>
   <rect class="n" x="504" y="60" width="76" height="34" rx="3"/><text class="nt" x="542" y="82" text-anchor="middle">SW3</text>
@@ -129,8 +123,8 @@ Turn on MST and change nothing, and every switch has an empty name, revision 0 a
 <br><br>Memorise that digest. <b>0xAC36177F…</b> means "nobody has mapped anything here". Seeing it on a switch you thought was configured tells you your mapping never committed.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MST configuration sub-mode stages changes which are not applied until you exit">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#D6D6DC}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
+<svg class="sv3" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MST configuration sub-mode stages changes which are not applied until you exit">
+  <style>.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#D6D6DC}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}</style>
   <text class="hdr" x="14" y="16">A STAGING AREA, NOT A LIVE CONFIGURATION</text>
   <rect x="14" y="26" width="612" height="104" fill="#0C0C0E"/>
   <text class="m" x="26" y="46" fill="#6FCF97">SW1(config)#</text><text class="m" x="128" y="46">spanning-tree mst configuration</text>
@@ -147,8 +141,8 @@ Turn on MST and change nothing, and every switch has an empty name, revision 0 a
 <br><br>This is deliberate and it is a gift. The VLAN-to-instance mapping is the digest, so every intermediate state would be a different region — and each one would tear the network apart and rebuild it. Staging means one change, one reconvergence. <b>It also means <code>exit</code> is a production-affecting keystroke</b>, so run <code>show pending</code> first, every time.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="All three switches now share the same name revision and mapping so the digests match and one region exists">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#1f9d6b;stroke-width:3}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#0f6b47}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
+<svg class="sv4" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="All three switches now share the same name revision and mapping so the digests match and one region exists">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .l{stroke:#1f9d6b;stroke-width:3}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#0f6b47}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
   <rect x="34" y="40" width="572" height="80" fill="rgba(31,157,107,.07)" stroke="#1f9d6b" stroke-dasharray="5 4"/>
   <text class="k" x="320" y="32" text-anchor="middle">REGION &#8220;CAMPUS&#8221; · revision 3</text>
   <rect class="n" x="60" y="62" width="76" height="34" rx="3"/><text class="nt" x="98" y="84" text-anchor="middle">SW1</text>
@@ -167,11 +161,8 @@ This is the mechanical saving. Rapid PVST+ would send one BPDU per VLAN per trun
 <br><br>Because only the IST speaks on the wire, anything that filters or blocks BPDUs affects every instance at once — there is no such thing as losing the topology for one instance only.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Instance 1 is rooted on the left distribution switch and instance 2 on the right so both uplinks forward">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-  .i1{stroke:#4b7bec;stroke-width:3}.i2{stroke:#1f9d6b;stroke-width:3}
-  .b1{stroke:#4b7bec;stroke-width:2;stroke-dasharray:5 4}.b2{stroke:#1f9d6b;stroke-width:2;stroke-dasharray:5 4}
-  .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
+<svg class="sv5" viewBox="0 0 640 215" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Instance 1 is rooted on the left distribution switch and instance 2 on the right so both uplinks forward">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .i1{stroke:#4b7bec;stroke-width:3}.sv5 .i2{stroke:#1f9d6b;stroke-width:3}.sv5 .b1{stroke:#4b7bec;stroke-width:2;stroke-dasharray:5 4}.sv5 .b2{stroke:#1f9d6b;stroke-width:2;stroke-dasharray:5 4}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
   <rect class="n" x="110" y="24" width="120" height="32" rx="3" fill="#2b5ab8"/><text class="nt" x="170" y="45" text-anchor="middle">DIST-A</text>
   <rect class="n" x="410" y="24" width="120" height="32" rx="3" fill="#0f6b47"/><text class="nt" x="470" y="45" text-anchor="middle">DIST-B</text>
   <text class="s" x="170" y="70" text-anchor="middle" fill="#2b5ab8">root for instance 1</text>
@@ -194,8 +185,8 @@ Make DIST-A the root for instance 1 and DIST-B the root for instance 2. Now the 
 <br><br>This is exactly what people build by hand in Rapid PVST+ with per-VLAN priorities — <b>except that here you set it twice instead of four hundred times</b>, and adding VLAN 401 tomorrow needs one mapping line rather than another priority statement on every switch.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One switch with a different region name is treated as an external bridge and its internal instances collapse onto the IST">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#1f9d6b;stroke-width:3}.bad{stroke:#D3002D;stroke-width:3}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
+<svg class="sv6" viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One switch with a different region name is treated as an external bridge and its internal instances collapse onto the IST">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .l{stroke:#1f9d6b;stroke-width:3}.sv6 .bad{stroke:#D3002D;stroke-width:3}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
   <rect x="34" y="40" width="380" height="76" fill="rgba(31,157,107,.07)" stroke="#1f9d6b" stroke-dasharray="5 4"/>
   <text class="k" x="224" y="32" text-anchor="middle" fill="#0f6b47">REGION &#8220;CAMPUS&#8221;</text>
   <rect class="n" x="70" y="62" width="76" height="34" rx="3"/><text class="nt" x="108" y="84" text-anchor="middle">SW1</text>

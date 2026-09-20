@@ -37,13 +37,8 @@ draft: false
 Run two cables between two switches for redundancy and spanning tree blocks one of them. That is correct behaviour — two active paths between the same pair of switches is a loop — but it means your second cable is doing nothing at all until the first one fails.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Spanning tree blocks the redundant link between two switches; an EtherChannel makes both links one logical port so both forward">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .up{stroke:#1f9d6b;stroke-width:3}.blk{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:6 5}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
+<svg class="sv1" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Spanning tree blocks the redundant link between two switches; an EtherChannel makes both links one logical port so both forward">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .up{stroke:#1f9d6b;stroke-width:3}.sv1 .blk{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:6 5}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;letter-spacing:.06em}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
   </style>
   <text class="hdr" x="14" y="16" fill="#D3002D">TWO CABLES, NO BUNDLE</text>
   <rect class="n" x="24" y="60" width="60" height="44" rx="3"/><text class="nt" x="54" y="87" text-anchor="middle">SW1</text>
@@ -92,8 +87,8 @@ Two protocols can negotiate it, and one option skips negotiation entirely.
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two links are up but each is an independent port and spanning tree blocks one">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.up{stroke:#1f9d6b;stroke-width:3}.blk{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:6 5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
+<svg class="sv2" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two links are up but each is an independent port and spanning tree blocks one">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .up{stroke:#1f9d6b;stroke-width:3}.sv2 .blk{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:6 5}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#8A8A93}</style>
   <rect class="n" x="120" y="62" width="70" height="50" rx="3"/><text class="nt" x="155" y="92" text-anchor="middle">SW1</text>
   <rect class="n" x="450" y="62" width="70" height="50" rx="3"/><text class="nt" x="485" y="92" text-anchor="middle">SW2</text>
   <line class="up" x1="190" y1="76" x2="450" y2="76"/>
@@ -106,8 +101,8 @@ Two protocols can negotiate it, and one option skips negotiation entirely.
 Both cables are plugged in and both interfaces are up. Spanning tree sees two paths between the same two bridges, elects one, and blocks the other. Half the cabling you paid for is idle, and it will stay idle until something breaks.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Both switches exchange LACP protocol data units describing themselves and what they hear">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.b{stroke:#4b7bec;stroke-width:2.5;fill:none}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
+<svg class="sv3" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Both switches exchange LACP protocol data units describing themselves and what they hear">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .l{stroke:#8A8A93;stroke-width:1.5}.sv3 .b{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#2b5ab8}</style>
   <rect class="n" x="120" y="66" width="70" height="50" rx="3"/><text class="nt" x="155" y="96" text-anchor="middle">SW1</text>
   <rect class="n" x="450" y="66" width="70" height="50" rx="3"/><text class="nt" x="485" y="96" text-anchor="middle">SW2</text>
   <line class="l" x1="190" y1="80" x2="450" y2="80"/>
@@ -126,8 +121,8 @@ An LACPDU has two halves. The <b>Actor</b> block is "this is me". The <b>Partner
 <br><br>The <b>key</b> is what groups ports together: members of the same bundle share a key, derived from speed, duplex and VLAN configuration. Two ports with different keys will never aggregate, which is the mechanism behind most "port not bundling" faults.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The actor state flags reach the synchronised collecting and distributing state">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px}.on{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.off{fill:#F1EEE9;stroke:#B5B5BC}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
+<svg class="sv4" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The actor state flags reach the synchronised collecting and distributing state">
+  <style>.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .hdr{font-family:ui-sans-serif,system-ui;font-size:10.5px;font-weight:700;fill:#8A8A93;letter-spacing:.06em}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px}.sv4 .on{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.sv4 .off{fill:#F1EEE9;stroke:#B5B5BC}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
   <text class="hdr" x="14" y="18">ACTOR STATE — ONE BYTE, EIGHT FLAGS</text>
   <rect class="on"  x="14"  y="30" width="74" height="30"/><text class="m" x="51"  y="50" text-anchor="middle" fill="#0f6b47">Activity</text>
   <rect class="off" x="90"  y="30" width="74" height="30"/><text class="m" x="127" y="50" text-anchor="middle" fill="#8A8A93">Timeout</text>
@@ -148,8 +143,8 @@ An LACPDU has two halves. The <b>Actor</b> block is "this is me". The <b>Partner
 This single byte answers "why is my port not bundling" faster than any show command. <b>0x3D</b> is a member doing its job. Anything missing <code>Sync</code> means the two ends have not agreed the port belongs to the same aggregation — a mismatched speed, duplex, allowed VLAN list or native VLAN. <code>Expired</code> set means LACPDUs stopped arriving; <code>Defaulted</code> means this end gave up waiting and fell back to its configured assumption.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Both links now form one logical port channel interface carrying traffic on both members">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.up{stroke:#1f9d6b;stroke-width:3.5}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
+<svg class="sv5" viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Both links now form one logical port channel interface carrying traffic on both members">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .up{stroke:#1f9d6b;stroke-width:3.5}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700;fill:#0f6b47}</style>
   <rect class="n" x="120" y="62" width="70" height="52" rx="3"/><text class="nt" x="155" y="92" text-anchor="middle">SW1</text>
   <rect class="n" x="450" y="62" width="70" height="52" rx="3"/><text class="nt" x="485" y="92" text-anchor="middle">SW2</text>
   <line class="up" x1="190" y1="76" x2="450" y2="76"/>
@@ -165,8 +160,8 @@ This single byte answers "why is my port not bundling" faster than any show comm
 The physical ports still exist, but everything above Layer 1 now happens on <code>Port-channel1</code>. Put your trunk configuration, your access VLAN, your IP address, your storm control and your spanning tree settings <b>on the Po interface</b>. IOS copies Po settings down to members, and a setting applied to only one member creates a mismatch that suspends it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One member fails and the bundle keeps forwarding on the remaining member with no spanning tree recalculation">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.up{stroke:#1f9d6b;stroke-width:3.5}.dead{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:5 4}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
+<svg class="sv6" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One member fails and the bundle keeps forwarding on the remaining member with no spanning tree recalculation">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .up{stroke:#1f9d6b;stroke-width:3.5}.sv6 .dead{stroke:#D3002D;stroke-width:2.5;stroke-dasharray:5 4}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}</style>
   <rect class="n" x="120" y="62" width="70" height="52" rx="3"/><text class="nt" x="155" y="92" text-anchor="middle">SW1</text>
   <rect class="n" x="450" y="62" width="70" height="52" rx="3"/><text class="nt" x="485" y="92" text-anchor="middle">SW2</text>
   <line class="up" x1="190" y1="76" x2="450" y2="76"/>
@@ -235,14 +230,8 @@ With LACP or PAgP, a bundle only forms when both ends agree. With <code>on</code
 Four gigabit members do not make a four-gigabit pipe. The switch runs a **hash** over selected fields of each frame and the result picks a member. Same fields in, same member out — always.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A hash over addresses assigns each flow to one member link, so a single large flow cannot exceed one member's speed">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .lk{stroke:#B5B5BC;stroke-width:2.5}
-    .hash{fill:#F1EEE9;stroke:#17171A}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#17171A}
+<svg class="sv7" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A hash over addresses assigns each flow to one member link, so a single large flow cannot exceed one member's speed">
+  <style>.sv7 .n{fill:#17171A}.sv7 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv7 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv7 .lk{stroke:#B5B5BC;stroke-width:2.5}.sv7 .hash{fill:#F1EEE9;stroke:#17171A}.sv7 .m{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:#17171A}
   </style>
   <text class="s" x="14" y="26">flow A  10.1.1.5 → 10.2.2.9</text>
   <text class="s" x="14" y="48">flow B  10.1.1.6 → 10.2.2.9</text>

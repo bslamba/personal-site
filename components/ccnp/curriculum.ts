@@ -113,6 +113,7 @@ const CCNA: Exam = {
           tags: ['hypervisor', 'container', 'VRF', 'virtual machine'] },
         { n: '1.13', title: 'Describe switching concepts',
           subs: ['MAC learning and aging', 'Frame switching', 'Frame flooding', 'MAC address table'],
+          slug: 'switching-concepts-vlans-and-inter-vlan-routing',
           tags: ['CAM table', 'unknown unicast', 'flooding', 'MAC'],
           lab: 'Watch a MAC table populate and age out, then force a flood by clearing it.' },
       ],
@@ -122,6 +123,7 @@ const CCNA: Exam = {
       topics: [
         { n: '2.1', title: 'Configure and verify VLANs (normal range) spanning multiple switches',
           subs: ['Access ports (data and voice)', 'Default VLAN', 'InterVLAN connectivity'],
+          slug: 'switching-concepts-vlans-and-inter-vlan-routing',
           tags: ['VLAN', 'access port', 'voice VLAN', 'SVI', 'router on a stick'],
           lab: 'Build three VLANs across two switches and route between them two ways: ROAS and SVI.' },
         { n: '2.2', title: 'Configure and verify interswitch connectivity',
@@ -223,6 +225,7 @@ const CCNA: Exam = {
           tags: ['ACL', 'standard', 'extended', 'wildcard mask'],
           lab: 'Write an extended ACL that permits exactly one application and denies the rest, then read the hit counters.' },
         { n: '5.7', title: 'Configure and verify Layer 2 security features (DHCP snooping, dynamic ARP inspection, and port security)',
+          slug: 'layer-2-security-port-security-dhcp-snooping-and-dai',
           tags: ['DHCP snooping', 'DAI', 'port security', 'sticky MAC'],
           lab: 'Run a rogue DHCP server, then stop it with snooping and watch the port err-disable.' },
         { n: '5.8', title: 'Compare authentication, authorization, and accounting concepts',

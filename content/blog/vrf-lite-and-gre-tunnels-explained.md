@@ -36,14 +36,8 @@ Conventional routing gives a router exactly one routing table. Every interface s
 VRF-Lite gives the router **several independent routing tables**, and binds each interface to one of them. A packet arriving on an interface in VRF RED is looked up in RED's table, forwarded out of a RED interface, and has no way of reaching anything in BLUE — because BLUE's routes simply are not in the table being consulted.
 
 <figure class="fig">
-<svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One router holding two independent routing tables, each with the same prefix pointing at a different interface">
-  <style>
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .red{fill:rgba(211,0,45,.08);stroke:#D3002D}.blue{fill:rgba(75,123,236,.08);stroke:#4b7bec}
-    .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}
+<svg class="sv1" viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One router holding two independent routing tables, each with the same prefix pointing at a different interface">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .red{fill:rgba(211,0,45,.08);stroke:#D3002D}.sv1 .blue{fill:rgba(75,123,236,.08);stroke:#4b7bec}.sv1 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}
   </style>
   <rect x="236" y="30" width="168" height="188" fill="#F1EEE9" stroke="#B5B5BC"/>
   <text class="hdr" x="320" y="50" text-anchor="middle" fill="#5C5C64">ONE ROUTER</text>
@@ -120,8 +114,8 @@ interface GigabitEthernet0/0
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The input interface determines which routing table the packet is looked up in">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv2" viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The input interface determines which routing table the packet is looked up in">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv2 .bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <rect class="n" x="20" y="62" width="96" height="30" rx="3"/><text class="nt" x="68" y="82" text-anchor="middle">10.1.1.10</text>
   <line x1="116" y1="77" x2="212" y2="77" stroke="#D3002D" stroke-width="2.5"/>
   <rect x="212" y="58" width="150" height="38" rx="3" fill="rgba(211,0,45,.14)" stroke="#D3002D"/>
@@ -136,8 +130,8 @@ interface GigabitEthernet0/0
 The packet carries no marker. VRF membership is not in the frame or the IP header; it is a property of the port it arrived on. That is why VRF-Lite scales only as far as your interfaces do — to extend a VRF to the next router you need either a dedicated link per VRF, or one trunk with a subinterface per VRF, which is how it is almost always done.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The lookup happens in the RED table only and the global table is not consulted">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
+<svg class="sv3" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The lookup happens in the RED table only and the global table is not consulted">
+  <style>.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv3 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
   <rect x="20" y="40" width="180" height="96" fill="rgba(211,0,45,.10)" stroke="#D3002D"/>
   <text class="hdr" x="32" y="60" fill="#B80027">VRF RED — CONSULTED</text>
   <text class="m" x="32" y="82">10.1.1.0/24  Gi0/0</text>
@@ -159,8 +153,8 @@ The router does not search RED and then fall back to global. There is no fallbac
 <br><br>This is the source of the classic "my VRF has no internet" surprise: the default route is in the <b>global</b> table where you put it, and RED cannot see it. Each VRF needs its own default, or a deliberate leak.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A host in one VRF cannot reach a host in the other even though the router has both interfaces">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px}</style>
+<svg class="sv4" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A host in one VRF cannot reach a host in the other even though the router has both interfaces">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px}</style>
   <rect class="n" x="20" y="44" width="110" height="30" rx="3"/><text class="nt" x="75" y="64" text-anchor="middle">RED host</text>
   <rect class="n" x="20" y="118" width="110" height="30" rx="3"/><text class="nt" x="75" y="138" text-anchor="middle">BLUE host</text>
   <rect x="250" y="44" width="150" height="104" fill="#F1EEE9" stroke="#B5B5BC"/>
@@ -182,8 +176,8 @@ No ACL is involved. The router is not deciding to refuse anything — it looked 
 <br><br>That distinction matters when you write up a design. "Separated by ACL" is a control that can be misconfigured a rule at a time; "separated by VRF" fails closed, because the mechanism that would carry the traffic does not exist. It is a genuinely stronger default — right up until somebody leaks a route.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A static route with the global keyword deliberately leaks one prefix between a VRF and the global table">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
+<svg class="sv5" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A static route with the global keyword deliberately leaks one prefix between a VRF and the global table">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv5 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em}</style>
   <rect x="20" y="40" width="230" height="80" fill="rgba(211,0,45,.10)" stroke="#D3002D"/>
   <text class="hdr" x="32" y="60" fill="#B80027">VRF RED</text>
   <text class="m" x="32" y="82">10.1.1.0/24  Gi0/0</text>
