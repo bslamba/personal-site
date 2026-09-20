@@ -29,6 +29,52 @@ draft: false
 
 ---
 
+## BGP, one by one
+
+BGP is the protocol that runs between autonomous systems — it chooses paths by **policy**, not by speed, and it never forms a neighbour by accident. These are the blueprint sub-items.
+
+### Address families (IPv4, IPv6)
+
+BGP is **multiprotocol**: one TCP session between two routers can carry many **address families** — IPv4 unicast, IPv6 unicast, VPNv4/VPNv6 (for [MPLS L3VPN](/blog/mpls-lsr-ldp-label-switching-and-l3vpn)), and more — each negotiated and advertised separately.
+
+- **Beginner:** one BGP peering can carry both IPv4 and IPv6 (and VPN) routes.
+- **Working knowledge:** each family is activated per-neighbour (`address-family ipv6 unicast` → `neighbor X activate`); a neighbour that is *configured* but not *activated* for a family exchanges nothing in it — a common "the session is up but no routes" cause.
+- **Pro:** the session and the families are independent — the TCP peering can be up (state Established) while a given address family carries nothing because it was never activated or is filtered. Always check the family, not just the session.
+
+### Neighbor relationship and authentication
+
+BGP peers are **manually configured** (never discovered) and run over **TCP 179**, so the underlying IP reachability to the neighbor address must exist first. **eBGP** is between different AS numbers (default TTL 1 — directly connected, unless `ebgp-multihop`); **iBGP** is within one AS. Sessions can be **authenticated** with MD5.
+
+- **Beginner:** you tell each router exactly who its BGP neighbours are; they don't find each other.
+- **Working knowledge:** the giveaways — session stuck in **Active** means TCP is not completing (reachability, ACL, or wrong `remote-as`/address); **Idle** can mean no route to the peer. Key concepts here include **next-hop** handling (iBGP does not change next-hop by default → `next-hop-self`), **multihop** for non-adjacent eBGP, **4-byte AS**, **private AS** removal, **route refresh**, **peer groups/templates**, and the **timers**.
+- **Pro:** **iBGP needs a full mesh or a [route reflector](#route-reflector)** because an iBGP router does not re-advertise iBGP-learned routes to other iBGP peers (loop prevention). That single rule explains most "iBGP route not propagating" problems. The state machine is walked in [The state machine](#the-state-machine).
+
+### Path preference (attributes and best-path)
+
+BGP has no metric; it runs a **best-path algorithm** over **attributes**, in order. The ones that decide almost everything, highest priority first: **Weight** (Cisco, local to the router) → **Local Preference** (AS-wide, for outbound choice) → locally originated → **AS-Path length** → **Origin** → **MED** (influences inbound from a neighbour AS) → eBGP over iBGP → lowest IGP metric to next-hop → oldest/router-ID tie-breakers.
+
+- **Beginner:** BGP picks the "best" path using a ranked list of attributes, not by speed.
+- **Working knowledge:** to influence **outbound** traffic use **Local Preference** (higher wins); to influence **inbound** use **AS-Path prepending** or **MED** (blunter, and only relative to one neighbour). Weight is the biggest hammer but only on one router.
+- **Pro:** the mnemonic *We Love Oranges AS Oranges Mean Pure Refreshment* (Weight, LocalPref, Originate, AS-path, Origin, MED, Paths eBGP>iBGP, Reachability/IGP…) is worth memorising because the **order** is the whole game — a shorter AS-path loses to a higher Local Preference every time. Full treatment in [BGP best-path selection](/blog/bgp-best-path-selection-the-tie-breakers-in-order).
+
+### Route reflector
+
+Because iBGP will not re-advertise iBGP routes, a full mesh needs n(n−1)/2 sessions. A **route reflector (RR)** breaks that rule safely: clients peer only with the RR, and the RR **reflects** their routes to each other, so you scale iBGP without a full mesh.
+
+- **Beginner:** a central iBGP router that relays routes between the others, so they don't all need to peer with each other.
+- **Working knowledge:** RR **clients** need no special config; the RR is configured with `neighbor X route-reflector-client`. Loop prevention uses the **originator-ID** and **cluster-list** attributes instead of AS-path (which does not change within an AS).
+- **Pro:** RR placement should follow the **physical topology** so the reflected best path is also the physically sensible one — an RR that is not in the forwarding path can reflect a best path that is suboptimal to forward on. (Confederations are the alternative; out of scope here.)
+
+### Policies (inbound/outbound filtering, path manipulation)
+
+BGP is a **policy** protocol: you filter and reshape what you advertise and accept with **prefix-lists**, **AS-path filters**, **communities**, and **route-maps** applied **inbound or outbound** per neighbour.
+
+- **Beginner:** you control exactly which routes go out and come in, and you can nudge which path is chosen.
+- **Working knowledge:** **outbound** policy controls what you advertise (and thus influences a neighbour's inbound); **inbound** policy controls what you accept and lets you set Local Preference/Weight to steer your own outbound. Changing policy needs a `clear ip bgp X soft` to take effect.
+- **Pro:** **communities** are the scalable lever — tag routes on ingress and act on the tag everywhere else, instead of maintaining prefix-lists per neighbour. And every route-map ends in an implicit **deny**, so a policy that sets an attribute must end with a permit clause or it silently drops everything it did not match. See [route maps](/blog/route-maps-loop-prevention-and-summarisation).
+
+---
+
 ## BGP is not a routing protocol in the way the others are
 
 OSPF and EIGRP discover neighbours by shouting into the link — multicast hellos, and anyone listening who agrees on the parameters becomes an adjacency. They then exchange topology and compute the best path from it.

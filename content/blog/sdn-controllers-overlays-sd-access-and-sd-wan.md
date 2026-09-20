@@ -45,6 +45,69 @@ draft: false
 
 ---
 
+## Controller-based architecture, one by one
+
+Software-defined networking is one idea — move the decision-making off each box and into a controller — expressed in a shared vocabulary. These are the blueprint terms.
+
+### Separation of control plane and data plane
+
+Every device has a **data plane** (forwards packets, in hardware) and a **control plane** (decides *how* to forward — builds the tables). Traditionally both live on every box. SDN **separates** them: the control plane moves to a **controller**, and the devices become mostly data plane, told what to do.
+
+- **Beginner:** the "thinking" moves to a central controller; the switches just forward.
+- **Working knowledge:** the data plane stays **on the device** — this is why a controller outage does not stop existing traffic; it stops the network *learning about change*.
+- **Pro:** the degree of separation varies — pure OpenFlow moves the whole control plane out; Cisco's fabrics keep a distributed control plane (IS-IS underlay, BGP/LISP) and use the controller for **policy and automation**. Knowing which model you have tells you what actually breaks when the controller is unreachable.
+
+### Northbound and Southbound APIs
+
+A controller talks **two directions**. **Southbound** APIs go *down* to the devices to program them (NETCONF, RESTCONF, OpenFlow, CLI). **Northbound** APIs face *up* to applications, orchestrators and humans (usually a REST API), so software can express intent to the controller.
+
+- **Beginner:** southbound = controller-to-devices; northbound = apps-to-controller.
+- **Working knowledge:** northbound is where **automation** plugs in — your script or ITSM system calls the controller's REST API, and the controller renders that into southbound device config. See [REST APIs](/blog/netconf-restconf-yang-and-rest-apis) and [JSON](/blog/json-yaml-and-python-for-network-engineers).
+- **Pro:** the value of the split is that the northbound intent ("segment A cannot talk to segment B") is stable while the southbound rendering (hundreds of device configs) is generated and consistent — which is exactly what removes configuration drift.
+
+---
+
+## SD-WAN elements
+
+### SD-WAN control and data planes elements
+
+Cisco Catalyst **SD-WAN** separates four roles: **vManage** (management GUI/API), **vSmart** (control plane — distributes routes and policy over **OMP**), **vBond** (orchestrator — introduces devices and helps with NAT traversal), and **cEdge/vEdge** routers (data plane — build **IPsec** tunnels directly between sites).
+
+- **Beginner:** a manager, a brain, an introducer, and the routers that actually carry traffic.
+- **Working knowledge:** **vSmart never carries user traffic** — it is a route reflector with policy. Lose it and existing tunnels keep forwarding; you lose the ability to learn new routes and push new policy.
+- **Pro:** the data plane is direct site-to-site IPsec chosen per-application by measured loss/latency/jitter — [IP SLA and PBR](/blog/ip-sla-probes-jitter-and-tracking-objects) done centrally and automatically, which is the real advance over DMVPN.
+
+### Benefits and limitations of Catalyst SD-WAN solution
+
+**Benefits:** transport independence (use any mix of MPLS, broadband, LTE), **application-aware** path selection, centralised policy and zero-touch provisioning, and integrated encryption and segmentation.
+
+**Limitations:** it adds controller components you must run and secure; it is a **licensed, opinionated** system with a learning curve; and it depends on the controllers' availability for change (though not for forwarding).
+
+- **Beginner:** great for many branches over cheap internet; it is a whole platform, not a feature.
+- **Pro:** SD-WAN pays off at **branch scale and high rates of change**; for a handful of static sites, DMVPN or plain IPsec is simpler and cheaper. Match the tool to the churn, not the brochure.
+
+---
+
+## SD-Access elements
+
+### SD-Access control and data planes elements
+
+Cisco **SD-Access** is the campus fabric. **Control plane: LISP** — a map server holds "which edge is each endpoint behind," and edges **query** it instead of flooding. **Data plane: VXLAN** — frames are tunnelled edge-to-edge, carrying the **VNI** (segment) and an **SGT** (group) in the header. **Policy: TrustSec SGTs** — enforced by group, not by IP. **Catalyst Center** is the controller above it all.
+
+- **Beginner:** LISP finds endpoints, VXLAN carries their traffic, SGTs decide who may talk to whom.
+- **Working knowledge:** a user keeps their address, segment and policy as they roam, because the map server is simply updated — no VLAN follows them.
+- **Pro:** most fabric faults are the boring underlay — **MTU** (VXLAN adds ~50 bytes; jumbo frames end-to-end) or an unstable IGP — not the controller. See [controllers, overlays and fabrics](#what-actually-moved).
+
+### Traditional campus interoperating with SD-Access
+
+A fabric rarely arrives all at once. **SD-Access interoperates** with the traditional network through the **border node**, which connects the fabric to everything outside it — legacy VLANs, the data centre, the WAN, the internet — translating between fabric (VXLAN/SGT) and non-fabric.
+
+- **Beginner:** the border is the door between the new fabric and the existing network.
+- **Working knowledge:** SGT policy can be carried beyond the fabric via **inline SGT** or **SXP**, so group-based policy survives the boundary rather than reverting to address-based rules.
+- **Pro:** migrations run fabric and traditional side by side for a long time; the border (and how SGTs are preserved or dropped across it) is where the design succeeds or fails. Plan the policy translation, not just the reachability.
+
+---
+
 ## What actually moved
 
 <figure class="fig">

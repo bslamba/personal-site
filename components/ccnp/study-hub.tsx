@@ -192,7 +192,7 @@ function TopicRow({
       {topic.subs && topic.subs.length > 0 && (
         <ul className="ccnp-subs">
           {topic.subs.map(s =>
-            topic.slug ? (
+            topic.slug && !(topic.parts && topic.parts.length) ? (
               <li key={subSlug(s)}>
                 <Link href={subHref(topic.slug, s)} className="ccnp-sub-link">{subText(s)}</Link>
               </li>

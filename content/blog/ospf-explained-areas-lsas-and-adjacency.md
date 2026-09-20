@@ -28,6 +28,127 @@ draft: false
 
 OSPF is the routing protocol most enterprises actually run, and the one whose failure modes are most reliably diagnosable — because every neighbour state tells you precisely what to check.
 
+## Single-area OSPF: adjacencies and network types
+
+Before areas and router roles, OSPF has to do one thing: form **adjacencies** with neighbours and agree on who talks to whom. These are the CCNA-level sub-items.
+
+### Neighbor adjacencies
+
+OSPF routers discover each other with **hellos** and form an **adjacency** only when a set of parameters match: **area ID, subnet/mask, hello and dead timers, authentication, and MTU**. A mismatch in any of them stops the adjacency — and the stage it stops at tells you which.
+
+- **Beginner:** two OSPF routers must "become neighbours" before they exchange routes.
+- **Working knowledge:** the states run Down → Init (I hear you) → 2-Way (you hear me) → ExStart/Exchange/Loading → **Full**. Stuck in **2-Way** on a LAN is normal for non-DR/BDR pairs; stuck in **ExStart** is the classic **MTU mismatch**.
+- **Pro:** `show ip ospf neighbor` plus the stuck state is a fast diagnosis — Init means hellos are one-way (an ACL or unicast/multicast issue), ExStart/Exchange means MTU or an MTU-ignore situation, and never-neighbours means timers, area or subnet. This is worked in [the state machine / troubleshooting](#reading-it) below.
+
+### Point-to-point
+
+On a **point-to-point** network type (a serial link, or an Ethernet link you set to `ip ospf network point-to-point`), there are exactly two routers, so OSPF **skips DR/BDR election** and the two form a full adjacency directly.
+
+- **Beginner:** two routers on a private link — they just pair up, no election.
+- **Working knowledge:** setting Ethernet point-to-point links to this type is a common optimisation — it removes the pointless election and speeds convergence.
+- **Pro:** point-to-point uses a /30 or /31 and forms adjacency fast; it is the type you *want* wherever there really are only two routers, precisely to avoid the DR machinery of the broadcast type below.
+
+### Broadcast (DR/BDR selection)
+
+On a **broadcast** network (Ethernet by default), many routers share the segment, so OSPF elects a **Designated Router (DR)** and **Backup DR (BDR)** to avoid every router adjacency-ing with every other (which would be n² adjacencies and n² LSAs). All routers form full adjacencies **only with the DR and BDR**; others stay 2-Way with each other.
+
+- **Beginner:** on a shared LAN, OSPF picks a spokesperson (DR) so routers don't all pair up with each other.
+- **Working knowledge:** election is by **highest OSPF priority**, then **highest router ID**; priority 0 means "never DR". The election is **non-preemptive** — a better router joining later does **not** take over.
+- **Pro:** because it is non-preemptive, DR placement is a design choice you enforce with priority, not something to leave to chance — you want the DR on a stable, well-connected router. Clearing it means bouncing adjacencies, so set priorities before the neighbours come up.
+
+### Router ID
+
+The **Router ID (RID)** is a 32-bit number (written like an IPv4 address) that uniquely identifies an OSPF router. It is chosen, in order: a manual `router-id`, else the highest **loopback** IP, else the highest active interface IP — **fixed at process start**.
+
+- **Beginner:** OSPF's name for the router, looking like an IP address.
+- **Working knowledge:** **always set it manually** (`router-id 1.1.1.1`) so it does not change when an interface flaps or is renumbered — a changed RID tears down every adjacency.
+- **Pro:** loopbacks make good RIDs because they never go down, but an explicit `router-id` is better still — deterministic, documented, and independent of addressing. Changing it needs `clear ip ospf process`, which is disruptive, so decide it once.
+
+---
+
+## OSPF areas, network types and router roles
+
+At scale OSPF is organised into **areas** to bound the size of the link-state database and the reach of a recalculation. These are the ENARSI-level sub-items.
+
+### Address families (IPv4, IPv6)
+
+OSPF comes in two versions: **OSPFv2** for IPv4 and **OSPFv3** originally for IPv6. Modern OSPFv3 supports **address families**, carrying both IPv4 and IPv6 in one process over IPv6 link-local transport.
+
+- **Beginner:** OSPFv2 = IPv4; OSPFv3 = IPv6 (and now both).
+- **Working knowledge:** OSPFv3 runs over **link-local** addresses and is enabled per-interface (`ospfv3` / `ipv6 ospf`), a different configuration model from v2's `network` statements.
+- **Pro:** OSPFv3's address-family model lets one process and one set of adjacencies carry both protocols, but each address family keeps its **own SPF and topology** — a v4 problem does not corrupt the v6 table, and vice versa.
+
+### Neighbor relationship and authentication
+
+Adjacency formation (above) plus **authentication**: OSPF can require neighbours to prove themselves before adjacency, so a rogue device cannot inject routes. OSPFv2 supports plain, MD5 and (modern) SHA; OSPFv3 uses IPsec.
+
+- **Beginner:** neighbours can be made to prove who they are before exchanging routes.
+- **Working knowledge:** authentication mismatch is a neighbour-formation failure like any parameter mismatch — it shows in the adjacency never reaching Full.
+- **Pro:** authenticate OSPF on any segment you do not fully control; the cost is trivial and it closes an easy route-injection vector. Keep the key IDs and modes consistent — a key-ID mismatch fails as surely as a wrong key.
+
+### Network types, area types, and router types
+
+OSPF classifies three things, each covered in its own section below: the **network type** of a link (how adjacency and DR behave), the **area type** (how much external/summary information an area carries), and the **router type** (where a router sits relative to area boundaries). Getting fluent means knowing which of the three a given symptom belongs to.
+
+- **Beginner:** OSPF has categories for links, for areas, and for routers — three separate classifications.
+- **Pro:** most "OSPF is behaving oddly" tickets resolve to one of these three being not what you assumed — a wrong network type (no adjacency / needless DR), a wrong area type (missing externals), or a misplaced router role (unexpected LSA types). The next three sections take them in turn.
+
+### Point-to-point, multipoint, broadcast, nonbroadcast
+
+The **network type** on an interface controls adjacency and DR behaviour:
+
+- **Broadcast** — Ethernet default; elects DR/BDR, uses multicast hellos.
+- **Point-to-point** — two routers, no DR, fast.
+- **Nonbroadcast (NBMA)** — media with no native broadcast (classic Frame Relay); needs a DR but **manually configured neighbours**.
+- **Point-to-multipoint** — a hub-and-spoke set treated as many point-to-point links; no DR, works well over [DMVPN](/blog/dmvpn-nhrp-mgre-and-spoke-to-spoke-tunnels).
+
+- **Working knowledge:** both ends must agree on type and on timers (broadcast/NBMA use hello 10/dead 40; point-to-point/multipoint use 30/120 in some defaults) — a type mismatch is a silent no-adjacency.
+- **Pro:** on hub-and-spoke overlays, **point-to-multipoint** avoids the DR problems that NBMA causes and the reachability problems that broadcast causes — it is usually the right answer for DMVPN.
+
+### Area type: backbone, normal, transit, stub, NSSA, totally stub
+
+The **area type** controls which LSAs an area carries, trading detail for smaller databases:
+
+- **Backbone (area 0)** — the core every other area must touch.
+- **Normal** — carries everything.
+- **Stub** — blocks external (Type 5) LSAs; uses a default route out instead.
+- **Totally stubby** — blocks externals **and** inter-area (Type 3); only a default gets in. Cisco-specific, very small database.
+- **NSSA** — a stub that can still originate its **own** externals (Type 7, translated to Type 5 at the ABR) — for a stub area that has a redistribution point.
+- **Transit** — an area carrying traffic between two others via a [virtual link](#virtual-link).
+
+- **Working knowledge:** every router **in** an area must agree on its type, or adjacencies fail.
+- **Pro:** stub types are a scaling tool — shrink the database and reduce SPF churn at the edges, keep full detail in the core. Choose the most restrictive type the area can tolerate given whether it needs to originate externals (→ NSSA) or just consume a default (→ totally stubby).
+
+### Internal router, backbone router, ABR, ASBR
+
+The **router type** is defined by where its interfaces sit:
+
+- **Internal router** — all interfaces in one area.
+- **Backbone router** — at least one interface in area 0.
+- **ABR (Area Border Router)** — interfaces in two or more areas; generates the inter-area (Type 3) summaries and is where area-range summarisation happens.
+- **ASBR (Autonomous System Boundary Router)** — redistributes external routes into OSPF; generates Type 5 (or Type 7 in an NSSA) externals.
+
+- **Working knowledge:** a router can be several at once (an ABR that also redistributes is an ABR **and** ASBR).
+- **Pro:** the router type tells you which **LSA types** to expect and where **summarisation** must be configured — `area range` on the **ABR**, `summary-address` on the **ASBR**. Getting those two commands the wrong way round silently does nothing. See [route summarisation](/blog/route-maps-loop-prevention-and-summarisation).
+
+### Virtual link
+
+A **virtual link** connects an area that is **not physically touching area 0** back to the backbone through a **transit area**, because OSPF requires every area to attach to area 0. It is a repair, not a design.
+
+- **Beginner:** a logical patch that reconnects a stranded area to the backbone.
+- **Working knowledge:** configured between the two ABRs across the transit area with `area X virtual-link <RID>`; the transit area cannot be a stub.
+- **Pro:** treat a virtual link as a temporary fix — if you need one permanently, the area design is wrong. It also cannot cross a stub area, and it adds fragility, so re-home the area to area 0 properly when you can.
+
+### Path preference
+
+OSPF chooses paths by **cost** (sum of interface costs, cost = reference-bandwidth ÷ link-bandwidth), but with a **type ordering** first: **intra-area** beats **inter-area** beats **external**, and **E1** (cost accumulates) beats **E2** (cost fixed at the ASBR) regardless of the raw numbers.
+
+- **Beginner:** lower cost wins, but a route learned inside your area is preferred over one from another area or outside OSPF.
+- **Working knowledge:** raise the **reference bandwidth** (`auto-cost reference-bandwidth`) consistently everywhere, or all links above 100 Mbps look like cost 1 and OSPF cannot tell 1 Gbps from 100 Gbps.
+- **Pro:** the type ordering is applied **before** cost, so a high-cost intra-area route beats a low-cost inter-area one — a frequent "why isn't it using the faster path" surprise. E2 (the default for redistributed routes) ignores internal cost entirely, which is why E1 is often the better choice when the internal path length matters.
+
+---
+
 ## Link-state, and why it differs
 
 A distance-vector protocol like RIP tells its neighbours "here are the networks I can reach and how far away they are". Each router trusts its neighbours' summaries.

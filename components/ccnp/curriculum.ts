@@ -522,7 +522,7 @@ const ENARSI: Exam = {
         { n: '1.8', title: 'Describe Bidirectional Forwarding Detection',
           tags: ['BFD', 'fast failure detection', 'echo', 'asynchronous'] },
         { n: '1.9', title: 'Troubleshoot EIGRP (classic and named mode; VRF and global)',
-          subs: ['Address families (IPv4, IPv6)', 'Neighbor relationship and authentication', 'Loop-free path selections (RD, FD, FC, successor, feasible successor, stuck in active)', 'Stubs', 'Load balancing (equal and unequal cost)', 'Metrics'],
+          subs: ['Address families (IPv4, IPv6)', 'Neighbor relationship and authentication', { t: 'Loop-free path selections (RD, FD, FC, successor, feasible successor, stuck in active)', a: 'loop-free-path-selection' }, 'Stubs', 'Load balancing (equal and unequal cost)', 'Metrics'],
           slug: 'eigrp-explained-dual-metrics-and-feasible-successors',
           tags: ['EIGRP', 'DUAL', 'feasible successor', 'SIA', 'stub', 'variance', 'named mode'],
           lab: 'Force a stuck-in-active and read the query path that caused it.' },
@@ -537,7 +537,7 @@ const ENARSI: Exam = {
           tags: ['OSPF', 'OSPFv3', 'LSA', 'NSSA', 'stub', 'virtual link', 'ABR', 'ASBR', 'network type'],
           lab: 'Build every area type in one topology and read which LSAs appear in each.' },
         { n: '1.11', title: 'Troubleshoot BGP (Internal and External; unicast and VRF-lite)',
-          subs: ['Address families (IPv4, IPv6)', 'Neighbor relationship and authentication (next-hop, multihop, 4-byte AS, private AS, route refresh, synchronization, operation, peer group, states and timers)', 'Path preference (attributes and best-path)', 'Route reflector (excluding multiple route reflectors, confederations, dynamic peer)', 'Policies (inbound/outbound filtering, path manipulation)'],
+          subs: ['Address families (IPv4, IPv6)', { t: 'Neighbor relationship and authentication (next-hop, multihop, 4-byte AS, private AS, route refresh, synchronization, operation, peer group, states and timers)', a: 'neighbor-relationship-and-authentication' }, 'Path preference (attributes and best-path)', { t: 'Route reflector (excluding multiple route reflectors, confederations, dynamic peer)', a: 'route-reflector' }, 'Policies (inbound/outbound filtering, path manipulation)'],
           parts: [
             { slug: 'bgp-neighbors-states-and-why-the-session-wont-come-up', title: 'BGP neighbours: the six states and why yours says Active',
               blurb: 'eBGP versus iBGP, TTL and multihop, next-hop-self, route reflectors, authentication.' },

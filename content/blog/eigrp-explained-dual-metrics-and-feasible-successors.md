@@ -31,6 +31,65 @@ draft: false
 
 EIGRP occupies an unusual position: it behaves like a distance-vector protocol but converges like a link-state one. Understanding how it manages that explains both its strengths and its one characteristic failure mode.
 
+## EIGRP, one by one
+
+EIGRP is an advanced distance-vector protocol whose party trick is a **precomputed loop-free backup path**, so it converges almost instantly. These are the blueprint sub-items.
+
+### Address families (IPv4, IPv6)
+
+Modern **named** EIGRP (`router eigrp NAME` → `address-family ipv4/ipv6`) carries both protocols in one configuration, replacing the old separate `router eigrp AS` (IPv4) and `ipv6 router eigrp` processes.
+
+- **Beginner:** one EIGRP config can now do both IPv4 and IPv6.
+- **Working knowledge:** each address family keeps its own neighbours and topology table; the named mode also nests interface and authentication settings tidily.
+- **Pro:** know both modes — classic AS-based config is still everywhere in the field, while named mode is what current docs and exams use. The **autonomous system number must match** for neighbours to form, in either mode.
+
+### Neighbor relationship and authentication
+
+EIGRP neighbours form when **hellos** agree on **AS number, K-values, and authentication**, and the primary subnets match. Unlike OSPF, EIGRP neighbours do **not** need matching hello/hold timers to form — but a hold-time mismatch causes flaps.
+
+- **Beginner:** two routers become EIGRP neighbours before sharing routes, and can be made to authenticate first.
+- **Working knowledge:** the classic non-adjacency is **mismatched K-values** (the metric weights) or **mismatched AS**; `show ip eigrp neighbors` confirms who is up.
+- **Pro:** EIGRP authentication is key-chain based (MD5 or SHA); a common trap is **key lifetimes** — an expired or not-yet-valid key silently drops the neighbour. Match key IDs and keep clocks in sync.
+
+### Loop-free path selection
+
+EIGRP's core: it runs **DUAL**, which precomputes a backup so failover needs no recalculation. The vocabulary is exact and the exam tests it:
+
+- **RD (Reported Distance)** — the neighbour's own distance to the destination.
+- **FD (Feasible Distance)** — your best (lowest) total distance to it.
+- **Successor** — the next hop on the FD path (installed in the routing table).
+- **Feasible successor** — a backup next hop that satisfies the **Feasibility Condition**: its **RD < your FD**. That condition guarantees it cannot be looping back through you.
+- **Stuck-in-Active (SIA)** — when the successor fails and there is **no** feasible successor, EIGRP goes **Active**, queries neighbours, and if a neighbour does not answer in time the route is SIA — a sign of a query-scope or connectivity problem.
+
+- **Beginner:** the successor is the route it uses; the feasible successor is a pre-checked backup it can switch to instantly.
+- **Pro:** the Feasibility Condition (RD < FD) is *the* idea — it is a cheap, local, mathematically loop-free test, which is why EIGRP fails over in milliseconds where a link-state protocol reruns SPF. SIA problems are cured by **summarisation and stubs** that bound how far queries travel.
+
+### Stubs
+
+An EIGRP **stub** router tells its neighbours "do not query me for routes I did not originate" — so it is never a transit path and never asked to help find an alternative. It is standard on **spokes**.
+
+- **Beginner:** mark branch routers as stubs so the network doesn't ask them to be a through-path.
+- **Working knowledge:** `eigrp stub` (connected + summary by default) dramatically shrinks the **query domain**, which is the main cause of SIA.
+- **Pro:** stub is a scaling and stability tool, not just a hub-and-spoke convenience — bounding query scope is how you keep EIGRP converging fast in a large network. On [DMVPN](/blog/dmvpn-nhrp-mgre-and-spoke-to-spoke-tunnels), spokes are stubs.
+
+### Load balancing (equal and unequal cost)
+
+EIGRP load-balances across **equal-cost** paths by default (up to `maximum-paths`), and — uniquely — across **unequal-cost** paths with the **`variance`** multiplier: any feasible successor whose metric is within variance × FD is also installed.
+
+- **Beginner:** it can spread traffic over several paths, even ones that aren't exactly equal.
+- **Working knowledge:** only **feasible successors** qualify for unequal-cost load balancing — a path that fails the Feasibility Condition is never used, no matter the variance, because it might loop.
+- **Pro:** traffic is shared **in proportion to metric** (inverse to cost), not evenly — so unequal-cost balancing sends more down the better path. This is a capability OSPF simply does not have.
+
+### Metrics
+
+EIGRP's metric is a formula over **bandwidth and delay** by default (the K-values weight bandwidth, delay, load, reliability; K1=K3=1, others 0). Because **delay is additive and stable**, it, not bandwidth, usually drives path selection.
+
+- **Beginner:** EIGRP picks paths mainly by bandwidth and delay.
+- **Working knowledge:** tune paths by adjusting interface **`delay`**, not bandwidth — changing `bandwidth` also affects QoS and other features, whereas `delay` is EIGRP-specific and safe.
+- **Pro:** K-values **must match** between neighbours or they will not form an adjacency, and the wide (64-bit) metric in named mode changed the scaling — do not compare raw metric numbers across classic and named mode. The metric detail is in [The metric vocabulary](#the-metric-vocabulary).
+
+---
+
 ## Distance-vector, done differently
 
 A classic distance-vector protocol like RIP periodically broadcasts its entire routing table and relies on timers to age out bad information. That's why RIP converges in minutes.
