@@ -1,7 +1,7 @@
 ---
 title: "Multicast, Part 2: PIM Sparse Mode, the RP, SPT Switchover, SSM and Bidir"
 excerpt: "IGMP gets a host onto the local router. PIM is how the rest of the network finds the source — and it does it with a rendezvous point that every receiver knows about, a unicast tunnel that lasts a few milliseconds, and a hand-off onto the shortest path that most engineers never actually watch happen. Step through the whole sequence packet by packet, then take the RP apart: static, Auto-RP, BSR, anycast with MSDP, and the two designs that delete it entirely."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["Multicast", "PIM", "SSM", "MSDP", "Rendezvous Point", "Routing", "ENCOR", "CCNP"]
 draft: false
 ---

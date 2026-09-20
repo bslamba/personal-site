@@ -1,7 +1,7 @@
 ---
 title: "NAT and PAT: Inside, Outside, Local, Global — and Why the Translation Happens in That Order"
 excerpt: "Four terms that sound interchangeable and are not. Get them straight and NAT becomes obvious; get them wrong and you will configure the right thing on the wrong interface for years. Plus the order of operations that decides whether your ACL matches before or after translation."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["NAT", "PAT", "IPv4", "Routing", "CCNA", "ENCOR"]
 draft: false
 ---

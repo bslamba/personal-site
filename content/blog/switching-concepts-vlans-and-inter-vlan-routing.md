@@ -1,7 +1,7 @@
 ---
 title: "Switching and VLANs: MAC Learning, Flooding, Access Ports and Inter-VLAN Routing"
 excerpt: "A switch does three things — learn, forward, flood — and everything else in Layer 2 is a refinement of those. VLANs then cut one switch into several that cannot reach each other, which immediately creates the problem of getting between them again. Here is how a MAC table really behaves, why an access port can still carry a tag, and the three ways to route between VLANs with the trade-off that decides which you use."
-date: "2026-09-23"
+date: "2026-09-17"
 tags: ["Switching", "VLAN", "MAC Address Table", "Inter-VLAN Routing", "SVI", "CCNA"]
 draft: false
 ---

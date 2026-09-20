@@ -1,7 +1,7 @@
 ---
 title: "VRF-Lite and GRE: One Router, Many Routing Tables, and the Two VRF Commands People Swap"
 excerpt: "A VRF gives a router a second routing table that knows nothing about the first — so two customers can both use 10.1.1.0/24 on the same box and never meet. The concept is easy; the operational detail is where it bites. Assigning an interface to a VRF silently deletes its IP address, every troubleshooting command you know needs a new keyword, and on a GRE tunnel there are two different VRF commands that mean opposite things."
-date: "2026-09-22"
+date: "2026-09-16"
 tags: ["VRF", "VRF-Lite", "GRE", "Tunnel", "Virtualization", "Routing", "ENARSI", "ENCOR", "CCNP"]
 draft: false
 ---

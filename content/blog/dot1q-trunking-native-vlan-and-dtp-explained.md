@@ -1,7 +1,7 @@
 ---
 title: "802.1Q Trunking, the Native VLAN, and Why DTP Should Be Switched Off"
 excerpt: "A trunk is one cable carrying many VLANs, and the entire mechanism is four bytes inserted after the source MAC. Everything that goes wrong with trunks comes from one of three things: which VLANs are allowed, which VLAN is untagged, and a negotiation protocol that decides what kind of port you have without asking you. Here is the tag byte by byte, the native VLAN mismatch that silently merges two broadcast domains, and the attack that makes DTP a security problem rather than a convenience."
-date: "2026-09-21"
+date: "2026-09-15"
 tags: ["802.1Q", "VLAN", "Trunking", "DTP", "Switching", "CCNA", "ENCOR"]
 draft: false
 ---

@@ -1,7 +1,7 @@
 ---
 title: "CDP and LLDP: Neighbour Discovery, and the Information You Are Broadcasting"
 excerpt: "Two protocols that tell you what is plugged into every port without touching a single cable — and tell anyone else on that port the same thing. Here is what each frame actually carries, why LLDP-MED is what makes an IP phone find its voice VLAN, and why both belong switched off on ports facing people you do not control."
-date: "2026-09-24"
+date: "2026-09-18"
 tags: ["CDP", "LLDP", "Discovery", "Layer 2", "Switching", "CCNA"]
 draft: false
 ---

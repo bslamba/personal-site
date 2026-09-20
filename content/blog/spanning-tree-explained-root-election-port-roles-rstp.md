@@ -1,7 +1,7 @@
 ---
 title: "Spanning Tree From Scratch: Why It Exists, How the Root Is Elected, and What RSTP Changed"
 excerpt: "A redundant Layer 2 network melts itself in under a second without STP. Here is the loop that causes it, the three elections that stop it, the BPDU that carries the votes, and the guards that keep a good design from being ruined by one cable."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["Spanning Tree", "STP", "RSTP", "MST", "Layer 2", "Switching", "CCNA", "ENCOR"]
 draft: false
 ---

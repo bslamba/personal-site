@@ -1,7 +1,7 @@
 ---
 title: "Multicast, Part 1: Addressing, IGMP and the RPF Check"
 excerpt: "One video stream, five hundred viewers, one copy on the wire. Multicast is the only way to do that — but it replaces the certainties of unicast with a receiver-driven control plane and a loop-prevention rule that works backwards. This is the part everything else in multicast is built on: the address ranges, the 32-to-1 MAC collision, how IGMP actually signals interest, and why a router checks where a packet came from rather than where it is going."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["Multicast", "IGMP", "PIM", "RPF", "Routing", "ENCOR", "CCNP"]
 draft: false
 ---

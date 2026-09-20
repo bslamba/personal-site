@@ -1,7 +1,7 @@
 ---
 title: "Policy-Based Routing: Overriding the Routing Table Without Changing It"
 excerpt: "A router forwards on destination and nothing else. PBR is the escape hatch — match on source, protocol, port or packet size, and send those packets somewhere the routing table never would. The mechanism is simple; the traps are not. A deny clause does not drop anything, the router's own packets are exempt unless you say otherwise, and a next hop that goes away will black-hole everything you matched unless you told it to check."
-date: "2026-09-22"
+date: "2026-09-16"
 tags: ["PBR", "Policy-Based Routing", "Route-map", "Routing", "IP SLA", "ENARSI", "ENCOR", "CCNP"]
 draft: false
 ---

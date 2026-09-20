@@ -1,7 +1,7 @@
 ---
 title: "OSPF Beyond One Area: ABRs, LSA Types, Summarisation and What You Can Actually Filter"
 excerpt: "One area works until it doesn't. Areas exist to stop a link flap in one corner recomputing the whole network — but only if you summarise at the boundary, and summarisation is the one thing you can only do in two specific places. Here is why, and what each area type hides."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["OSPF", "Routing", "LSA", "Summarisation", "CCNP", "ENCOR", "ENARSI"]
 draft: false
 ---

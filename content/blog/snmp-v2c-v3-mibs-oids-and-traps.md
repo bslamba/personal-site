@@ -1,7 +1,7 @@
 ---
 title: "SNMP: v2c, v3, OIDs, and Why Your Community String Is Readable on the Wire"
 excerpt: "SNMP is how most networks are actually monitored, and most of them are still running a version whose only credential travels in clear text. Here is what an OID really is, the difference between a trap and an inform, the three v3 security levels and which one is worth configuring, and the handful of reasons a poll returns nothing when the device is up and the community is right."
-date: "2026-09-24"
+date: "2026-09-18"
 tags: ["SNMP", "Monitoring", "MIB", "OID", "Network Management", "CCNA", "ENARSI"]
 draft: false
 ---

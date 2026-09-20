@@ -1,7 +1,7 @@
 ---
 title: "EtherChannel: LACP, PAgP, and Why Your 4-Gig Bundle Only Moves 1 Gig"
 excerpt: "Four cables, one logical link, and spanning tree stops blocking three of them. That much is easy. The parts that catch people are subtler: a bundle is only as good as its hash, a single TCP session never uses more than one member no matter how many you add, mode 'on' will happily build a loop, and a dozen interface settings must match exactly or the port silently refuses to join."
-date: "2026-09-21"
+date: "2026-09-15"
 tags: ["EtherChannel", "LACP", "PAgP", "Port-channel", "Switching", "CCNA", "ENCOR"]
 draft: false
 ---

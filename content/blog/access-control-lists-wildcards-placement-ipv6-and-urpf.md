@@ -1,7 +1,7 @@
 ---
 title: "Access Control Lists: Wildcards, Placement, the Implicit Deny, and the IPv6 Trap"
 excerpt: "An ACL is a top-down list where the first match wins and everything unmatched is dropped. That is the whole engine. The difficulty is everywhere else: wildcard masks run backwards, the right place to put a list depends on what kind it is, an ACL on the wrong interface direction does nothing, and an IPv6 ACL can take a segment down in a way an IPv4 one never could."
-date: "2026-09-23"
+date: "2026-09-17"
 tags: ["ACL", "Security", "Wildcard Mask", "IPv6", "uRPF", "CCNA", "ENARSI"]
 draft: false
 ---

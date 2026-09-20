@@ -1,7 +1,7 @@
 ---
 title: "SPAN, RSPAN and ERSPAN: Getting a Copy of Traffic Without Being in the Path"
 excerpt: "Port mirroring is the only way to see traffic you are not carrying, and it is full of quiet traps. The destination port stops being a normal port, tags disappear unless you ask for them, mirroring two gigabit ports into one drops frames with no counter that says so, and ERSPAN adds 36 bytes to every copied frame across a network that was not expecting them."
-date: "2026-09-25"
+date: "2026-09-19"
 tags: ["SPAN", "RSPAN", "ERSPAN", "Packet Capture", "Troubleshooting", "ENCOR"]
 draft: false
 ---

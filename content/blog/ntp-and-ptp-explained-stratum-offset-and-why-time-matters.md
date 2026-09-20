@@ -1,7 +1,7 @@
 ---
 title: "NTP and PTP: Stratum, Offset, and Why Nothing Works When the Clock Is Wrong"
 excerpt: "Certificates expire, logs cannot be correlated, Kerberos refuses to authenticate and your packet capture lies to you. Time is infrastructure. Here is how NTP measures the network's own delay to correct for it, what stratum really means, and where PTP earns its hardware."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["NTP", "PTP", "Time", "IP Services", "CCNA", "ENCOR"]
 draft: false
 ---

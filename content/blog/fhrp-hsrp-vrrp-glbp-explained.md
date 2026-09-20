@@ -1,7 +1,7 @@
 ---
 title: "First Hop Redundancy: HSRP, VRRP and GLBP, and the Default Gateway That Cannot Fail"
 excerpt: "A PC has one default gateway and no way to find another. When that router dies the subnet is isolated, however much redundancy sits behind it. FHRP solves it by making two routers share one IP and one MAC — and the details of how they share it decide whether your failover takes one second or thirty."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["HSRP", "VRRP", "GLBP", "FHRP", "Routing", "High Availability", "CCNA", "ENCOR"]
 draft: false
 ---

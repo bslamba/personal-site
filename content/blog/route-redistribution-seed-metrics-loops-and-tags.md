@@ -1,7 +1,7 @@
 ---
 title: "Redistribution: Seed Metrics, Administrative Distance, and the Loop You Built Yourself"
 excerpt: "Two routing protocols have no common language. Redistribution translates between them by throwing the metric away and inventing a new one, and then hands the result to a believability contest that knows nothing about whether the path is real. Do it at one point and it is easy. Do it at two — which is what redundancy means — and you have built a two-way door that will feed routes back into the domain they came from. Here is exactly how that fails, and the three fixes in the order you should reach for them."
-date: "2026-09-22"
+date: "2026-09-16"
 tags: ["Redistribution", "OSPF", "EIGRP", "Administrative Distance", "Route Tags", "Routing", "ENARSI", "CCNP"]
 draft: false
 ---

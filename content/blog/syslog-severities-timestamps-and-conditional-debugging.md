@@ -1,7 +1,7 @@
 ---
 title: "Syslog and Debugging: Severities, Facilities, Timestamps, and How to Debug Without Killing the Router"
 excerpt: "Eight severity levels, one number that decides what leaves the box, and a timestamp format that is wrong by default in a way that makes correlation impossible. Then debugs — the most useful troubleshooting tool on IOS and the easiest way to take a production router down, unless you know how to aim one at a single neighbour."
-date: "2026-09-24"
+date: "2026-09-18"
 tags: ["Syslog", "Logging", "Debug", "Troubleshooting", "CCNA", "ENARSI"]
 draft: false
 ---

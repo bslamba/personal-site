@@ -1,7 +1,7 @@
 ---
 title: "Layer 2 Security: Port Security, DHCP Snooping and Dynamic ARP Inspection"
 excerpt: "Everything above Layer 2 assumes Layer 2 is honest, and by default it is not. Anyone on a switch port can hand out addresses, claim to be your default gateway, or exhaust the MAC table until the switch floods every frame to them. Three features fix it, they depend on each other in a specific order, and turning the middle one on without understanding option 82 will take your DHCP down."
-date: "2026-09-23"
+date: "2026-09-17"
 tags: ["Port Security", "DHCP Snooping", "Dynamic ARP Inspection", "Layer 2", "Security", "CCNA"]
 draft: false
 ---

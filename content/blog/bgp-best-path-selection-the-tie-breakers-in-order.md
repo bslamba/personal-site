@@ -1,7 +1,7 @@
 ---
 title: "BGP Best Path Selection: The Tie-Breakers in Order, and Which Two You Should Actually Use"
 excerpt: "BGP installs exactly one path and ignores the rest. Eleven tests decide which, in a fixed order, and the first difference wins. Here is every step, what each one is really for, and the direction problem that catches everybody: the knob that controls your outbound traffic does nothing to your inbound."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["BGP", "Routing", "Path Selection", "CCNP", "ENCOR", "ENARSI"]
 draft: false
 ---

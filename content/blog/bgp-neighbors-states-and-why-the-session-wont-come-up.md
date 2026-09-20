@@ -1,7 +1,7 @@
 ---
 title: "BGP Neighbours: The Six States, eBGP vs iBGP, and Why Your Session Says Active"
 excerpt: "BGP does not find neighbours — you tell it about them, one at a time, and it opens a TCP session. Here is the state machine, what each state means when you are stuck in it, the rules that differ between eBGP and iBGP, and a checklist that finds the fault in under a minute."
-date: "2026-09-20"
+date: "2026-09-14"
 tags: ["BGP", "eBGP", "iBGP", "Routing", "CCNP", "ENCOR", "ENARSI"]
 draft: false
 ---

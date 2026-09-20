@@ -1,7 +1,7 @@
 ---
 title: "MST: One Spanning Tree for Many VLANs, and the Digest That Decides Everything"
 excerpt: "PVST+ runs a complete spanning tree per VLAN. At four hundred VLANs that is four hundred state machines doing nearly identical arithmetic to produce two distinct answers. MST asks the obvious question — why not run two? The mechanism is simple and the failure mode is brutal: three configuration items must match byte for byte across every switch, and if one character of the region name differs, the switch silently stops being part of your region."
-date: "2026-09-21"
+date: "2026-09-15"
 tags: ["MST", "802.1s", "Spanning Tree", "STP", "Switching", "ENCOR", "CCNP"]
 draft: false
 ---

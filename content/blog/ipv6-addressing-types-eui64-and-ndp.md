@@ -1,7 +1,7 @@
 ---
 title: "IPv6 Addressing: The Types, EUI-64, Solicited-Node, and How a Host Gets an Address Without DHCP"
 excerpt: "IPv6 is not IPv4 with longer addresses. Every interface has several addresses at once and is supposed to. There is no broadcast and no ARP. A host can configure itself, discover its router and detect a duplicate without any server existing. Here is the address plan, the two bit-manipulations worth knowing by hand, and the four ICMPv6 messages that replaced everything IPv4 did with broadcasts."
-date: "2026-09-23"
+date: "2026-09-17"
 tags: ["IPv6", "NDP", "SLAAC", "EUI-64", "Addressing", "CCNA", "Fundamentals"]
 draft: false
 ---

@@ -1,7 +1,7 @@
 ---
 title: "How a Router Chooses: The Routing Table, Longest Match, and Administrative Distance"
 excerpt: "Three rules decide every packet a router forwards, and almost everyone learns them in the wrong order. Longest prefix match, administrative distance and metric are not a sequence — they belong to two different planes, and knowing which one runs when is the difference between reading a routing table and guessing at it."
-date: "2026-09-23"
+date: "2026-09-17"
 tags: ["Routing", "Routing Table", "Administrative Distance", "CEF", "Longest Match", "CCNA", "ENARSI"]
 draft: false
 ---

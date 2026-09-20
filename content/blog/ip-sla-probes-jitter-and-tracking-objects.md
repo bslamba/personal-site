@@ -1,7 +1,7 @@
 ---
 title: "IP SLA: Measuring the Network From the Network, and Making Something Act On It"
 excerpt: "A router can generate its own test traffic, measure what happens to it, and then change the routing table when the answer is bad. That last part is where the value is — a probe nobody acts on is a graph, but a probe attached to a tracked object is a failover mechanism that notices things a routing protocol never will."
-date: "2026-09-25"
+date: "2026-09-19"
 tags: ["IP SLA", "Tracking", "Jitter", "Performance", "Troubleshooting", "ENCOR", "ENARSI"]
 draft: false
 ---
