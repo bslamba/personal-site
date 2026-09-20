@@ -41,6 +41,54 @@ draft: false
 
 ---
 
+## IPv6 address types, one by one
+
+IPv6 does not have "an address per interface" the way IPv4 mostly does. An interface normally holds **several** addresses at once — a link-local, one or more globals, and a set of multicast groups it has joined — and which one is used depends on the destination. These are the types the blueprint asks you to know.
+
+### Unicast (global, unique local, and link local)
+
+A **unicast** address identifies **one** interface; a packet to it goes to exactly that interface. IPv6 has three unicast scopes you must recognise:
+
+- **Global unicast (GUA)** — `2000::/3` in practice, routable on the internet, the equivalent of a public IPv4 address. Assigned by your provider or from your allocation.
+- **Unique local (ULA)** — `fc00::/7` (you will see `fd00::/8` in the wild), routable **inside** your organisation but not on the internet. The rough analogue of RFC 1918 private space, used for internal-only communication.
+- **Link-local (LLA)** — `fe80::/10`, valid only on the **one link** it is configured on, never routed. **Every IPv6 interface has one automatically**, and it is what neighbour discovery, router advertisements and dynamic routing protocol adjacencies (OSPFv3, EIGRP for IPv6) actually use.
+
+- **Beginner:** global = public, unique-local = private, link-local = this-wire-only and always present.
+- **Working knowledge:** the same interface holds a link-local *and* a global at the same time; the host picks the source by the destination's scope.
+- **Pro:** because control-plane traffic rides link-local, an IPv6 static route to a link-local next hop **must name the exit interface** (`ipv6 route ::/0 Gi0/1 fe80::2`) — the same fe80:: address can legitimately exist on every link, so it is ambiguous without one. See [static routing](/blog/static-routes-dhcp-relay-and-file-transfer).
+
+### Anycast
+
+An **anycast** address is a unicast address assigned to **more than one** interface deliberately; the network routes a packet to the **nearest** one (by routing metric). There is nothing special in the address format — an anycast address looks exactly like a global unicast; what makes it anycast is that several devices share it.
+
+- **Beginner:** "send this to whichever of these servers is closest."
+- **Working knowledge:** it is how root DNS and large CDNs work — one address, many locations, routing chooses.
+- **Pro:** IPv6 reserves the **subnet-router anycast** address (host portion all zeros) so any router on a subnet answers to it. Anycast is a routing behaviour, not an address property, so failover is just reconvergence — withdraw the nearest instance and traffic shifts to the next.
+
+### Multicast
+
+A **multicast** address (`ff00::/8`) identifies a **group**; a packet is delivered to every interface that has joined it. IPv6 has **no broadcast at all** — everything IPv4 did with broadcast, IPv6 does with well-known multicast groups, which is more efficient because only interested hosts process the frame.
+
+Groups you must know:
+- `ff02::1` — **all nodes** on the link (the closest thing to a broadcast).
+- `ff02::2` — **all routers** on the link.
+- `ff02::1:ffXX:XXXX` — the **solicited-node** multicast group, derived from the low 24 bits of an address and central to how neighbour discovery replaces ARP.
+
+- **Beginner:** one-to-many; hosts opt in by joining the group.
+- **Pro:** solicited-node multicast is why IPv6 address resolution does not flood the whole segment the way ARP does — a Neighbor Solicitation goes to the solicited-node group, which almost always contains just the target. See [neighbour discovery](#how-a-host-gets-an-address-with-no-server-at-all) below.
+
+### Modified EUI 64
+
+**Modified EUI-64** is a rule for building the 64-bit **interface identifier** (the host half of an address) automatically from a 48-bit MAC address. The steps: split the MAC in half, insert `FFFE` in the middle, and **flip the 7th bit** of the first byte (the universal/local bit).
+
+So MAC `00:1A:2B:3C:4D:5E` becomes interface ID `021A:2BFF:FE3C:4D5E` — note `00` became `02` because flipping the 7th bit of `0x00` gives `0x02`.
+
+- **Beginner:** a way to turn a MAC address into the second half of an IPv6 address.
+- **Working knowledge:** you can spot an EUI-64 address instantly by the `FF:FE` in the middle of the host portion.
+- **Pro:** EUI-64 **leaks the MAC** (and so the device and, roughly, its identity) into every address it uses, which is why modern hosts default to **RFC 4941 privacy addresses** / random IIDs instead. Know EUI-64 because the exam and older gear use it, and because you still see it on router interfaces where it is convenient and privacy is irrelevant. The bit-flip is worked through by hand in [the two bit-manipulations](#the-two-bit-manipulations-worth-doing-by-hand) below.
+
+---
+
 ## The address plan
 
 <figure class="fig">

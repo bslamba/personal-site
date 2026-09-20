@@ -37,6 +37,44 @@ draft: false
 
 ---
 
+## Wireless principles, one by one
+
+Wireless is radio, and radio is a **shared, half-duplex** medium — one transmitter at a time in a given space on a given frequency. Almost every wireless design decision follows from that one fact. These are the terms the blueprint names.
+
+### RF
+
+**RF (radio frequency)** is the physical carrier. Wi-Fi uses unlicensed bands — **2.4 GHz**, **5 GHz** and now **6 GHz** — which means you share them with neighbours, microwaves, Bluetooth and anyone else, with no right to a clear channel.
+
+- **Beginner:** the invisible signal the AP and client use to talk.
+- **Working knowledge:** two RF properties dominate design. **Higher frequency = more bandwidth but shorter range and worse penetration** (5/6 GHz is faster but does not go through walls as well as 2.4 GHz). And signal strength is measured in **dBm** (negative numbers; closer to zero is stronger) with **SNR** — the gap between signal and noise — mattering more than raw signal.
+- **Pro:** the counter-intuitive rule is that **turning power up usually makes a dense deployment worse**: a louder AP is heard by more neighbouring APs, so more of them must stay silent while it talks, and the client still cannot shout back any louder from the far side of the room. Capacity comes from *more cells at lower power*, not louder ones — see [Three facts that cause everything else](#three-facts-that-cause-everything-else).
+
+### Nonoverlapping Wi-Fi channels
+
+A **channel** is a slice of a band. The problem is that in **2.4 GHz** the channels are only 5 MHz apart but each is ~20 MHz wide, so adjacent channels **overlap** and interfere. Only **1, 6 and 11** are far enough apart not to overlap.
+
+- **Beginner:** use channels 1, 6 and 11 in 2.4 GHz and nothing else.
+- **Working knowledge:** two APs on the **same** channel share it politely (they hear each other and take turns); two on **partially overlapping** channels corrupt each other's frames and both do worse than if they had shared. Same channel beats adjacent channel every time.
+- **Pro:** 5 GHz has ~25 non-overlapping 20 MHz channels, which is why dense designs live there — but **channel bonding** (40/80/160 MHz for speed) spends that spectrum fast, so wider is not always better in a busy area. Some 5 GHz channels also require **DFS** (dynamic frequency selection), yielding to radar. This is the whole reason capacity planning is a channel problem, not a power problem.
+
+### SSID
+
+An **SSID (Service Set Identifier)** is the **name** of a wireless network. A **BSSID** is the AP radio's MAC address for that network; a **BSS** is one AP and its clients; an **ESS** is several APs sharing one SSID so a client can **roam** between them.
+
+- **Beginner:** the network name you pick from the list.
+- **Working knowledge:** one AP radio can advertise several SSIDs, each usually mapped to its own VLAN — but every extra SSID costs airtime, because each is beaconed ~10 times a second at the lowest data rate. Fewer SSIDs is a performance decision.
+- **Pro:** a **hidden SSID is not a security control** — the name is blanked only in beacons and appears in the clear the moment a client associates or probes. Segmentation and [WPA2/WPA3](/blog/wlan-security-wpa2-wpa3-and-the-four-way-handshake) do the securing; hiding the SSID mostly just makes support harder.
+
+### Encryption
+
+Wireless **encryption** protects frames over the air, where anyone with an antenna can listen. The generations, newest first: **WPA3** (SAE, mandatory protected management frames), **WPA2** (AES-CCMP — the baseline), **WPA** (TKIP, deprecated) and **WEP** (broken, never use).
+
+- **Beginner:** turn on WPA2 or WPA3; never WEP.
+- **Working knowledge:** **Personal** mode uses one shared passphrase (PSK); **Enterprise** mode uses per-user credentials via [802.1X and RADIUS](/blog/aaa-radius-tacacs-explained), so nothing shared can leak.
+- **Pro:** WPA2-PSK's weakness is not the cipher — it is that the [4-way handshake](/blog/wlan-security-wpa2-wpa3-and-the-four-way-handshake) hands an offline attacker everything needed to test passphrase guesses. WPA3-SAE closes exactly that, and adds forward secrecy. Deploy WPA3 where clients support it, WPA2-AES otherwise, and never leave TKIP enabled — it forces the whole WLAN down to 802.11g rates.
+
+---
+
 ## Three facts that cause everything else
 
 <figure class="fig">

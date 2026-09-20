@@ -27,6 +27,74 @@ draft: false
 
 ---
 
+## Switching concepts
+
+A switch has one job: get a frame to the port that owns the destination MAC, and to no other port. Everything it does is in service of that, and it learns entirely by watching traffic.
+
+### MAC learning and aging
+
+A switch **learns** by reading the **source** MAC of every frame and recording which port it arrived on. That mapping goes in the MAC address table. Each entry has a timer — the **aging** time (300 seconds by default) — reset every time the switch sees that MAC again. If a MAC goes quiet for the full aging time, its entry is removed, so the table reflects who is actually present.
+
+- **Beginner:** the switch remembers which device is on which port by watching who talks.
+- **Working knowledge:** learning is from the **source** address; forwarding is by the **destination**. That asymmetry is the whole model.
+- **Pro:** a **topology change** in [spanning tree](/blog/spanning-tree-explained-root-election-port-roles-rstp) shortens the aging time to 15 seconds so stale entries flush quickly after a link moves — otherwise traffic would black-hole to a port the device no longer lives on.
+
+### Frame switching
+
+**Frame switching** is the forwarding decision itself: the switch looks up the destination MAC in its table and sends the frame out the **one** port associated with it. This happens in hardware (an ASIC) at wire speed.
+
+- **Beginner:** known destination → send it out the right port, and only that port.
+- **Working knowledge:** because it is one-port-out, switching a known unicast creates no unnecessary traffic — unlike flooding.
+- **Pro:** switches historically differed by *when* they start forwarding — **store-and-forward** (read the whole frame, check the FCS, then forward) versus **cut-through** (start forwarding after reading the destination MAC). Store-and-forward is near-universal now because it drops corrupted frames rather than propagating them, and the latency cost is negligible at modern speeds.
+
+### Frame flooding
+
+When a switch receives a frame for a destination it has **not** learned (**unknown unicast**), or a **broadcast**, or **multicast** it has no better rule for, it **floods** it: sends it out every port in the VLAN except the one it arrived on.
+
+- **Beginner:** "I don't know where this goes, so I'll try everywhere in this VLAN."
+- **Working knowledge:** flooding is normal and how the switch discovers a silent device — the reply teaches it the port, and it stops flooding to that MAC.
+- **Pro:** flooding is bounded by the **VLAN** (a broadcast domain) — this is the core reason VLANs exist, to keep flooding from reaching the whole site. A [switching loop](/blog/spanning-tree-explained-root-election-port-roles-rstp) turns flooding into a **broadcast storm** because the flooded copies never stop, which is exactly what spanning tree prevents.
+
+### MAC address table
+
+The **MAC address table** (or CAM table) is the switch's memory of MAC-to-port mappings for each VLAN. It is what turns flooding into precise forwarding. `show mac address-table` is one of the most useful commands on a switch.
+
+- **Beginner:** the lookup table of "which device is on which port."
+- **Working knowledge:** entries are **dynamic** (learned, and aged out) or **static** (configured, permanent). A [virtualization host](/blog/virtualization-vms-containers-and-network-virtualization) legitimately shows many MACs on one port.
+- **Pro:** the table is finite. **MAC flooding attacks** (macof) fill it with bogus entries so the switch is forced to flood everything, turning it into a hub an attacker can sniff — which is what **port security** (limiting learned MACs per port) defends against.
+
+---
+
+## VLANs and access ports
+
+A VLAN turns one physical switch into several independent broadcast domains. These sub-items are how endpoints attach to them and how traffic gets between them.
+
+### Access ports (data and voice)
+
+An **access port** carries a single VLAN's untagged traffic to an endpoint. The special case is the **voice VLAN**: a switch port can carry **two** VLANs to a desk phone with a PC behind it — the phone's traffic in a tagged **voice VLAN**, the PC's traffic untagged in the **data (access) VLAN**, over one cable.
+
+- **Beginner:** the port your laptop or phone plugs into; one VLAN for data, optionally one for voice.
+- **Working knowledge:** `switchport access vlan 20` sets the data VLAN; `switchport voice vlan 110` adds the voice VLAN. The phone learns its VLAN via CDP/LLDP.
+- **Pro:** the voice VLAN is a limited, purpose-built exception to "an access port is one VLAN" — it is not a trunk, and it is where you apply [QoS trust](/blog/qos-classification-marking-queuing-and-phb) so the phone's EF-marked frames are believed while the PC's are not.
+
+### Default VLAN
+
+The **default VLAN** is **VLAN 1**. Out of the box, every port is an access port in VLAN 1, and VLAN 1 cannot be deleted. Cisco control-plane traffic (CDP, VTP, DTP, PAgP) uses it by default.
+
+- **Beginner:** the VLAN every port starts in before you configure anything.
+- **Working knowledge:** leaving user traffic in VLAN 1 mixes it with switch control traffic and is a security weak spot.
+- **Pro:** best practice is to **not use VLAN 1 for anything** — move user ports to purpose-built VLANs, set the trunk [native VLAN](/blog/dot1q-trunking-native-vlan-and-dtp-explained) to an unused ID, and shut unused ports into a black-hole VLAN. VLAN 1 pruning on trunks limits its reach.
+
+### InterVLAN connectivity
+
+VLANs are separate broadcast domains, so traffic between them must be **routed**. **Inter-VLAN routing** is done one of three ways: a **router-on-a-stick** (one trunk to a router with subinterfaces per VLAN), a **Layer 3 switch** with **SVIs** (`interface Vlan10`) routing in the ASIC, or a routed port.
+
+- **Beginner:** to get from VLAN 10 to VLAN 20 you need a router or an L3 switch — a plain switch cannot do it.
+- **Working knowledge:** the SVI is the **gateway** the hosts point at; it is up only while at least one access port in that VLAN is up.
+- **Pro:** router-on-a-stick is limited by the single trunk's bandwidth and is legacy; L3-switch SVIs route at wire speed and are the norm. See [Getting between VLANs — three ways](#getting-between-vlans-three-ways) for the full comparison and configuration.
+
+---
+
 ## Learn, forward, flood
 
 <div class="walk">

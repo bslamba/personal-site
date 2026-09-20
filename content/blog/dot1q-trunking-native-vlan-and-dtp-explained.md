@@ -26,6 +26,36 @@ draft: false
 
 ---
 
+## Interswitch connectivity, one by one
+
+When one VLAN needs to span two switches, the link between them has to carry frames from **many** VLANs and keep them separate. That link is a trunk, and these are the terms that make it work.
+
+### Trunk ports
+
+A **trunk port** carries traffic for **multiple VLANs** over a single link, tagging each frame so the far end knows which VLAN it belongs to. Contrast an **access port**, which belongs to exactly one VLAN and carries untagged frames to an endpoint.
+
+- **Beginner:** access port = one VLAN, to a device; trunk port = many VLANs, between switches (or to a router/AP).
+- **Working knowledge:** a trunk has an **allowed-VLAN list** (`switchport trunk allowed vlan`). A VLAN missing from that list is silently dropped on the link — the single most common "the new VLAN doesn't work between switches" cause, and the same fault bites [virtualization hosts](/blog/virtualization-vms-containers-and-network-virtualization) whose uplink is a trunk.
+- **Pro:** always configure trunks **statically** (`switchport mode trunk`) and disable negotiation (`switchport nonegotiate`). Leaving [DTP](#dtp-and-why-the-answer-is-to-turn-it-off) to auto-negotiate the trunk is both fragile and a security exposure.
+
+### 802.1Q
+
+**802.1Q** is the IEEE standard that defines the VLAN **tag** — a 4-byte field inserted into the Ethernet header carrying a 12-bit **VLAN ID** (1–4094). It is how a single trunk keeps dozens of VLANs distinct. Cisco's old proprietary ISL is dead; 802.1Q is universal.
+
+- **Beginner:** the little label added to a frame that says which VLAN it is in.
+- **Working knowledge:** the 4 bytes sit between the source MAC and the EtherType, which is why a tagged frame can exceed the classic 1518-byte limit (a "baby giant") and why an MTU/tag mismatch shows up as **giants**.
+- **Pro:** the tag also carries a 3-bit **PCP** field — that is where [Layer 2 CoS / QoS](/blog/qos-classification-marking-queuing-and-phb) marking lives. The byte layout is walked through in [The tag, byte by byte](#the-tag-byte-by-byte) below.
+
+### Native VLAN
+
+The **native VLAN** is the one VLAN whose frames cross an 802.1Q trunk **untagged**. It exists for backward compatibility with devices that do not understand tags. By default it is VLAN 1.
+
+- **Beginner:** the one VLAN on a trunk that is sent without a tag.
+- **Working knowledge:** the native VLAN **must match on both ends** of the trunk, or frames leak between VLANs — CDP will warn you of a mismatch, and it is a classic misconfiguration.
+- **Pro:** the native VLAN is a security concern (**VLAN hopping** via double-tagging targets it). Best practice is to set the native VLAN to an unused, dedicated ID that carries no user traffic, and on many designs to tag it as well (`vlan dot1q tag native`). Never leave it as VLAN 1 on a user-facing trunk.
+
+---
+
 ## The problem a trunk solves
 
 Two switches, three VLANs. Without trunking you need three cables — one per VLAN, each a plain access port at both ends. Six VLANs, six cables. Any new VLAN means physically patching another link.

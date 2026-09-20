@@ -30,6 +30,49 @@ draft: false
 
 ---
 
+## Rapid PVST+, one by one
+
+Spanning tree exists to stop a physical loop becoming a broadcast storm, by blocking just enough ports to leave one loop-free path — and unblocking them if the topology changes. These are the terms the blueprint names.
+
+### Root port, root bridge (primary/secondary), and other port names
+
+The **root bridge** is the one switch every other switch measures distance from — the switch with the lowest **bridge ID** (priority + MAC). Every non-root switch has exactly one **root port**: its single best (lowest-cost) path *toward* the root. On each segment, one **designated port** forwards; any remaining loop-creating port is **blocking** (non-designated).
+
+- **Beginner:** one switch is elected the centre (root); every other switch keeps one port pointed at it and blocks the ports that would form a loop.
+- **Working knowledge:** you set **primary/secondary** root deliberately with `spanning-tree vlan X root primary` (and `secondary` on the backup) rather than letting the lowest MAC — often the oldest switch — win by accident.
+- **Pro:** the election is per-VLAN in PVST+, so you can **load-balance** by making different switches root for different VLANs. The full walkthrough is in [The three elections](#the-three-elections).
+
+### Port states and roles
+
+A **role** is the port's job (root, designated, blocking/alternate); a **state** is what it is doing right now. In classic STP the states are blocking → listening → learning → forwarding; **RSTP (Rapid PVST+)** collapses these to **discarding, learning, forwarding** and transitions in seconds instead of ~50.
+
+- **Beginner:** role = the port's job in the tree; state = whether it is currently passing traffic.
+- **Working knowledge:** RSTP is fast because it uses a **proposal/agreement** handshake between switches instead of waiting out timers, and it defines **alternate** (a backup root port) and **backup** roles that can take over immediately.
+- **Pro:** the slow part people still hit is that a port coming up is treated as potentially looped unless told otherwise — which is what PortFast fixes. See [Port states, and the 30 seconds everybody complains about](#port-states-and-the-30-seconds-everybody-complains-about).
+
+### PortFast
+
+**PortFast** puts an **access port straight into forwarding**, skipping the listening/learning delay, because an endpoint cannot create a loop. It is what stops a PC waiting ~30 seconds for the network after link-up (and stops the DHCP timeout that causes).
+
+- **Beginner:** "this port goes to a PC, not another switch, so let it work immediately."
+- **Working knowledge:** apply it only to **edge/access ports**, never to a switch-to-switch link — a PortFast port that suddenly receives a BPDU is a loop risk.
+- **Pro:** always pair PortFast with **BPDU guard**, so that if a switch (or a looped cable) *is* plugged into that edge port, the port err-disables instead of forming a loop. PortFast without BPDU guard is the setup that causes the outage it was meant to prevent.
+
+### Root guard, loop guard, BPDU filter, and BPDU guard
+
+Four protections, and knowing which does what is the point:
+
+- **BPDU guard** — err-disables an edge port that receives **any** BPDU. Protects PortFast ports from a rogue or accidental switch.
+- **Root guard** — stops a port becoming a path to a **new root**; if a superior BPDU arrives, the port goes root-inconsistent. Keeps the root where you designed it, on ports facing downstream switches you do not control.
+- **Loop guard** — protects against a port that **stops receiving** BPDUs (e.g. a unidirectional link) wrongly moving to forwarding; it goes loop-inconsistent instead.
+- **BPDU filter** — **suppresses** BPDUs on a port. Dangerous: on an edge port it effectively disables BPDU guard's protection, so use it only where you fully understand the consequence.
+
+- **Beginner:** BPDU guard and PortFast go on ports facing users; root guard goes on ports facing other switches.
+- **Working knowledge:** BPDU guard reacts to an *unexpected* BPDU; loop guard reacts to a *missing expected* BPDU — opposite triggers.
+- **Pro:** the pairing that matters is PortFast + BPDU guard at the edge, and root guard on distribution ports facing access switches, so no access switch can hijack the root role. Loop guard is the belt-and-braces for fibre links where a one-way failure is possible; UDLD complements it.
+
+---
+
 ## Start with the thing that goes wrong
 
 Every explanation of spanning tree should begin with the accident, because the protocol only makes sense once you have watched a network destroy itself.
