@@ -66,8 +66,8 @@ Both protocols do the same job with the same shape: a fixed header and then a li
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A phone plugs into an access port and knows nothing about the network">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}</style>
+<svg class="sv1" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A phone plugs into an access port and knows nothing about the network">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .l{stroke:#8A8A93;stroke-width:1.5}</style>
   <rect class="n" x="60" y="66" width="80" height="34" rx="3"/><text class="nt" x="100" y="88" text-anchor="middle">SW</text>
   <line class="l" x1="140" y1="83" x2="380" y2="83"/>
   <rect class="n" x="380" y="66" width="90" height="34" rx="3"/><text class="nt" x="425" y="88" text-anchor="middle">PHONE</text>
@@ -78,8 +78,8 @@ Both protocols do the same job with the same shape: a fixed header and then a li
 The phone boots with no configuration. It does not know which VLAN carries voice, how much power it may draw, or what CoS value to mark its own traffic with. Without a discovery protocol it would need all of that configured by hand, on every phone.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The switch advertises the voice VLAN and the phone starts tagging its traffic">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{stroke:#1f9d6b;stroke-width:2.5;fill:none}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
+<svg class="sv2" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The switch advertises the voice VLAN and the phone starts tagging its traffic">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .a{stroke:#1f9d6b;stroke-width:2.5;fill:none}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
   <rect class="n" x="60" y="70" width="80" height="34" rx="3"/><text class="nt" x="100" y="92" text-anchor="middle">SW</text>
   <rect class="n" x="380" y="70" width="90" height="34" rx="3"/><text class="nt" x="425" y="92" text-anchor="middle">PHONE</text>
   <path class="a" d="M 140 87 L 380 87"/>
@@ -94,8 +94,8 @@ LLDP-MED adds TLVs that CDP had as proprietary extensions. The important one is 
 <br><br>This is why <code>switchport voice vlan 110</code> works with no configuration on the phone at all — and why an "access" port ends up carrying a tagged VLAN, as covered in the <a href="/blog/switching-concepts-vlans-and-inter-vlan-routing">switching and VLANs</a> article. Turn LLDP-MED off and the phone lands untagged in the data VLAN, where it will usually still register and sound terrible, because it is no longer being prioritised.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Power negotiation lets the phone request exactly what it needs rather than a class default">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.a{stroke:#F2994A;stroke-width:2.5;fill:none}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
+<svg class="sv3" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Power negotiation lets the phone request exactly what it needs rather than a class default">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .a{stroke:#F2994A;stroke-width:2.5;fill:none}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
   <rect class="n" x="60" y="70" width="80" height="34" rx="3"/><text class="nt" x="100" y="92" text-anchor="middle">SW</text>
   <rect class="n" x="380" y="70" width="90" height="34" rx="3"/><text class="nt" x="425" y="92" text-anchor="middle">PHONE</text>
   <path class="a" d="M 380 79 L 140 79"/>
@@ -112,8 +112,8 @@ The Extended Power-via-MDI TLV lets a device ask for what it actually draws. Wit
 <br><br>It is a real operational constraint rather than a detail — "the phones on the last six ports will not power up" is usually a budget problem, and <code>show power inline</code> shows allocated versus consumed.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two devices on one port appear as two neighbours with the phone acting as a small switch">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.l{stroke:#8A8A93;stroke-width:1.5}.v{stroke:#4b7bec;stroke-width:2.5}.d{stroke:#1f9d6b;stroke-width:2.5}</style>
+<svg class="sv4" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two devices on one port appear as two neighbours with the phone acting as a small switch">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .l{stroke:#8A8A93;stroke-width:1.5}.sv4 .v{stroke:#4b7bec;stroke-width:2.5}.sv4 .d{stroke:#1f9d6b;stroke-width:2.5}</style>
   <rect class="n" x="40" y="70" width="80" height="34" rx="3"/><text class="nt" x="80" y="92" text-anchor="middle">SW</text>
   <rect class="n" x="300" y="70" width="90" height="34" rx="3"/><text class="nt" x="345" y="92" text-anchor="middle">PHONE</text>
   <rect class="n" x="510" y="70" width="80" height="34" rx="3"/><text class="nt" x="550" y="92" text-anchor="middle">PC</text>

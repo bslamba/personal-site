@@ -40,13 +40,8 @@ draft: false
 An SNMP agent does not have an API. It has a **tree**, and every value in it has an address — a sequence of numbers from the root down to a leaf.
 
 <figure class="fig">
-<svg viewBox="0 0 640 265" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The SNMP object identifier tree from the root down to a specific interface counter">
-  <style>
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}
-    .bx{fill:#F1EEE9;stroke:#B5B5BC}.hl{fill:rgba(31,157,107,.14);stroke:#1f9d6b}
-    .l{stroke:#8A8A93;stroke-width:1.5}
+<svg class="sv1" viewBox="0 0 640 265" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The SNMP object identifier tree from the root down to a specific interface counter">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv1 .bx{fill:#F1EEE9;stroke:#B5B5BC}.sv1 .hl{fill:rgba(31,157,107,.14);stroke:#1f9d6b}.sv1 .l{stroke:#8A8A93;stroke-width:1.5}
   </style>
   <rect class="bx" x="270" y="20" width="100" height="24"/><text class="m" x="320" y="37" text-anchor="middle">1 · iso</text>
   <rect class="bx" x="270" y="56" width="100" height="24"/><text class="m" x="320" y="73" text-anchor="middle">3 · org</text>
@@ -90,8 +85,8 @@ An SNMP agent does not have an API. It has a **tree**, and every value in it has
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The manager requests one specific object identifier and the agent returns its value">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.q{stroke:#4b7bec;stroke-width:2.5;fill:none}.a{stroke:#1f9d6b;stroke-width:2.5;fill:none}</style>
+<svg class="sv2" viewBox="0 0 640 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The manager requests one specific object identifier and the agent returns its value">
+  <style>.sv2 .n{fill:#17171A}.sv2 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv2 .q{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv2 .a{stroke:#1f9d6b;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="30" y="66" width="110" height="34" rx="3"/><text class="nt" x="85" y="88" text-anchor="middle">MANAGER</text>
   <rect class="n" x="500" y="66" width="110" height="34" rx="3"/><text class="nt" x="555" y="88" text-anchor="middle">AGENT</text>
   <path class="q" d="M 140 76 L 500 76"/>
@@ -107,8 +102,8 @@ The manager asks for one exact OID and gets one value. <code>1.3.6.1.2.1.1.1.0</
 <br><br>That trailing <b><code>.0</code></b> matters: scalar objects — one per device, like sysDescr or sysUpTime — always carry it. Omit it and the agent returns <code>noSuchObject</code>, which is the most common reason a hand-typed OID fails while the same OID works from the monitoring system.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GetNext walks the tree one object at a time requiring a round trip for each">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#B26014}.q{stroke:#F2994A;stroke-width:2;fill:none}</style>
+<svg class="sv3" viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GetNext walks the tree one object at a time requiring a round trip for each">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#B26014}.sv3 .q{stroke:#F2994A;stroke-width:2;fill:none}</style>
   <rect class="n" x="30" y="70" width="110" height="34" rx="3"/><text class="nt" x="85" y="92" text-anchor="middle">MANAGER</text>
   <rect class="n" x="500" y="70" width="110" height="34" rx="3"/><text class="nt" x="555" y="92" text-anchor="middle">AGENT</text>
   <path class="q" d="M 140 62 L 500 62"/><path class="q" d="M 500 74 L 140 74"/>
@@ -125,8 +120,8 @@ GetNext asks "what is the next object after this one?", which lets a manager enu
 <br><br>It is <b>one request and one response per value</b>. On a switch with 48 ports and a dozen counters each, that is hundreds of round trips — and over a high-latency link, minutes. That cost is exactly what the next operation exists to remove.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GetBulk returns many values in a single response">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.q{stroke:#4b7bec;stroke-width:2.5;fill:none}.a{stroke:#1f9d6b;stroke-width:4;fill:none}</style>
+<svg class="sv4" viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GetBulk returns many values in a single response">
+  <style>.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.sv4 .q{stroke:#4b7bec;stroke-width:2.5;fill:none}.sv4 .a{stroke:#1f9d6b;stroke-width:4;fill:none}</style>
   <rect class="n" x="30" y="70" width="110" height="34" rx="3"/><text class="nt" x="85" y="92" text-anchor="middle">MANAGER</text>
   <rect class="n" x="500" y="70" width="110" height="34" rx="3"/><text class="nt" x="555" y="92" text-anchor="middle">AGENT</text>
   <path class="q" d="M 140 78 L 500 78"/>
@@ -143,8 +138,8 @@ One request returns many values, which turns a table walk from hundreds of round
 <br><br>If your monitoring is timing out on big devices, check which version it is actually negotiating before you blame the network.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A trap is sent once with no acknowledgement so a lost packet means a lost alert">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#B80027}.t{stroke:#D3002D;stroke-width:2.5;fill:none}</style>
+<svg class="sv5" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A trap is sent once with no acknowledgement so a lost packet means a lost alert">
+  <style>.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#B80027}.sv5 .t{stroke:#D3002D;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="30" y="70" width="110" height="34" rx="3"/><text class="nt" x="85" y="92" text-anchor="middle">MANAGER</text>
   <rect class="n" x="500" y="70" width="110" height="34" rx="3"/><text class="nt" x="555" y="92" text-anchor="middle">AGENT</text>
   <path class="t" d="M 500 87 L 320 87"/>
@@ -161,8 +156,8 @@ The agent sends one UDP packet to the manager and moves on. No acknowledgement, 
 <br><br>This is the failure mode behind "we never got an alert for that outage". The trap was almost certainly sent.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An inform is acknowledged and retransmitted until the manager confirms receipt">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.t{stroke:#1f9d6b;stroke-width:2.5;fill:none}.a{stroke:#4b7bec;stroke-width:2.5;fill:none}</style>
+<svg class="sv6" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An inform is acknowledged and retransmitted until the manager confirms receipt">
+  <style>.sv6 .n{fill:#17171A}.sv6 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv6 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv6 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700;fill:#0f6b47}.sv6 .t{stroke:#1f9d6b;stroke-width:2.5;fill:none}.sv6 .a{stroke:#4b7bec;stroke-width:2.5;fill:none}</style>
   <rect class="n" x="30" y="70" width="110" height="34" rx="3"/><text class="nt" x="85" y="92" text-anchor="middle">MANAGER</text>
   <rect class="n" x="500" y="70" width="110" height="34" rx="3"/><text class="nt" x="555" y="92" text-anchor="middle">AGENT</text>
   <path class="t" d="M 500 78 L 140 78"/>

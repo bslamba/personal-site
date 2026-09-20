@@ -47,8 +47,8 @@ draft: false
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 175" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An interface goes down and the router generates a log message">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
+<svg class="sv1" viewBox="0 0 640 175" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An interface goes down and the router generates a log message">
+  <style>.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}</style>
   <rect class="n" x="40" y="56" width="90" height="34" rx="3"/><text class="nt" x="85" y="78" text-anchor="middle">R1</text>
   <line x1="130" y1="73" x2="250" y2="73" stroke="#D3002D" stroke-width="2.5" stroke-dasharray="5 4"/>
   <line x1="180" y1="63" x2="198" y2="83" stroke="#D3002D" stroke-width="2.5"/>
@@ -63,8 +63,8 @@ The format is <code>%FACILITY-SEVERITY-MNEMONIC</code>. In <code>%LINK-<b>3</b>-
 <br><br>That is why the same physical event produces two messages at two different levels: the <b>link</b> going down is an error, the <b>line protocol</b> following it is merely notable. Filter at level 3 and you see the failure but never the recovery.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The logging trap level decides which severities are sent to the syslog server">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.on{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.off{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv2" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The logging trap level decides which severities are sent to the syslog server">
+  <style>.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv2 .on{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.sv2 .off{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <text class="k" x="14" y="24">logging trap 5 — sent: 0,1,2,3,4,5   dropped: 6,7</text>
   <rect class="on" x="14" y="34" width="72" height="26"/><text class="m" x="50" y="51" text-anchor="middle">0 emerg</text>
   <rect class="on" x="90" y="34" width="72" height="26"/><text class="m" x="126" y="51" text-anchor="middle">1 alert</text>
@@ -85,8 +85,8 @@ The format is <code>%FACILITY-SEVERITY-MNEMONIC</code>. In <code>%LINK-<b>3</b>-
 <br><br><b>Level 6 (informational) is the sensible production default.</b> It captures configuration changes, interface transitions and authentication events while excluding debug output, which is level 7 and would otherwise flood your collector the instant anybody runs a <code>debug</code>.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A log message can go to the console the buffer the vty lines and a syslog server each with its own level">
-  <style>.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
+<svg class="sv3" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A log message can go to the console the buffer the vty lines and a syslog server each with its own level">
+  <style>.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11px;font-weight:700}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv3 .bx{fill:#F1EEE9;stroke:#B5B5BC}</style>
   <rect class="n" x="270" y="86" width="100" height="36" rx="3"/><text class="nt" x="320" y="109" text-anchor="middle">message</text>
   <rect class="bx" x="14" y="24" width="180" height="30"/><text class="m" x="24" y="44">console — level 7, default</text>
   <rect class="bx" x="14" y="66" width="180" height="30"/><text class="m" x="24" y="86">buffer — logging buffered</text>
@@ -108,8 +108,8 @@ The same message can go to the <b>console</b>, the <b>internal buffer</b>, an <b
 <br><br>And the console is a genuine performance hazard. Its output is written synchronously, so on a heavily logging router it can consume enough CPU to affect forwarding. <code>no logging console</code> plus <code>logging buffered 65536</code> is the standard production pair.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The syslog message on the wire begins with a priority number encoding facility and severity">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#17171A}.hi{fill:rgba(211,0,45,.14);stroke:#D3002D}</style>
+<svg class="sv4" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The syslog message on the wire begins with a priority number encoding facility and severity">
+  <style>.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#17171A}.sv4 .hi{fill:rgba(211,0,45,.14);stroke:#D3002D}</style>
   <rect class="hi" x="14" y="34" width="62" height="26"/>
   <text class="m" x="22" y="52" fill="#B80027">&lt;189&gt;</text>
   <text class="m" x="84" y="52">1047: R1: *Sep 23 10:15:42.318 IST: %LINK-3-UPDOWN…</text>
@@ -125,8 +125,8 @@ Everything before the message text is a single integer in angle brackets. <b>Div
 <br><br>And note the transport: <b>UDP 514, unauthenticated and unencrypted</b>. Messages can be lost silently and forged trivially. Where it matters, use <code>logging host x.x.x.x transport tcp</code> or a TLS-capable collector.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The default timestamp is uptime not wall clock time which makes correlation impossible">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.bad{fill:#FFF1F3;stroke:#D3002D}.ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}</style>
+<svg class="sv5" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The default timestamp is uptime not wall clock time which makes correlation impossible">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#17171A}.sv5 .bad{fill:#FFF1F3;stroke:#D3002D}.sv5 .ok{fill:rgba(31,157,107,.12);stroke:#1f9d6b}</style>
   <text class="k" x="14" y="26" fill="#B80027">DEFAULT — uptime since boot</text>
   <rect class="bad" x="14" y="36" width="612" height="30"/>
   <text class="m" x="26" y="56" fill="#B80027">*00:14:22.318: %LINK-3-UPDOWN: Interface Gi0/1, changed state to down</text>
