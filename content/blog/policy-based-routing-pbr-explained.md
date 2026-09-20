@@ -127,7 +127,7 @@ PBR is configured on the interface the packet <b>arrives on</b>. If you want to 
   <path d="M 300 70 C 380 34 440 34 512 62" stroke="#1f9d6b" stroke-width="2.5" fill="none" marker-end="url(#pm2)"/>
   <circle r="5" fill="#1f9d6b"><animateMotion dur="2.2s" repeatCount="indefinite" path="M 20 76 L 150 76 L 300 70 C 380 34 440 34 512 62"/></circle>
   <text class="k" x="404" y="26" text-anchor="middle" fill="#0f6b47">set ip next-hop 203.0.113.9 — the lookup is skipped</text>
-  <text class="s" x="404" y="110" text-anchor="middle" class="dim">never consulted for this packet</text>
+  <text class="s dim" x="404" y="110" text-anchor="middle">never consulted for this packet</text>
   <text class="s" x="320" y="150" text-anchor="middle">The routing table may well have a perfectly good route to this destination. It is not used.</text>
   <text class="s" x="320" y="172" text-anchor="middle"><tspan font-weight="700">set ip next-hop</tspan> means &#8220;policy first&#8221; — the table is only a fallback, and only if the next hop is unreachable.</text>
 </svg>

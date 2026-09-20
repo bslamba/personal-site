@@ -93,14 +93,8 @@ Network virtualization carries many logical networks over one physical one. Two 
 ## Where the traffic goes
 
 <figure class="fig">
-<svg viewBox="0 0 640 285" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traffic between two virtual machines on one host stays inside the hypervisor switch">
-  <style>
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}
-    .host{fill:none;stroke:#4b7bec;stroke-width:1.5;stroke-dasharray:5 4}
-    .vs{fill:rgba(75,123,236,.16);stroke:#4b7bec}
+<svg class="sv1" viewBox="0 0 640 285" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traffic between two virtual machines on one host stays inside the hypervisor switch">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}.sv1 .host{fill:none;stroke:#4b7bec;stroke-width:1.5;stroke-dasharray:5 4}.sv1 .vs{fill:rgba(75,123,236,.16);stroke:#4b7bec}
   </style>
   <rect class="host" x="14" y="20" width="360" height="160" rx="4"/>
   <text class="s" x="26" y="38" fill="#2f5fd0">PHYSICAL HOST</text>
@@ -147,8 +141,8 @@ The vSwitch belongs to the virtualization team; the physical switch belongs to y
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Each virtual machine runs a complete guest operating system on top of a hypervisor">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.g{fill:rgba(75,123,236,.16);stroke:#4b7bec}.h{fill:#E4E4E9;stroke:#B5B5BC}.hw{fill:#17171A}</style>
+<svg class="sv2" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Each virtual machine runs a complete guest operating system on top of a hypervisor">
+  <style>.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv2 .g{fill:rgba(75,123,236,.16);stroke:#4b7bec}.sv2 .h{fill:#E4E4E9;stroke:#B5B5BC}.sv2 .hw{fill:#17171A}</style>
   <rect class="g" x="30" y="28" width="170" height="52"/><text class="m" x="115" y="48" text-anchor="middle">guest OS</text><text class="m" x="115" y="66" text-anchor="middle">app</text>
   <rect class="g" x="212" y="28" width="170" height="52"/><text class="m" x="297" y="48" text-anchor="middle">guest OS</text><text class="m" x="297" y="66" text-anchor="middle">app</text>
   <rect class="g" x="394" y="28" width="170" height="52"/><text class="m" x="479" y="48" text-anchor="middle">guest OS</text><text class="m" x="479" y="66" text-anchor="middle">app</text>
@@ -162,8 +156,8 @@ The hypervisor presents virtual hardware and each VM runs a complete guest OS on
 <br><br>And <b>vMotion</b> changes the shape of the problem: a VM moves to another host and its MAC appears on a different switch port, with the address unchanged. Your Layer 2 design has to allow that, which is a large part of why data centres went to overlays.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Containers share the host kernel so they are much smaller and faster to start than virtual machines">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.c{fill:rgba(31,157,107,.18);stroke:#1f9d6b}.h{fill:#E4E4E9;stroke:#B5B5BC}.hw{fill:#17171A}</style>
+<svg class="sv3" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Containers share the host kernel so they are much smaller and faster to start than virtual machines">
+  <style>.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv3 .c{fill:rgba(31,157,107,.18);stroke:#1f9d6b}.sv3 .h{fill:#E4E4E9;stroke:#B5B5BC}.sv3 .hw{fill:#17171A}</style>
   <rect class="c" x="30" y="28" width="98" height="34"/><text class="m" x="79" y="49" text-anchor="middle">app</text>
   <rect class="c" x="138" y="28" width="98" height="34"/><text class="m" x="187" y="49" text-anchor="middle">app</text>
   <rect class="c" x="246" y="28" width="98" height="34"/><text class="m" x="295" y="49" text-anchor="middle">app</text>
@@ -180,8 +174,8 @@ A container packages an application and its dependencies but <b>uses the host's 
 <br><br>Which is why container platforms do policy by <b>label</b> — "frontend may talk to backend" — and why that idea is the same one as <a href="/blog/sdn-controllers-overlays-sd-access-and-sd-wan">SGTs in SD-Access</a>. Different vendors, same realisation: policy keyed to addresses stopped working when addresses stopped being stable.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A VRF splits the routing table while a VDC splits the whole device">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.a{fill:rgba(75,123,236,.16);stroke:#4b7bec}.b{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.f{fill:#F1EEE9;stroke:#B5B5BC}.hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A VRF splits the routing table while a VDC splits the whole device">
+  <style>.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv4 .a{fill:rgba(75,123,236,.16);stroke:#4b7bec}.sv4 .b{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.sv4 .f{fill:#F1EEE9;stroke:#B5B5BC}.sv4 .hdr{font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700;letter-spacing:.06em;fill:#8A8A93}</style>
   <text class="hdr" x="14" y="20">VRF — separate routing tables, one device</text>
   <rect class="f" x="14" y="28" width="290" height="70"/>
   <rect class="a" x="26" y="38" width="130" height="24"/><text class="m" x="91" y="55" text-anchor="middle">VRF RED</text>
@@ -203,8 +197,8 @@ A <b>VRF</b> gives you multiple independent routing tables on one router — ove
 <br><br>The distinction worth remembering: <b>a VRF shares the control plane, a VDC does not.</b> So a CPU or process problem hits every VRF simultaneously, and that is precisely what a VDC is buying you protection from.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stacking and virtual switching combine several physical switches into one logical device">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}.log{fill:none;stroke:#1f9d6b;stroke-width:2;stroke-dasharray:6 4}</style>
+<svg class="sv5" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stacking and virtual switching combine several physical switches into one logical device">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv5 .n{fill:#17171A}.sv5 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}.sv5 .log{fill:none;stroke:#1f9d6b;stroke-width:2;stroke-dasharray:6 4}</style>
   <rect class="n" x="60" y="40" width="110" height="28" rx="3"/><text class="nt" x="115" y="58" text-anchor="middle">SW1</text>
   <rect class="n" x="60" y="78" width="110" height="28" rx="3"/><text class="nt" x="115" y="96" text-anchor="middle">SW2</text>
   <rect class="log" x="46" y="28" width="138" height="92" rx="4"/>

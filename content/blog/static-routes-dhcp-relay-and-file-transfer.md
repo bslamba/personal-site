@@ -83,12 +83,8 @@ A **floating static** is a backup route with a **higher administrative distance*
 ## Why exit-interface statics are dangerous on Ethernet
 
 <figure class="fig">
-<svg viewBox="0 0 640 265" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A static route to a broadcast interface causes the router to ARP for every destination in the range">
-  <style>
-    .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}
-    .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}
-    .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}
-    .n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}
+<svg class="sv1" viewBox="0 0 640 265" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A static route to a broadcast interface causes the router to ARP for every destination in the range">
+  <style>.sv1 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv1 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv1 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv1 .n{fill:#17171A}.sv1 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}
   </style>
   <rect class="n" x="30" y="56" width="90" height="30" rx="3"/><text class="nt" x="75" y="76" text-anchor="middle">R1</text>
   <line x1="120" y1="71" x2="520" y2="71" stroke="#8A8A93" stroke-width="2"/>
@@ -130,8 +126,8 @@ A next-hop static route requires a <b>recursive lookup</b>: to use <code>via 10.
 </div>
 <div class="walk-panels">
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A floating static with a higher administrative distance only installs when the primary is withdrawn">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.ok{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.f{fill:#E4E4E9;stroke:#B5B5BC}</style>
+<svg class="sv2" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A floating static with a higher administrative distance only installs when the primary is withdrawn">
+  <style>.sv2 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv2 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv2 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv2 .ok{fill:rgba(31,157,107,.16);stroke:#1f9d6b}.sv2 .f{fill:#E4E4E9;stroke:#B5B5BC}</style>
   <rect class="ok" x="14" y="34" width="612" height="30"/>
   <text class="m" x="26" y="54">ip route 0.0.0.0 0.0.0.0 203.0.113.1          AD 1   ← installed</text>
   <rect class="f" x="14" y="70" width="612" height="30"/>
@@ -147,8 +143,8 @@ Two default routes, one at AD 1 and one at AD 200. The lower AD wins and the oth
 <br><br>So the far end can be completely broken while your primary route stays installed and the backup never gets a turn. The fix is <a href="/blog/ip-sla-probes-jitter-and-tracking-objects">IP SLA plus a tracked object</a>, and without it a floating static is a failover mechanism that has never been tested because it has never fired.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A link-local next hop is ambiguous without naming the interface because the same address can exist on every link">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}</style>
+<svg class="sv3" viewBox="0 0 640 195" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A link-local next hop is ambiguous without naming the interface because the same address can exist on every link">
+  <style>.sv3 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv3 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv3 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv3 .n{fill:#17171A}.sv3 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}</style>
   <rect class="n" x="260" y="70" width="90" height="30" rx="3"/><text class="nt" x="305" y="90" text-anchor="middle">R1</text>
   <line x1="260" y1="78" x2="90" y2="40" stroke="#8A8A93" stroke-width="2"/>
   <line x1="260" y1="92" x2="90" y2="130" stroke="#8A8A93" stroke-width="2"/>
@@ -165,8 +161,8 @@ Link-local addresses are only unique <b>per link</b>. The same FE80::2 can exist
 <br><br>And the prerequisite that catches everyone: <b><code>ipv6 unicast-routing</code> is off by default.</b> Without it the router accepts every IPv6 address and route you configure, shows them all in the running config, and forwards nothing. See <a href="/blog/ipv6-addressing-types-eui64-and-ndp">the IPv6 article</a> for the addressing that goes with it.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A DHCP broadcast stops at the router unless a helper address converts it to unicast">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.n{fill:#17171A}.nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}</style>
+<svg class="sv4" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A DHCP broadcast stops at the router unless a helper address converts it to unicast">
+  <style>.sv4 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv4 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv4 .m{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#17171A}.sv4 .n{fill:#17171A}.sv4 .nt{fill:#FAF8F5;font-family:ui-sans-serif,system-ui;font-size:10px;font-weight:700}</style>
   <rect class="n" x="20" y="60" width="86" height="28" rx="3"/><text class="nt" x="63" y="78" text-anchor="middle">client</text>
   <rect class="n" x="270" y="60" width="86" height="28" rx="3"/><text class="nt" x="313" y="78" text-anchor="middle">R1</text>
   <rect class="n" x="520" y="60" width="96" height="28" rx="3"/><text class="nt" x="568" y="78" text-anchor="middle">DHCP srv</text>
@@ -188,8 +184,8 @@ A DHCP Discover is a broadcast, and routers do not forward broadcasts. <code>ip 
 <br><br>Also worth knowing: <code>ip helper-address</code> forwards <b>seven UDP services</b>, not just DHCP — TFTP, DNS, NetBIOS and others come along too. Usually harmless, occasionally surprising, and controllable with <code>ip forward-protocol udp</code>.</p>
 </div>
 <div class="walk-panel">
-<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TFTP and FTP send credentials and data in the clear while SCP encrypts everything">
-  <style>.s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.bad{fill:rgba(211,0,45,.10);stroke:#D3002D}.ok{fill:rgba(31,157,107,.14);stroke:#1f9d6b}</style>
+<svg class="sv5" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TFTP and FTP send credentials and data in the clear while SCP encrypts everything">
+  <style>.sv5 .s{font-family:ui-sans-serif,system-ui;font-size:10.5px;fill:#5C5C64}.sv5 .k{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:700}.sv5 .m{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#17171A}.sv5 .bad{fill:rgba(211,0,45,.10);stroke:#D3002D}.sv5 .ok{fill:rgba(31,157,107,.14);stroke:#1f9d6b}</style>
   <rect class="bad" x="14" y="28" width="300" height="76"/>
   <text class="k" x="26" y="48" fill="#B80027">TFTP — UDP 69</text>
   <text class="s" x="26" y="68">no authentication at all</text>
