@@ -8,7 +8,7 @@
 // and the one-line reason to be on it.
 // ============================================================
 
-import React, { useState } from 'react'
+import React, { useDeferredValue, useState } from 'react'
 import {
   Sheet,
   Panel,
@@ -493,7 +493,11 @@ const RELEASES: Release[] = [
 
 export default function ReleasesSheet() {
   const [relId, setRelId] = useState(RELEASES[RELEASES.length - 1].id)
-  const rel = RELEASES.find(r => r.id === relId) ?? RELEASES[0]
+  // The detail panel below is large; deriving it from a DEFERRED id lets React
+  // paint the button's new state immediately and re-render the heavy content as
+  // a low-priority, interruptible pass — which is what keeps INP responsive.
+  const shownId = useDeferredValue(relId)
+  const rel = RELEASES.find(r => r.id === shownId) ?? RELEASES[0]
 
   return (
     <Sheet>
