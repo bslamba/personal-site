@@ -939,6 +939,55 @@ body {
 .wa-float:hover { transform: scale(1.08); }
 .wa-float:active { transform: scale(0.96); }
 
+/* ------------------------------------------------------------
+   FLOATING READER CONTROLS
+   Back (bottom-left, always on) + Back-to-top (bottom-right,
+   above the WhatsApp float, appears on scroll).
+   ------------------------------------------------------------ */
+.article-back {
+  position: fixed; left: 1.1rem; bottom: 1.1rem; z-index: 55;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.6rem 0.95rem; border-radius: 999px;
+  background: var(--color-ink-950); color: #fff;
+  font-family: var(--font-heading); font-size: 0.8rem; font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35);
+  transition: background .2s ease, transform .2s ease;
+}
+.article-back:hover { background: var(--color-signal-600); transform: translateY(-1px); }
+.article-back:active { transform: translateY(0); }
+
+.scroll-top {
+  position: fixed; right: 1.1rem; bottom: 4.5rem; z-index: 55;
+  height: 2.85rem; width: 2.85rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-ink-950); color: #fff; border: none; cursor: pointer;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35);
+  opacity: 0; visibility: hidden; transform: translateY(10px);
+  transition: opacity .2s ease, transform .2s ease, visibility .2s, background .2s;
+}
+.scroll-top.is-shown { opacity: 1; visibility: visible; transform: none; }
+.scroll-top:hover { background: var(--color-signal-600); }
+.scroll-top:active { transform: scale(0.94); }
+
+@media (min-width: 640px) {
+  .article-back { left: 1.6rem; bottom: 1.6rem; padding: 0.7rem 1.15rem; font-size: 0.85rem; }
+  .scroll-top { right: 1.6rem; bottom: 5.5rem; height: 3.1rem; width: 3.1rem; }
+}
+
+/* Hide the floating controls on the bespoke full-screen pages that
+   also hide the WhatsApp float (ISE cheat sheet, birthday). */
+body:has(.ise-root) .article-back,
+body:has(.ise-root) .scroll-top,
+body:has(.bday-root) .article-back,
+body:has(.bday-root) .scroll-top { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .article-back, .scroll-top { transition: opacity .2s ease, visibility .2s; }
+  .article-back:hover, .scroll-top:active { transform: none; }
+}
+
+
 @media (min-width: 640px) {
   .wa-float {
     right: 1.6rem;

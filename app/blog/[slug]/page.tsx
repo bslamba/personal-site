@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, ArrowUpRight, Clock, Calendar } from 'lucide-react'
 import { getPost, getPostSlugs, getRelatedPosts } from '@/lib/blog'
 import ArticleToc from '@/components/article-toc'
+import ArticleBack from '@/components/article-back'
 import { TRACK_SLUGS } from '@/components/ccnp/curriculum'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
@@ -238,6 +239,8 @@ export default async function ArticlePage({
 
         </div>
       </div>
+
+      <ArticleBack href={backHref} label={backLabel} />
     </>
   )
 }
