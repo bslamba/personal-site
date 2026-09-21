@@ -2380,19 +2380,19 @@ body:has(.vg-member) > footer { display: none !important; }
 .qz-opt:has(input:checked) .qz-bad::before { content: '✕  '; font-weight: 800; }
 
 /* ---- Reveal (think first, then check) ---- */
-.reveal {
+.spoiler {
   border-left: 3px solid var(--color-signal-300); background: var(--color-signal-50);
   padding: 0.75rem 1rem; margin: 1.4rem 0;
 }
-.reveal > summary {
+.spoiler > summary {
   cursor: pointer; font-family: var(--font-heading); font-weight: 700;
   font-size: 0.93rem; color: var(--color-signal-700); list-style: none;
 }
-.reveal > summary::-webkit-details-marker { display: none; }
-.reveal > summary::before { content: '▸  '; }
-.reveal[open] > summary::before { content: '▾  '; }
-.reveal[open] > summary { margin-bottom: 0.6rem; }
-.reveal > :not(summary) { font-size: 0.95rem; }
+.spoiler > summary::-webkit-details-marker { display: none; }
+.spoiler > summary::before { content: '▸  '; }
+.spoiler[open] > summary::before { content: '▾  '; }
+.spoiler[open] > summary { margin-bottom: 0.6rem; }
+.spoiler > :not(summary) { font-size: 0.95rem; }
 
 /* ---- Lab task ---- */
 .lab {

@@ -382,7 +382,7 @@ Every link segment gets exactly one port allowed to forward onto it — the one 
 
 **Anything that is neither a root port nor a designated port is blocked.** That is the whole algorithm.
 
-<details class="reveal">
+<details class="spoiler">
 <summary>Work one out before you read the answer</summary>
 
 SW1 is root. SW2 and SW3 each have a 1 Gb link to SW1 and a 1 Gb link to each other. Long mode. Which port blocks, and on which switch?

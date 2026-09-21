@@ -314,7 +314,7 @@ router ospf 1
 
 **The NSSA exists for one situation:** you want a stub area — no external LSAs flooding in — but that area has its own connection to something outside OSPF that must be redistributed. A stub area forbids an ASBR outright. The NSSA permits one, and gives its externals a private LSA type (7) that lives only inside that area. The ABR translates Type 7 to Type 5 on the way out.
 
-<details class="reveal">
+<details class="spoiler">
 <summary>Which router translates Type 7, when there are two ABRs?</summary>
 
 The ABR with the **highest router ID** in the NSSA performs the translation. The other stands by. This prevents duplicate Type 5 LSAs for the same prefix entering the backbone.

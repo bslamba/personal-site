@@ -370,7 +370,7 @@ Work the algorithm by hand:
 
 Everything below step 4 is irrelevant. Note that path two is `external` and path one is `internal`, which would also have favoured path two at step 7 — but the comparison never got that far. Knowing *which step* decided is what lets you change the outcome with the right knob instead of guessing.
 
-<details class="reveal">
+<details class="spoiler">
 <summary>Work one out yourself</summary>
 
 Two paths. A: weight 0, localpref 150, AS_PATH `64500 64500 64777`, origin `i`, MED 10, eBGP. B: weight 0, localpref 150, AS_PATH `64501 64888`, origin `?`, MED 5, eBGP.

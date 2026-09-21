@@ -360,7 +360,7 @@ router bgp 65001
 
 Loop prevention then falls to two attributes the reflector adds: **ORIGINATOR_ID** (who first announced it, so that router ignores it coming back) and **CLUSTER_LIST** (which reflectors it has passed, so a reflector seeing its own cluster ID discards it).
 
-<details class="reveal">
+<details class="spoiler">
 <summary>Why not just peer everything with everything?</summary>
 
 Beyond the session count, each iBGP session is a full TCP connection with its own state, and every prefix must be sent across every session. At internet scale — around a million prefixes — a full mesh of 20 routers means holding and transmitting that table 19 times from each router. Route reflectors cut it to one session per client and one copy per reflector.
