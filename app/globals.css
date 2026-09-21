@@ -45,7 +45,7 @@
   /* ---- Fonts ---- */
   --font-display: var(--font-anton), "Arial Black", sans-serif;
   --font-heading: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
-  --font-sans:    var(--font-literata), Georgia, "Times New Roman", serif;
+  --font-sans:    var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
   --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   /* ---- Reading measure ---- */
@@ -58,6 +58,11 @@
    ------------------------------------------------------------ */
 @layer base {
   html {
+    /* This site is designed light-only. Declaring the scheme stops
+       browser/OS "auto dark mode" from force-inverting it, which was
+       turning light panels dark, bleeding the brand red into
+       backgrounds, and leaving some text white-on-white. */
+    color-scheme: light;
     scroll-behavior: smooth;
     scroll-padding-top: 5.5rem;
     -webkit-text-size-adjust: 100%;

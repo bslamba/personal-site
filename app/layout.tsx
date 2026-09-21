@@ -3,16 +3,16 @@
 //
 // TYPE SYSTEM
 //   Anton       — the name, brand moments only
-//   Inter Tight — headings, nav, labels, buttons
-//   Literata    — all reading text (built for long-form on screen)
+//   (single sans-serif system; Literata retired for consistency)
+//   Inter Tight — one typeface for everything: nav, headings and reading
 //
 // The header is a dark purple bar with a silver glitter layer and
 // a slow shine sweep. Both are decorative pseudo-elements defined
 // in globals.css under the BRAND-BAR block.
 // ============================================================
 
-import type { Metadata } from 'next'
-import { Anton, Caveat, Inter_Tight, Literata } from 'next/font/google'
+import type { Metadata, Viewport } from 'next'
+import { Anton, Caveat, Inter_Tight } from 'next/font/google'
 import Link from 'next/link'
 import IntroGate from '@/components/intro-gate'
 import WhatsAppFloat from '@/components/whatsapp-float'
@@ -27,7 +27,7 @@ const anton = Anton({
 
 const interTight = Inter_Tight({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  weight: ['400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-inter-tight',
 })
@@ -43,15 +43,13 @@ const caveat = Caveat({
   variable: '--font-hand',
 })
 
-const literata = Literata({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  style: ['normal', 'italic'],
-  display: 'swap',
-  variable: '--font-literata',
-})
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
+export const viewport: Viewport = {
+  colorScheme: 'light',
+  themeColor: '#FAF8F5',
+}
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -282,7 +280,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${anton.variable} ${interTight.variable} ${literata.variable} ${caveat.variable}`}
+      className={`${anton.variable} ${interTight.variable} ${caveat.variable}`}
     >
       <body className="flex min-h-screen flex-col">
 
