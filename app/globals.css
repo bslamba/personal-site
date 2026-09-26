@@ -3033,3 +3033,20 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
     display: none;
   }
 }
+
+/* The "install on iPhone" card (components/vault/install-hint.tsx). */
+.vg-install {
+  position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 70;
+  max-width: 440px; margin: 0 auto; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px;
+  border-radius: 20px; color: #f5f5f7; background: rgba(28,28,30,0.86);
+  -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.14), 0 18px 40px -12px rgba(0,0,0,0.6);
+  animation: vg-rise 0.5s cubic-bezier(.2,.8,.2,1) 1.2s both;
+}
+.vg-install img { width: 44px; height: 44px; border-radius: 10px; flex: 0 0 auto; }
+.vg-install-txt { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 0.82rem; line-height: 1.35; }
+.vg-install-txt > b { font-size: 0.9rem; font-weight: 650; }
+.vg-install-txt span { color: rgba(245,245,247,0.72); }
+.vg-install-txt span b { color: #f5f5f7; font-weight: 600; }
+.vg-install-txt svg { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; fill: none; stroke: #0a84ff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.vg-install button { flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%; cursor: pointer; font-size: 1.2rem; line-height: 1; color: rgba(245,245,247,0.8); background: rgba(255,255,255,0.12); }
