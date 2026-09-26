@@ -21,7 +21,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Great_Vibes, Cinzel } from 'next/font/google'
 import { AppIcon } from '@/components/vault/dock-icons'
-import { Power, Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
+import { Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
 import { VAULT_THEMES, DEFAULT_THEME, THEME_KEY } from '@/lib/vault-themes'
 
 // The logo: a hand signature, and engraved Roman capitals beneath it.
@@ -102,84 +102,82 @@ function click(a: AudioContext) {
   tick(0.018, 2400, 1100, 0.22)
 }
 
-/** A concert-hall tail, made from decaying noise — no audio files involved. */
-function hall(a: AudioContext, seconds = 3.6): ConvolverNode {
-  const len = Math.floor(a.sampleRate * seconds), ir = a.createBuffer(2, len, a.sampleRate)
-  for (let ch = 0; ch < 2; ch++) {
-    const d = ir.getChannelData(ch)
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6)
-  }
-  const c = a.createConvolver(); c.buffer = ir
-  return c
-}
-
 /**
- * Signing out: a harp sweeps up a D-major-9 arpeggio and lands on a warm,
- * golden bell chord over a soft low gong, with a few glints of light in the
- * air — all in a long, expensive-sounding hall.
+ * Locking the vault — sound design timed to the door, not music:
+ *   0.00  air moving as the door swings shut (a filtered whoosh)
+ *   0.62  the door lands — a deep thud with a steel ring
+ *   0.72  the wheel spins — ratchet clicks, fast then slowing
+ *   1.40  four bolts shoot home — heavy metallic clunks
+ *   1.72  the lock engages — a low hit and a short, cool synth chord
+ * A limiter at the end keeps the heavy hits clean.
  */
-function royal(a: AudioContext) {
+function vaultSound(a: AudioContext) {
   const t0 = a.currentTime + 0.02
-  // A gentle limiter at the end, so the chord blooms without ever clipping.
   const limit = a.createDynamicsCompressor()
-  limit.threshold.value = -12; limit.knee.value = 8; limit.ratio.value = 10; limit.attack.value = 0.004; limit.release.value = 0.25
+  limit.threshold.value = -10; limit.knee.value = 6; limit.ratio.value = 12; limit.attack.value = 0.003; limit.release.value = 0.2
   limit.connect(a.destination)
-  const master = a.createGain(); master.gain.value = 0.42; master.connect(limit)
-  const wet = a.createGain(); wet.gain.value = 0.55
-  const verb = hall(a); verb.connect(wet).connect(master)
-  const bus = a.createGain(); bus.connect(master); bus.connect(verb)
-  const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12)
+  const out = a.createGain(); out.gain.value = 0.7; out.connect(limit)
 
-  // 1. The harp: plucked strings, each ringing into the next.
-  const harp = [62, 66, 69, 73, 76, 78, 81, 85, 86]            // D4 F#4 A4 C#5 E5 F#5 A5 C#6 D6
-  harp.forEach((m, i) => {
-    const at = t0 + i * 0.055
-    for (const [type, mult, vol] of [['triangle', 1, 0.16], ['sine', 2, 0.05]] as const) {
+  const burst = (at: number, dur: number, type: BiquadFilterType, f0: number, f1: number, q: number, vol: number) => {
+    const n = a.createBufferSource(); n.buffer = noise(a, dur)
+    const f = a.createBiquadFilter(); f.type = type; f.Q.value = q
+    f.frequency.setValueAtTime(f0, at); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), at + dur)
+    const g = a.createGain()
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.03, dur / 4)); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    n.connect(f).connect(g).connect(out); n.start(at)
+  }
+  const ping = (at: number, f: number, dur: number, vol: number, type: OscillatorType = 'sine', drop = 1) => {
+    const o = a.createOscillator(), g = a.createGain()
+    o.type = type; o.frequency.setValueAtTime(f, at); o.frequency.exponentialRampToValueAtTime(f * drop, at + dur)
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    o.connect(g).connect(out); o.start(at); o.stop(at + dur + 0.02)
+  }
+
+  // 1. The swing: air rushing past a heavy door.
+  burst(t0, 0.62, 'bandpass', 380, 1800, 0.9, 0.22)
+  // 2. The door lands: a sub thud, a body knock, and a short steel ring.
+  const land = t0 + 0.62
+  ping(land, 62, 0.55, 0.9, 'sine', 0.6)
+  burst(land, 0.18, 'lowpass', 900, 120, 0.7, 0.55)
+  ping(land, 1480, 0.5, 0.05, 'triangle'); ping(land, 2210, 0.4, 0.03, 'triangle')
+  // 3. The wheel: ratchet clicks, quickening then settling — like a safe.
+  const clicks = [0, 0.07, 0.13, 0.18, 0.225, 0.265, 0.3, 0.335, 0.375, 0.42, 0.475, 0.54, 0.62]
+  clicks.forEach((c, i) => {
+    const at = t0 + 0.72 + c
+    burst(at, 0.018, 'highpass', 2600, 2200, 0.7, 0.28 - i * 0.012)
+    ping(at, 900 + (i % 2) * 120, 0.035, 0.07, 'square')
+  })
+  // 4. Four bolts shoot home, one after another.
+  for (let i = 0; i < 4; i++) {
+    const at = t0 + 1.4 + i * 0.075
+    burst(at, 0.12, 'bandpass', 1300, 700, 1.4, 0.5)
+    ping(at, 2400 - i * 90, 0.16, 0.045, 'triangle')
+    ping(at, 110, 0.12, 0.35, 'sine', 0.7)
+  }
+  // 5. Locked: a low hit, then a short, cool chord that opens and settles.
+  const lock = t0 + 1.72
+  ping(lock, 48, 0.9, 0.85, 'sine', 0.8)
+  burst(lock, 0.3, 'lowpass', 400, 60, 0.7, 0.4)
+  const hz = (m: number) => 440 * Math.pow(2, (m - 69) / 12)
+  ;[50, 57, 62, 64, 69].forEach((m, i) => {                 // D3 A3 D4 E4 A4 — an open, modern sus chord
+    const at = lock + 0.04 + i * 0.012
+    for (const det of [-6, 6]) {
       const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter()
-      o.type = type; o.frequency.value = hz(m) * mult
-      lp.type = 'lowpass'; lp.frequency.setValueAtTime(5200, at); lp.frequency.exponentialRampToValueAtTime(900, at + 1.2)
-      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.4)
-      o.connect(lp).connect(g).connect(bus); o.start(at); o.stop(at + 1.5)
+      o.type = 'sawtooth'; o.frequency.value = hz(m); o.detune.value = det
+      lp.type = 'lowpass'; lp.Q.value = 2
+      lp.frequency.setValueAtTime(400, at); lp.frequency.exponentialRampToValueAtTime(2600, at + 0.35); lp.frequency.exponentialRampToValueAtTime(500, at + 1.6)
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.03, at + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.7)
+      o.connect(lp).connect(g).connect(out); o.start(at); o.stop(at + 1.75)
     }
   })
-
-  // 2. The bells: FM chimes on D major 9 — warm, round, and long.
-  const land = t0 + harp.length * 0.055 + 0.04
-  ;[74, 78, 81, 85, 88].forEach((m, i) => {
-    const at = land + i * 0.018
-    const car = a.createOscillator(), mod = a.createOscillator(), mg = a.createGain(), g = a.createGain()
-    car.frequency.value = hz(m); mod.frequency.value = hz(m) * 3.5
-    mg.gain.setValueAtTime(hz(m) * 2.2, at); mg.gain.exponentialRampToValueAtTime(hz(m) * 0.05, at + 2.2)
-    mod.connect(mg).connect(car.frequency)
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.1, at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, at + 3.4)
-    car.connect(g).connect(bus)
-    car.start(at); mod.start(at); car.stop(at + 3.5); mod.stop(at + 3.5)
-  })
-
-  // 3. A soft low gong beneath it, settling a touch as it sounds.
-  for (const [mult, vol] of [[1, 0.22], [2.76, 0.05], [5.4, 0.02]]) {
-    const o = a.createOscillator(), g = a.createGain()
-    o.frequency.setValueAtTime(hz(38) * mult * 1.01, land); o.frequency.exponentialRampToValueAtTime(hz(38) * mult, land + 1.5)
-    g.gain.setValueAtTime(0.0001, land); g.gain.exponentialRampToValueAtTime(vol, land + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, land + 3)
-    o.connect(g).connect(bus); o.start(land); o.stop(land + 3.1)
-  }
-
-  // 4. Glints: a few high, bright sparkles as the chord blooms.
-  for (let i = 0; i < 7; i++) {
-    const at = land + 0.12 + i * 0.09 + Math.random() * 0.05
-    const o = a.createOscillator(), g = a.createGain()
-    o.frequency.value = hz(93 + [0, 4, 7, 11, 12, 16, 19][i])
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.025, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5)
-    o.connect(g).connect(bus); o.start(at); o.stop(at + 0.55)
-  }
 }
 
-/** click: any click anywhere in the vault · royal: signing out. */
-export function sfx(kind: 'click' | 'royal') {
+/** click: any click anywhere in the vault · vault: signing out. */
+export function sfx(kind: 'click' | 'vault') {
   const a = audio()
   if (!a) return
   if (kind === 'click') click(a)
-  else royal(a)
+  else vaultSound(a)
 }
 
 /** Every click in the vault makes the click — installed once by ThemeSync. */
@@ -358,13 +356,12 @@ export function SignOutButton({ name }: { name?: string }) {
   const [down, setDown] = useState(false)
   async function go() {
     if (down) return
-    sfx('royal')
+    sfx('vault')
     setDown(true)
     document.querySelector('.vg')?.classList.add('vg-shutting')
     const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
-    // Long enough for the chord to bloom and the crest to seal; the last
-    // part of it is the fade to black.
-    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 2600))])
+    // The door swings, the wheel spins, the bolts shoot, it locks — then black.
+    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 2650))])
     // A full page load rather than a router push, so nothing from the
     // signed-in session survives in memory.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -372,50 +369,92 @@ export function SignOutButton({ name }: { name?: string }) {
   }
   return (
     <>
-      <button className="vg-power" onClick={go} disabled={down} aria-label="Sign out" title="Sign out">
-        {down ? <Loader2 className="vg-spin" /> : <Power strokeWidth={2.6} />}
-        <span className="vg-power-lbl">Sign out</span>
+      {/* A brushed-steel safe dial with a padlock whose shackle stands open
+          while you are signed in; it snaps shut when you lock the vault. */}
+      <button className="vg-lockbtn" data-locking={down} onClick={go} disabled={down} aria-label="Lock the vault and sign out" title="Lock & sign out">
+        <svg viewBox="0 0 24 24" className="vg-padlock" aria-hidden="true">
+          <path className="shackle" d="M8.2 11V8.1a3.8 3.8 0 0 1 7.6 0V11" />
+          <rect x="5.5" y="10.6" width="13" height="10" rx="2.6" />
+          <circle cx="12" cy="15.3" r="1.35" />
+          <path d="M12 16.3v1.6" />
+        </svg>
       </button>
-      {down && typeof document !== 'undefined' && createPortal(<Farewell name={name} />, document.body)}
+      {down && typeof document !== 'undefined' && createPortal(<VaultDoor name={name} />, document.body)}
     </>
   )
 }
 
 /**
- * The farewell: the vault dims to a deep velvet dark, a gold seal draws
- * itself — two rings and the family's L — gold dust drifts out from it, and
- * the name is signed beneath before everything fades to black.
+ * Signing out closes the vault: a heavy steel door swings shut over the
+ * page, its wheel spins, four bolts shoot into the frame, a light runs
+ * across the steel and the status ring turns to LOCKED. Then black.
  */
-function Farewell({ name }: { name?: string }) {
-  // Gold dust: the same scatter every time, so nothing random runs in render.
-  const dust = Array.from({ length: 26 }, (_, i) => {
-    const angle = (i / 26) * 360 + (i % 3) * 7
-    const dist = 90 + ((i * 37) % 70)
-    return { angle, dist, delay: 0.55 + (i % 7) * 0.06, size: 2 + (i % 3) }
-  })
+function VaultDoor({ name }: { name?: string }) {
+  const rivets = Array.from({ length: 32 }, (_, i) => (i / 32) * Math.PI * 2)
+  const bolts = [0, 90, 180, 270]
   return (
-    <div className="vg-farewell" role="status" aria-live="polite">
-      <div className="vg-farewell-in">
-        <div className="vg-seal">
-          <svg viewBox="0 0 120 120" aria-hidden="true">
+    <div className="vg-vault" role="status" aria-live="polite">
+      <div className="vg-vault-shake">
+        <div className="vg-vault-frame">
+          <svg viewBox="0 0 400 400" className="vg-vault-svg" aria-hidden="true">
             <defs>
-              <linearGradient id="vg-gold" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#fff4c2" /><stop offset="0.35" stopColor="#e9c46a" />
-                <stop offset="0.65" stopColor="#b8892b" /><stop offset="1" stopColor="#f5dc8a" />
+              <radialGradient id="vd-steel" cx="42%" cy="36%" r="75%">
+                <stop offset="0" stopColor="#f4f6f8" /><stop offset="0.45" stopColor="#b9c0c7" /><stop offset="0.8" stopColor="#7d858d" /><stop offset="1" stopColor="#4f555b" />
+              </radialGradient>
+              <radialGradient id="vd-hub" cx="40%" cy="35%" r="70%">
+                <stop offset="0" stopColor="#ffffff" /><stop offset="0.5" stopColor="#aeb5bc" /><stop offset="1" stopColor="#555b61" />
+              </radialGradient>
+              <linearGradient id="vd-frame" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#3a3f45" /><stop offset="0.5" stopColor="#1c1f23" /><stop offset="1" stopColor="#2c3035" />
               </linearGradient>
+              <linearGradient id="vd-bolt" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#e9edf1" /><stop offset="1" stopColor="#7b838b" />
+              </linearGradient>
+              <linearGradient id="vd-sheen" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="0.5" stopColor="#fff" stopOpacity="0.7" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+              </linearGradient>
+              <clipPath id="vd-clip"><circle cx="200" cy="200" r="168" /></clipPath>
             </defs>
-            <circle className="r1" cx="60" cy="60" r="54" />
-            <circle className="r2" cx="60" cy="60" r="46" />
-            {Array.from({ length: 24 }, (_, i) => <circle key={i} className="bead" cx={60 + 50 * Math.cos((i / 24) * Math.PI * 2)} cy={60 + 50 * Math.sin((i / 24) * Math.PI * 2)} r="1.1" style={{ animationDelay: `${0.5 + i * 0.012}s` }} />)}
+            {/* the shockwave when it locks */}
+            <circle className="vd-shock" cx="200" cy="200" r="196" fill="none" stroke="#30d158" strokeWidth="3" />
+            {/* the frame in the wall, and the bolts' sockets */}
+            <circle cx="200" cy="200" r="196" fill="url(#vd-frame)" />
+            <circle cx="200" cy="200" r="196" fill="none" stroke="#5c636a" strokeWidth="2" />
+            {/* the bolts sit behind the door until they shoot out into the frame */}
+            {bolts.map((deg, i) => (
+              <g key={deg} transform={`rotate(${deg} 200 200)`}>
+                <rect className="vd-bolt" x="184" y="6" width="32" height="52" rx="6" fill="url(#vd-bolt)" stroke="#4a5056" style={{ animationDelay: `${1.4 + i * 0.075}s` }} />
+              </g>
+            ))}
+            <g className="vd-door">
+              <circle cx="200" cy="200" r="170" fill="url(#vd-steel)" stroke="#3f454b" strokeWidth="3" />
+              {/* brushed rings */}
+              {[150, 132, 118].map(r => <circle key={r} cx="200" cy="200" r={r} fill="none" stroke="#fff" strokeOpacity="0.22" strokeWidth="1" />)}
+              <circle cx="200" cy="200" r="128" fill="none" stroke="#5f666d" strokeWidth="6" />
+              <circle cx="200" cy="200" r="128" fill="none" stroke="#fff" strokeOpacity="0.45" strokeWidth="1.2" transform="translate(-1 -1.5)" />
+              {rivets.map((t, i) => <circle key={i} cx={200 + 156 * Math.cos(t)} cy={200 + 156 * Math.sin(t)} r="3.4" fill="url(#vd-hub)" stroke="#555b61" strokeWidth="0.8" />)}
+              {/* the status ring: amber while locking, green once locked */}
+              <circle className="vd-status" cx="200" cy="200" r="58" fill="none" strokeWidth="4" />
+              {/* the wheel */}
+              <g className="vd-wheel">
+                {[0, 120, 240].map(deg => (
+                  <g key={deg} transform={`rotate(${deg} 200 200)`}>
+                    <rect x="194" y="92" width="12" height="108" rx="6" fill="url(#vd-hub)" stroke="#50565c" />
+                    <circle cx="200" cy="92" r="13" fill="url(#vd-hub)" stroke="#50565c" strokeWidth="1.5" />
+                  </g>
+                ))}
+                <circle cx="200" cy="200" r="34" fill="url(#vd-hub)" stroke="#4a5056" strokeWidth="2" />
+                <circle cx="200" cy="200" r="12" fill="#2a2e33" />
+              </g>
+              {/* a light that runs across the steel once it locks */}
+              <g clipPath="url(#vd-clip)"><rect className="vd-sheen" x="-120" y="-40" width="110" height="480" fill="url(#vd-sheen)" transform="rotate(20 200 200)" /></g>
+            </g>
           </svg>
-          <span className={`vg-seal-l ${signature.className}`}>L</span>
-          {dust.map((d, i) => (
-            <span key={i} className="vg-dust" style={{ '--a': `${d.angle}deg`, '--d': `${d.dist}px`, '--s': `${d.size}px`, animationDelay: `${d.delay}s` } as React.CSSProperties} />
-          ))}
         </div>
-        <p className={`vg-farewell-kicker ${roman.className}`}>Until next time</p>
-        {name && <p className={`vg-farewell-name ${signature.className}`}>{name}</p>}
-        <p className={`vg-farewell-foot ${roman.className}`}>The vault is sealed</p>
+        <div className="vg-vault-text">
+          <p className="vg-vault-state"><span className="vg-vault-led" /> <span className="vg-vault-words"><span className="t-locking">Locking</span><span className="t-locked">Locked</span></span></p>
+          <p className="vg-vault-sub">{name ? `See you soon, ${name}` : 'See you soon'}</p>
+        </div>
       </div>
     </div>
   )

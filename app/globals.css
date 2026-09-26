@@ -2052,6 +2052,7 @@ body:has(.vg-scope) .wa-float { display: none !important; }
   animation: vg-rise 0.5s cubic-bezier(.2,.8,.2,1) both;
 }
 .vg-pad { padding: clamp(0.95rem, 2.2vw, 1.35rem); }
+@keyframes vg-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes vg-rise { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: none; } }
 
 /* Landing tiles */
@@ -2183,9 +2184,8 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-fc-grip:active { cursor: grabbing; }
 .vg-fc-grip:focus-visible { outline: 2px solid var(--vg-accent); outline-offset: 1px; }
 .vg-fc .vg-cc-btn { width: 34px; height: 34px; border-radius: 50%; }
-.vg-fc .vg-power { width: 34px; height: 34px; min-width: 34px; padding: 0; justify-content: center; }
-.vg-fc .vg-power:hover { gap: 0; padding: 0; }
-.vg-fc .vg-power-lbl { display: none; }
+.vg-fc .vg-lockbtn { width: 32px; height: 32px; margin: 5px 0 3px; }
+.vg-fc .vg-lockbtn::before { -webkit-mask: radial-gradient(circle, transparent 17px, #000 17.5px, #000 20px, transparent 20.5px); mask: radial-gradient(circle, transparent 17px, #000 17.5px, #000 20px, transparent 20.5px); }
 .vg-fc-status { display: grid; place-items: center; min-height: 14px; color: var(--vg-ink-faint); font-size: 12px; }
 @media (max-width: 520px) { .vg-cc { left: 10px !important; right: 10px !important; width: auto; } }
 
@@ -2242,71 +2242,82 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-switch[aria-checked="true"] { background: #34c759; }
 .vg-switch[aria-checked="true"]::after { transform: translateX(17px); }
 
-/* ---------- Sign out: a 3D key that powers the vault down ---------- */
-.vg-power {
-  --r: #ff453a; --r2: #c81e1e;
-  position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0; height: 32px; min-width: 32px; padding: 0 8px;
-  border: 0; border-radius: 999px; cursor: pointer; color: #fff; font: inherit; font-size: 12.5px; font-weight: 700; letter-spacing: 0.01em; overflow: hidden;
-  background: linear-gradient(180deg, #ff7066 0%, var(--r) 45%, var(--r2) 100%);
-  box-shadow: 0 3px 0 #8f1010, 0 8px 16px -6px rgba(200,30,30,0.7), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 4px rgba(0,0,0,0.2);
-  transform: translateY(-2px);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, gap 0.3s cubic-bezier(.2,.8,.2,1), padding 0.3s cubic-bezier(.2,.8,.2,1);
+/* Sign out: a brushed-steel safe dial with a padlock. The shackle stands
+   open while you're in; hover turns the dial a notch, click snaps it shut. */
+.vg-lockbtn {
+  position: relative; width: 38px; height: 38px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  display: grid; place-items: center; color: #2b3036;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,255,255,0.95), rgba(255,255,255,0) 42%),
+    repeating-conic-gradient(from 0deg, #c9ced4 0deg 2deg, #b3b9c0 2deg 4deg),
+    #bfc5cb;
+  box-shadow: 0 0 0 1.5px #7b838b, 0 0 0 4px #2a2e33, 0 0 0 5px rgba(255,255,255,0.25), 0 8px 18px -6px rgba(0,0,0,0.6), inset 0 -3px 6px rgba(0,0,0,0.25), inset 0 2px 2px rgba(255,255,255,0.8);
+  transition: transform 0.5s cubic-bezier(.3,1.6,.4,1), box-shadow 0.3s;
 }
-.vg-power::before { content: ''; position: absolute; inset: 0 0 52% 0; border-radius: 999px 999px 50% 50%; background: linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0)); pointer-events: none; }
-.vg-power::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,0.55), transparent); transform: skewX(-18deg); pointer-events: none; }
-.vg-power svg { width: 16px; height: 16px; flex: 0 0 auto; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); transition: transform 0.45s cubic-bezier(.2,.8,.2,1); }
-.vg-power-lbl { max-width: 0; opacity: 0; white-space: nowrap; transition: max-width 0.3s cubic-bezier(.2,.8,.2,1), opacity 0.2s; text-shadow: 0 1px 1px rgba(0,0,0,0.3); }
-.vg-power:hover { gap: 6px; padding: 0 12px 0 9px; box-shadow: 0 3px 0 #8f1010, 0 0 0 4px rgba(255,69,58,0.18), 0 10px 22px -6px rgba(255,69,58,0.8), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 4px rgba(0,0,0,0.2); }
-.vg-power:hover .vg-power-lbl { max-width: 70px; opacity: 1; }
-.vg-power:hover svg { transform: rotate(180deg); }
-.vg-power:hover::after { animation: vg-sheen 0.9s ease; }
-@keyframes vg-sheen { to { left: 130%; } }
-.vg-power:active { transform: translateY(1px); box-shadow: 0 0 0 #8f1010, 0 3px 8px -4px rgba(200,30,30,0.7), inset 0 2px 4px rgba(0,0,0,0.3); }
-.vg-power:focus-visible { outline: 3px solid color-mix(in srgb, #ff453a 60%, transparent); outline-offset: 2px; }
-@media (max-width: 520px) { .vg-power:hover { gap: 0; padding: 0 8px; } .vg-power:hover .vg-power-lbl { max-width: 0; opacity: 0; } }
+/* the dial's tick marks, on the dark bezel */
+.vg-lockbtn::before {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(from -2deg, rgba(255,255,255,0.7) 0deg 1.5deg, transparent 1.5deg 30deg);
+  -webkit-mask: radial-gradient(circle, transparent 20px, #000 20.5px, #000 23px, transparent 23.5px);
+          mask: radial-gradient(circle, transparent 20px, #000 20.5px, #000 23px, transparent 23.5px);
+}
+/* a small red index mark at twelve o'clock */
+.vg-lockbtn::after { content: ''; position: absolute; top: -6px; left: 50%; width: 4px; height: 6px; margin-left: -2px; border-radius: 1px; background: #ff453a; box-shadow: 0 0 6px #ff453a; }
+.vg-padlock { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 0 rgba(255,255,255,0.7)); }
+.vg-padlock rect { fill: rgba(43,48,54,0.12); }
+.vg-padlock circle { fill: currentColor; stroke: none; }
+.vg-padlock .shackle { transform: translate(3.2px, -2.2px) rotate(18deg); transform-origin: 15.8px 11px; transition: transform 0.35s cubic-bezier(.3,1.6,.4,1); }
+.vg-lockbtn:hover { transform: rotate(-30deg); box-shadow: 0 0 0 1.5px #7b838b, 0 0 0 4px #2a2e33, 0 0 0 7px rgba(255,69,58,0.35), 0 10px 24px -6px rgba(255,69,58,0.65), inset 0 -3px 6px rgba(0,0,0,0.25), inset 0 2px 2px rgba(255,255,255,0.8); }
+.vg-lockbtn:hover .vg-padlock { transform: rotate(30deg); transition: transform 0.5s cubic-bezier(.3,1.6,.4,1); }
+.vg-lockbtn:hover .vg-padlock .shackle { transform: translate(3.2px, -3.4px) rotate(26deg); }
+.vg-lockbtn:active { transform: rotate(-30deg) scale(0.93); }
+.vg-lockbtn[data-locking="true"] { transform: rotate(-390deg); transition: transform 0.9s cubic-bezier(.5,0,.2,1); color: #d70015; }
+.vg-lockbtn[data-locking="true"] .vg-padlock .shackle { transform: none; transition-duration: 0.15s; }
+.vg-lockbtn:focus-visible { outline: 3px solid color-mix(in srgb, #ff453a 60%, transparent); outline-offset: 5px; }
 
-/* The farewell: velvet dark, a gold seal drawing itself, gold dust, the
-   name signed beneath — then black. */
-.vg-farewell {
-  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; color: #f5e6b8;
-  background: radial-gradient(circle at 50% 44%, rgba(58,36,20,0.72) 0%, rgba(18,10,20,0.94) 55%, #050307 100%);
-  animation: vg-fade-in 0.5s ease both, vg-to-black 0.45s ease 2.15s forwards;
+/* The outro: a steel vault door swings shut over the page, the wheel spins,
+   four bolts shoot into the frame, a light runs across, LOCKED. Then black.
+   Timed to the sound: door lands 0.62s, wheel 0.72s, bolts 1.40s, lock 1.72s. */
+.vg-vault {
+  position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; perspective: 1400px;
+  background: radial-gradient(circle at 50% 45%, rgba(20,22,26,0.78), rgba(0,0,0,0.95) 70%);
+  -webkit-backdrop-filter: blur(10px) saturate(0.4); backdrop-filter: blur(10px) saturate(0.4);
+  animation: vg-fade-in 0.35s ease both, vg-vault-black 0.5s ease 2.15s forwards;
 }
-.vg-farewell-in { text-align: center; }
-.vg-seal { position: relative; width: 132px; height: 132px; margin: 0 auto; filter: drop-shadow(0 0 22px rgba(233,196,106,0.45)); animation: vg-seal-in 0.9s cubic-bezier(.2,.8,.2,1) both; }
-.vg-seal svg { width: 100%; height: 100%; overflow: visible; }
-.vg-seal circle.r1, .vg-seal circle.r2 { fill: none; stroke: url(#vg-gold); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 60px 60px; }
-.vg-seal circle.r1 { stroke-width: 2.4; stroke-dasharray: 340; stroke-dashoffset: 340; animation: vg-draw 1s cubic-bezier(.6,0,.2,1) 0.1s forwards; }
-.vg-seal circle.r2 { stroke-width: 0.9; stroke-dasharray: 290; stroke-dashoffset: 290; animation: vg-draw 1s cubic-bezier(.6,0,.2,1) 0.3s forwards; opacity: 0.85; }
-.vg-seal circle.bead { fill: #e9c46a; opacity: 0; animation: vg-fade-in 0.3s ease forwards; }
-.vg-seal-l {
-  position: absolute; inset: 0; display: grid; place-items: center; font-size: 74px; line-height: 1; padding-top: 6px;
-  background: linear-gradient(135deg, #fff4c2 0%, #e9c46a 35%, #a47a24 65%, #f5dc8a 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  opacity: 0; transform: scale(0.7); animation: vg-l-in 0.8s cubic-bezier(.2,.8,.2,1) 0.55s forwards;
-}
-.vg-dust {
-  position: absolute; left: 50%; top: 50%; width: var(--s); height: var(--s); margin: calc(var(--s) / -2); border-radius: 50%;
-  background: radial-gradient(circle, #fff6d0, #e9c46a 60%, transparent 70%); box-shadow: 0 0 6px #e9c46a;
-  opacity: 0; animation: vg-dust 1.5s cubic-bezier(.15,.7,.3,1) forwards;
-}
-.vg-farewell-kicker { margin: 22px 0 0; font-size: 0.72rem; letter-spacing: 0.5em; text-transform: uppercase; color: #d9bd77; padding-left: 0.5em; opacity: 0; animation: vg-rise-in 0.7s ease 0.85s forwards; }
-.vg-farewell-name {
-  margin: 4px 0 0; font-size: 3rem; line-height: 1.2; padding: 0 0.3em;
-  background: linear-gradient(100deg, #fff4c2, #e9c46a 40%, #b8892b 70%, #f5dc8a); -webkit-background-clip: text; background-clip: text; color: transparent;
-  opacity: 0; animation: vg-rise-in 0.8s ease 1.05s forwards;
-}
-.vg-farewell-foot { margin: 10px 0 0; font-size: 0.62rem; letter-spacing: 0.42em; text-transform: uppercase; color: rgba(245,230,184,0.6); padding-left: 0.42em; opacity: 0; animation: vg-rise-in 0.7s ease 1.35s forwards; }
-.vg-shutting .vg-wrap { transition: transform 0.9s cubic-bezier(.6,0,.4,1), filter 0.9s, opacity 0.9s; transform: scale(0.96); filter: blur(8px) saturate(0.3); opacity: 0.25; }
-@keyframes vg-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes vg-to-black { to { background: #000; opacity: 1; } }
-@keyframes vg-seal-in { from { opacity: 0; transform: scale(0.86); } to { opacity: 1; transform: none; } }
-@keyframes vg-draw { to { stroke-dashoffset: 0; } }
-@keyframes vg-l-in { to { opacity: 1; transform: none; } }
-@keyframes vg-rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes vg-dust { 0% { opacity: 0; transform: rotate(var(--a)) translateY(0); } 25% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--d) * -1)); } }
-.vg-farewell-in > * { will-change: opacity, transform; }
-@media (prefers-reduced-motion: reduce) { .vg-farewell, .vg-farewell * { animation-duration: 0.01s !important; animation-delay: 0s !important; } }
+.vg-vault-shake { display: grid; justify-items: center; gap: 22px; animation: vg-vault-thud 0.28s ease-out 0.62s, vg-vault-thud 0.22s ease-out 1.72s; }
+.vg-vault-frame { width: min(62vmin, 440px); aspect-ratio: 1; transform-style: preserve-3d; }
+.vg-vault-svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 30px 60px rgba(0,0,0,0.7)); }
+.vd-door { transform-box: fill-box; transform-origin: 0% 50%; animation: vg-vault-swing 0.62s cubic-bezier(.55,0,.75,.2) both; }
+.vg-vault-frame { animation: vg-vault-hinge 0.62s cubic-bezier(.55,0,.75,.2) both; }
+.vd-wheel { transform-box: view-box; transform-origin: 200px 200px; animation: vg-vault-spin 0.7s cubic-bezier(.3,0,.2,1) 0.72s both; }
+.vd-bolt { transform-box: fill-box; transform-origin: 50% 100%; transform: translateY(52px); animation: vg-vault-bolt 0.16s cubic-bezier(.2,.9,.3,1.3) forwards; }
+.vd-status { stroke: #ff9f0a; stroke-dasharray: 364; stroke-dashoffset: 364; filter: drop-shadow(0 0 6px #ff9f0a); animation: vg-vault-ring 0.9s linear 0.72s forwards, vg-vault-green 0.2s ease 1.72s forwards; }
+.vd-shock { transform-box: view-box; transform-origin: 200px 200px; opacity: 0; animation: vg-vault-shock 0.6s cubic-bezier(.2,.8,.2,1) 1.72s; }
+@keyframes vg-vault-shock { from { opacity: 0.9; transform: scale(1); stroke-width: 6; } to { opacity: 0; transform: scale(1.6); stroke-width: 0.5; } }
+.vd-sheen { animation: vg-vault-sheen 0.7s ease-in-out 1.78s both; }
+.vg-vault-text { text-align: center; color: #e8ecf0; font-family: ui-monospace, 'SF Mono', Menlo, monospace; opacity: 0; animation: vg-rise 0.4s ease 0.8s forwards; }
+.vg-vault-state { margin: 0; display: inline-flex; align-items: center; gap: 10px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.5em; text-transform: uppercase; padding-left: 0.5em; }
+.vg-vault-led { width: 8px; height: 8px; border-radius: 50%; background: #ff9f0a; box-shadow: 0 0 10px #ff9f0a; animation: vg-vault-blink 0.24s steps(2) 7, vg-vault-led 0.1s linear 1.72s forwards; }
+.vg-vault-words { display: grid; }
+.vg-vault-words > span { grid-area: 1 / 1; }
+.vg-vault-state .t-locking { color: #ff9f0a; animation: vg-vault-hide 0.12s ease 1.72s forwards; }
+.vg-vault-state .t-locked { color: #30d158; opacity: 0; transform: scale(1.3); animation: vg-vault-show 0.3s cubic-bezier(.2,1.4,.4,1) 1.72s forwards; }
+.vg-vault-sub { margin: 10px 0 0; font-family: inherit; font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase; color: rgba(232,236,240,0.55); }
+@keyframes vg-vault-hinge { from { transform: rotateY(-78deg) translateX(-10%); opacity: 0.2; } 60% { opacity: 1; } to { transform: none; } }
+@keyframes vg-vault-swing { from { filter: brightness(0.5); } to { filter: none; } }
+@keyframes vg-vault-thud { 0% { transform: translate(0, 0); } 20% { transform: translate(-5px, 4px); } 45% { transform: translate(4px, -3px); } 70% { transform: translate(-2px, 1px); } 100% { transform: none; } }
+@keyframes vg-vault-spin { from { transform: rotate(0); } to { transform: rotate(540deg); } }
+@keyframes vg-vault-bolt { to { transform: translateY(0); } }
+@keyframes vg-vault-ring { to { stroke-dashoffset: 0; } }
+@keyframes vg-vault-green { to { stroke: #30d158; filter: drop-shadow(0 0 10px #30d158); } }
+@keyframes vg-vault-sheen { from { transform: rotate(20deg) translateX(0); } to { transform: rotate(20deg) translateX(560px); } }
+@keyframes vg-vault-blink { 50% { opacity: 0.25; } }
+@keyframes vg-vault-led { to { background: #30d158; box-shadow: 0 0 12px #30d158; } }
+@keyframes vg-vault-hide { to { opacity: 0; } }
+@keyframes vg-vault-show { to { opacity: 1; transform: none; } }
+@keyframes vg-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes vg-vault-black { to { background: #000; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .vg-vault, .vg-vault * { animation-duration: 0.01s !important; animation-delay: 0s !important; } }
 
 /* ---------- Buttons ---------- */
 .vg-btn { display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 10px; border: 1px solid var(--vg-line); background: color-mix(in srgb, var(--vg-solid) 75%, transparent); color: var(--vg-ink); font: inherit; font-weight: 600; font-size: 0.84rem; padding: 0.42rem 0.8rem; cursor: pointer; transition: transform 0.15s, box-shadow 0.2s, background 0.2s; }
