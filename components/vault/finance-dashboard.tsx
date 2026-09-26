@@ -16,6 +16,7 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
   Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards, Landmark, IndianRupee,
+  Gauge, Goal as GoalIcon, Telescope, UserCheck,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -33,6 +34,8 @@ import {
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
+import { MoneyTab, GoalsTab, PlanTab, AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, permFrom, type ActingInfo } from '@/components/vault/finance-plus'
+import { type Account } from '@/lib/finance-data'
 import IdleLogout from '@/components/vault/idle-logout'
 
 const CAT_COLORS: Record<string, string> = {
@@ -204,10 +207,10 @@ function ExpenseTable({ rows, entities, shareCols, onEdit, onDelete, onTogglePai
   )
 }
 
-function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true, envelopes = [] }: {
+function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true, envelopes = [], accounts = [] }: {
   item: Item; entities: Entity[]; categories: Category[]; onAddCategory: (name: string, color: string) => void
   onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void; allowNewCategory?: boolean
-  envelopes?: Envelope[]
+  envelopes?: Envelope[]; accounts?: Account[]
 }) {
   const [d, setD] = useState<Item>(() => structuredClone(item))
   const pickEnvelope = (envId: string) => {
@@ -271,11 +274,20 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
           </div>
           <div>
             <label className="vg-lbl">Who paid</label>
-            <select className="vg-select" value={d.paidBy} onChange={e => set({ paidBy: e.target.value })}>
+            <select className="vg-select" value={d.paidBy} onChange={e => set({ paidBy: e.target.value, account: undefined })}>
               {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
+        {accounts.some(a => a.owner === d.paidBy && !a.archived) && (
+          <div style={{ marginTop: '0.6rem' }}>
+            <label className="vg-lbl">Paid from account</label>
+            <select className="vg-select" value={d.account ?? ''} onChange={e => set({ account: e.target.value || undefined })}>
+              <option value="">Main account</option>
+              {accounts.filter(a => a.owner === d.paidBy && !a.archived).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+        )}
 
         {isEmi && (
           <>
@@ -352,6 +364,8 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
           </div>
         )}
 
+        <SplitPreview item={d} entities={entities} />
+
         <div style={{ marginTop: '0.9rem' }}>
           <label className="vg-lbl">Tag / event <span className="vg-muted" style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
           <input className="vg-input" value={(d.tags ?? []).join(', ')} placeholder="e.g. Ooty 2026, Anniversary"
@@ -405,12 +419,12 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'month' | 'settle' | 'year' | 'loans' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags'
+type Tab = 'money' | 'month' | 'settle' | 'year' | 'goals' | 'plan' | 'loans' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags' | 'access'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard({ initialRole }: { initialRole?: 'super' | 'member' }) {
   const [doc, setDoc] = useState<FinanceDoc | null>(null)
-  const [tab, setTab] = useState<Tab>('month')
+  const [tab, setTab] = useState<Tab>('money')
   const [key, setKey] = useState<string>(monthKey())
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'conflict'>('idle')
@@ -486,19 +500,24 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 
   if (!doc || !me) return <Shell role={initialRole}><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
 
-  if (me.role === 'member') return <MemberDashboard initialDoc={doc} entityId={me.entityId ?? ''} profile={me} />
+  if (me.role === 'member') return <MemberApp initialDoc={doc} entityId={me.entityId ?? ''} profile={me} />
 
   const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
+    { id: 'money', label: 'Money', icon: Gauge },
     { id: 'month', label: 'This month', icon: CalendarDays },
     { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
+    { id: 'goals', label: 'Goals', icon: GoalIcon },
+    { id: 'plan', label: 'Plan', icon: Telescope },
     { id: 'loans', label: 'Loans', icon: Landmark },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
     { id: 'approvals', label: `Approvals${(doc.proposals?.length ? ' (' + doc.proposals.length + ')' : '')}`, icon: BellRing },
+    { id: 'access', label: 'Access', icon: UserCheck },
     { id: 'entities', label: 'Admin', icon: Users },
     { id: 'setup', label: 'Budget', icon: Target },
   ]
+  const superMe = { role: 'super' as const, entityId: null }
 
   const setupTemplate = setupDraft ?? doc.template
   const setupDirty = setupDraft !== null && JSON.stringify(setupDraft) !== JSON.stringify(doc.template)
@@ -511,6 +530,10 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 
   return (
     <Shell saveState={saveState} me={me} tabs={TABS} activeTab={tab} onTab={id => setTab(id as Tab)}>
+      {tab === 'money' && <MoneyTab doc={doc} viewer={null} me={superMe} action={runAction} goTo={t => setTab(t as Tab)} />}
+      {tab === 'goals' && <GoalsTab doc={doc} viewer={null} me={superMe} action={runAction} />}
+      {tab === 'plan' && <PlanTab doc={doc} viewer={null} action={runAction} />}
+      {tab === 'access' && <AccessTab doc={doc} me={superMe} action={runAction} />}
       {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} action={runAction} />}
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={runAction} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
@@ -533,7 +556,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 
       {editing && (
         <ExpenseEditor
-          item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []}
+          item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} accounts={doc.accounts ?? []}
           categories={doc.categories} onAddCategory={addCategory}
           onSave={it => { editing.commit(it); setEditing(null) }}
           onClose={() => setEditing(null)}
@@ -3282,9 +3305,54 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 }
 
 // ---------- Member dashboard ------------------------------------
-function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
+/**
+ * A member's app: their own finance, plus any profile they have been granted
+ * access to. Switching loads that person's finance through the server, which
+ * returns only what the grant allows — "My Finance | Mehak’s Finance".
+ */
+function MemberApp({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
+  const [view, setView] = useState<{ doc: FinanceDoc; acting: ActingInfo | null; n: number }>({ doc: initialDoc, acting: null, n: 0 })
+  const [grants, setGrants] = useState(() => (initialDoc.delegations ?? []).filter(d => d.status === 'active' && d.grantee === entityId))
+  const [note, setNote] = useState<string | null>(null)
+  const nameOf = (id: string) => entName(view.doc.entities, id)
+
+  const switchTo = useCallback(async function load(owner: string | null, why?: string): Promise<void> {
+    const r = await fetch(owner ? `/api/vault/finance?as=${encodeURIComponent(owner)}` : '/api/vault/finance').catch(() => null)
+    const d = r ? await r.json().catch(() => ({})) : {}
+    if (!r || !r.ok || !d.doc) {
+      setNote(d?.error ?? 'Could not open that profile.')
+      if (owner) { setGrants(g => g.filter(x => x.owner !== owner)); return load(null) }
+      return
+    }
+    setNote(why ?? null)
+    setView(v => ({ doc: d.doc as FinanceDoc, acting: (d.me?.acting as ActingInfo) ?? null, n: v.n + 1 }))
+    if (!owner) setGrants(((d.doc as FinanceDoc).delegations ?? []).filter(x => x.status === 'active' && x.grantee === entityId))
+  }, [entityId])
+
+  const options = [{ id: null, label: 'My Finance' }, ...grants.map(g => ({ id: g.owner, label: `${nameOf(g.owner)}’s Finance` }))]
+  return (
+    <MemberDashboard key={`${view.acting?.owner ?? 'me'}:${view.n}`}
+      initialDoc={view.doc} entityId={view.acting?.owner ?? entityId} profile={profile} acting={view.acting}
+      onDoc={d => { if (!view.acting) setGrants((d.delegations ?? []).filter(x => x.status === 'active' && x.grantee === entityId)) }}
+      onSwitch={switchTo}
+      header={
+        <>
+          <ProfileSwitcher options={options} active={view.acting?.owner ?? null} onSwitch={id => switchTo(id)} />
+          {view.acting && <ActingBanner acting={view.acting} onExit={() => switchTo(null)} />}
+          {note && <p className="vg-card" role="status" style={{ padding: '0.55rem 0.8rem', marginBottom: '0.9rem', fontSize: '0.86rem' }}>{note} <button className="vg-btn-ghost vg-btn" style={{ padding: '0 0.4rem' }} onClick={() => setNote(null)}>×</button></p>}
+        </>
+      } />
+  )
+}
+
+type MemberTab = 'money' | 'month' | 'settle' | 'year' | 'goals' | 'plan' | 'loans' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'access' | 'profile'
+
+function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, onSwitch, header }: {
+  initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string }
+  acting?: ActingInfo | null; onDoc?: (d: FinanceDoc) => void; onSwitch?: (owner: string | null, why?: string) => void; header?: React.ReactNode
+}) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<'month' | 'settle' | 'year' | 'loans' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'profile'>('month')
+  const [tab, setTab] = useState<MemberTab>('money')
   const [budgetView, setBudgetView] = useState<BudgetView>('recurring')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
@@ -3292,35 +3360,57 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
   const [editing, setEditing] = useState<{ item: Item; onSave: (it: Item) => void } | null>(null)
   const [meState, setMeState] = useState<(MeLite & { email?: string }) | undefined>(profile)
   const me = { role: 'member' as const, entityId }
+  const perm = permFrom(acting)
+
+  // Tell the app shell about grants that change here (approved, revoked) —
+  // through a ref, so a new callback identity never re-fires this.
+  const onDocRef = useRef(onDoc)
+  useEffect(() => { onDocRef.current = onDoc })
+  useEffect(() => { onDocRef.current?.(doc) }, [doc])
 
   async function action(payload: Record<string, unknown>) {
     setBusy('saving')
     try {
-      const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      // Acting for someone else: the server checks this against their grant.
+      const body = acting ? { ...payload, actingAs: acting.owner } : payload
+      const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const d = await r.json().catch(() => ({}))
+      if (d.revoked && acting) { onSwitch?.(null, `${acting.ownerName} has revoked your access.`); return d }
       if (d.doc) setDoc(d.doc as FinanceDoc)
       setBusy('saved'); setTimeout(() => setBusy('idle'), 1400)
       return d
     } catch { setBusy('idle'); return null }
   }
 
-  const pending = (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
-  const TABS = [
-    { id: 'month', label: 'This month', icon: CalendarDays },
-    { id: 'settle', label: 'Settlement', icon: Scale },
-    { id: 'year', label: 'Year', icon: Wallet },
-    { id: 'loans', label: 'Loans', icon: Landmark },
-    { id: 'tags', label: 'Tags', icon: TagIcon },
-    { id: 'savings', label: 'My Savings', icon: PiggyBank },
-    { id: 'import', label: 'Import', icon: FileSpreadsheet },
-    { id: 'setup', label: 'Budget', icon: Target },
-    { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing },
-  ] as ShellTab[]
+  const pending = acting ? [] : (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
+  const accessWaiting = acting ? 0 : (doc.delegations ?? []).filter(d => d.status === 'pending' && d.owner === entityId).length
+  const allTabs: (ShellTab & { show: boolean })[] = [
+    { id: 'money', label: 'Money', icon: Gauge, show: true },
+    { id: 'month', label: 'This month', icon: CalendarDays, show: perm('expenses', 'view') },
+    { id: 'settle', label: 'Settlement', icon: Scale, show: !acting },
+    { id: 'year', label: 'Year', icon: Wallet, show: perm('expenses', 'view') },
+    { id: 'goals', label: 'Goals', icon: GoalIcon, show: perm('savings', 'view') || !acting },
+    { id: 'plan', label: 'Plan', icon: Telescope, show: perm('income', 'view') },
+    { id: 'loans', label: 'Loans', icon: Landmark, show: perm('loans', 'view') },
+    { id: 'tags', label: 'Tags', icon: TagIcon, show: perm('expenses', 'view') },
+    { id: 'savings', label: acting ? 'Savings' : 'My Savings', icon: PiggyBank, show: perm('savings', 'view') || perm('investments', 'view') },
+    { id: 'import', label: 'Import', icon: FileSpreadsheet, show: perm('expenses', 'add') },
+    { id: 'setup', label: 'Budget', icon: Target, show: perm('budgets', 'view') || perm('expenses', 'view') },
+    { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing, show: !acting },
+    { id: 'access', label: `Access${accessWaiting ? ` (${accessWaiting})` : ''}`, icon: UserCheck, show: !acting },
+  ]
+  const TABS = allTabs.filter(t => t.show) as ShellTab[]
+  const goTo = (t: string) => setTab((TABS.some(x => x.id === t) ? t : 'money') as MemberTab)
 
   const shellMe: MeLite = { role: 'member', username: meState?.username, firstName: meState?.firstName, name: meState?.name, avatar: meState?.avatar }
 
   return (
-    <Shell saveState={busy} me={shellMe} tabs={TABS} activeTab={tab} onTab={id => setTab(id as typeof tab)}>
+    <Shell saveState={busy} me={shellMe} tabs={TABS} activeTab={tab} onTab={id => setTab(id as MemberTab)}>
+      {header}
+      {tab === 'money' && <MoneyTab doc={doc} viewer={entityId} me={me} action={action} goTo={goTo} perm={perm} />}
+      {tab === 'goals' && <GoalsTab doc={doc} viewer={entityId} me={me} action={action} perm={perm} />}
+      {tab === 'plan' && <PlanTab doc={doc} viewer={entityId} action={action} perm={perm} />}
+      {tab === 'access' && <AccessTab doc={doc} me={me} action={action} onSwitch={owner => onSwitch?.(owner)} />}
       {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} action={action} openEditor={setEditing} />}
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={action} />}
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
@@ -3345,7 +3435,7 @@ function MemberDashboard({ initialDoc, entityId, profile }: { initialDoc: Financ
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
 
       {editing && (
-        <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
+        <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} accounts={doc.accounts ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
           onSave={it => { editing.onSave(it); setEditing(null) }} onClose={() => setEditing(null)} />
       )}
     </Shell>

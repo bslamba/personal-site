@@ -16,7 +16,8 @@ import { CopyObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCo
 import { getSession, VAULT_COOKIE, type Session } from '@/lib/vault-auth'
 import { findUser } from '@/lib/users'
 import { s3 } from '@/lib/storage'
-import { seedDoc, migrate, filterDocForMember, type FinanceDoc } from '@/lib/finance-data'
+import { seedDoc, migrate, filterDocForMember, activeDelegation, can, type FinanceDoc, type Delegation } from '@/lib/finance-data'
+import { isLiquid } from '@/lib/finance-plan'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -104,7 +105,55 @@ function stripPrivate(doc: FinanceDoc): FinanceDoc {
     // The super sees shared history, but not other people's purely-personal edits.
     auditLog: (doc.auditLog ?? []).filter(a => !a.personal),
     reminders: (doc.reminders ?? []).filter(r => r.scope === 'common'),
+    // The admin sees the common account and household goals — never anyone's
+    // own accounts, goals or surplus decisions. Grants are shown (not their
+    // contents' data) so a runaway grant can always be revoked.
+    accounts: (doc.accounts ?? []).filter(a => a.owner === 'common'),
+    transfers: (doc.transfers ?? []).filter(t => (doc.accounts ?? []).some(a => a.owner === 'common' && (a.id === t.from || a.id === t.to))),
+    goals: (doc.goals ?? []).filter(g => g.owner === 'household'),
+    allocRules: {},
+    allocations: [],
   }
+}
+
+/**
+ * What a delegate sees while managing someone else's finances: the owner's
+ * own view, cut down to exactly what the grant allows. Enforced here, so a
+ * grant without "view income" never sends the income to the browser at all.
+ */
+export function viewForGrant(doc: FinanceDoc, g: Delegation): FinanceDoc {
+  const v = filterDocForMember(doc, g.owner)
+  const p = g.perms
+  const seeExp = can(p, 'expenses', 'view'), seeLoans = can(p, 'loans', 'view'), seeInc = can(p, 'income', 'view')
+  const seeDocs = can(p, 'documents', 'view')
+  const keepItem = (kind: string) => (kind === 'emi' ? seeLoans : seeExp)
+  const scrub = <T extends { receiptKey?: string | null }>(it: T): T => (seeDocs ? it : { ...it, receiptKey: null })
+  for (const m of Object.values(v.months)) {
+    m.items = m.items.filter(it => keepItem(it.kind)).map(scrub)
+    if (!seeInc) m.income = m.income.filter(i => i.entity === 'common')
+  }
+  v.template = {
+    monthly: seeExp ? v.template.monthly.map(scrub) : [],
+    annual: seeExp ? v.template.annual.map(scrub) : [],
+    emis: seeLoans ? v.template.emis.map(scrub) : [],
+    income: seeInc ? v.template.income : v.template.income.filter(i => i.entity === 'common'),
+  }
+  if (!can(p, 'accounts', 'view')) {
+    v.accounts = (v.accounts ?? []).filter(a => a.owner === 'common')
+    const ids = new Set(v.accounts.map(a => a.id))
+    v.transfers = (v.transfers ?? []).filter(t => ids.has(t.from) || ids.has(t.to))
+  }
+  const seeSav = can(p, 'savings', 'view'), seeInv = can(p, 'investments', 'view')
+  v.savings = v.savings.filter(s => (isLiquid(s) ? seeSav : seeInv))
+  if (!seeSav) { v.goals = (v.goals ?? []).filter(x => x.owner === 'household'); v.allocations = []; v.allocRules = {} }
+  if (!can(p, 'budgets', 'view')) v.budgets = { ...v.budgets, byEntity: {} }
+  if (!seeExp) v.allowances = []
+  // Approvals are the owner's own consent to give; a delegate never decides them.
+  v.proposals = []
+  v.auditLog = (v.auditLog ?? []).filter(a => seeExp || a.onBehalfOf === g.owner)
+  v.delegations = [g]
+  v.reminders = (v.reminders ?? []).filter(r => r.scope === 'common')
+  return v
 }
 
 export function viewFor(session: Session, doc: FinanceDoc): FinanceDoc {
@@ -112,7 +161,7 @@ export function viewFor(session: Session, doc: FinanceDoc): FinanceDoc {
   return filterDocForMember(doc, session.e)
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const jar = await cookies()
   const session = await getSession(jar.get(VAULT_COOKIE)?.value)
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
@@ -122,6 +171,21 @@ export async function GET() {
     if (!raw) { doc = seedDoc(); await writeDoc(doc) }
     else { const wasV2 = (raw as { version?: number }).version === 2; doc = migrate(raw); if (!wasV2) await writeDoc(doc) }
     const u = await findUser(session.u)
+    // Managing someone else's finances: only with a live grant from them.
+    const as = new URL(request.url).searchParams.get('as')
+    if (as && as !== session.e) {
+      const g = session.r === 'member' && session.e ? activeDelegation(doc, session.e, as) : null
+      if (!g) return NextResponse.json({ error: 'You no longer have access to that profile.', revoked: true }, { status: 403 })
+      const name = (id: string) => doc.entities.find(e => e.id === id)?.name ?? id
+      return NextResponse.json({
+        doc: viewForGrant(doc, g),
+        me: {
+          role: 'member', entityId: g.owner, username: session.u,
+          name: u?.name, firstName: u?.firstName, lastName: u?.lastName, email: u?.email, avatar: u?.avatar,
+          acting: { grantId: g.id, owner: g.owner, ownerName: name(g.owner), grantee: g.grantee, granteeName: name(g.grantee), perms: g.perms },
+        },
+      })
+    }
     return NextResponse.json({
       doc: viewFor(session, doc),
       me: {
@@ -168,6 +232,16 @@ export async function PUT(request: Request) {
     // keep stored reminders as the source of truth (managed via the action API).
     body.doc.reminders = stored?.reminders ?? body.doc.reminders ?? []
     body.doc.envelopes = body.doc.envelopes ?? stored?.envelopes
+    // Accounts, transfers, goals, allowances and grants are only ever changed
+    // through the action API, and the admin's view of them is partial — so a
+    // document write always carries the stored copies forward untouched.
+    body.doc.accounts = stored?.accounts ?? []
+    body.doc.transfers = stored?.transfers ?? []
+    body.doc.goals = stored?.goals ?? []
+    body.doc.allocRules = stored?.allocRules ?? {}
+    body.doc.allocations = stored?.allocations ?? []
+    body.doc.allowances = stored?.allowances ?? []
+    body.doc.delegations = stored?.delegations ?? []
     if (stored) {
       for (const [k, m] of Object.entries(body.doc.months)) {
         const priv = stored.months[k] ? stored.months[k].income.filter(i => i.entity !== 'common') : []

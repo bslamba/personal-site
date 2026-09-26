@@ -61,6 +61,7 @@ export interface Item {
   ref?: string                 // stable fingerprint of an imported bank txn (for de-dup)
   tags?: string[]              // free-form event tags (e.g. "Ooty 2026"), independent of category
   envelope?: string            // which envelope this expense belongs to (default household)
+  account?: string             // which money account it left (default: the payer's main account)
 }
 
 export interface IncomeItem {
@@ -70,6 +71,7 @@ export interface IncomeItem {
   amount: number
   src?: 'template' | 'manual'
   ref?: string           // stable fingerprint of an imported bank txn (for de-dup)
+  account?: string       // which money account it landed in (default: the earner's main account)
 }
 
 export interface SavingItem {
@@ -79,6 +81,7 @@ export interface SavingItem {
   balance: number
   kind?: string          // FD, MF, RD, cash, gold…
   note?: string
+  liquid?: boolean       // can be drawn on this month; unset = guessed from the kind
 }
 
 export interface MonthData {
@@ -112,6 +115,8 @@ export interface AuditEntry {
   change?: AuditChange        // what it was and what it became, so it can be put back
   revertedAt?: string         // set once it has been undone, so it cannot be undone twice
   revertOf?: string           // the id of the entry this one undid
+  onBehalfOf?: string         // set when the actor was managing someone else's finances
+  onBehalfName?: string
 }
 
 export interface SettlementProof { key: string; by: string; at: string }
@@ -234,7 +239,151 @@ export interface FinanceDoc {
   reminders?: Reminder[]
   envelopes?: Envelope[]
   alertsSent?: Record<string, string>   // alert key -> the day it went out, so it goes out once
+  // ----- v4: the ledger of real money, goals, and delegated access -----
+  accounts?: Account[]
+  transfers?: Transfer[]
+  goals?: Goal[]
+  allocRules?: Record<string, AllocRule[]>   // owner entity id -> how a month's surplus is split
+  allocations?: Allocation[]
+  allowances?: Allowance[]
+  delegations?: Delegation[]
   updatedAt: string
+}
+
+// ============================================================
+// v4 — accounts, transfers and the balance that rolls over.
+//
+// Until now the sheet knew what was spent and who owed whom, but not where
+// the money actually sat. An ACCOUNT is a real place money lives — a bank
+// account, cash in hand, a wallet, or a credit card (which simply runs
+// negative). Every month each account rolls:
+//
+//   opening + income + transfers in − expenses − transfers out = closing
+//
+// and that closing is the next month's opening. A CHECKPOINT is the balance
+// the bank actually shows at the end of a month; it re-anchors the chain and
+// the gap against the computed figure is shown as "not recorded".
+// ============================================================
+
+export type AccountType = 'bank' | 'cash' | 'wallet' | 'card'
+export interface Account {
+  id: string
+  name: string
+  owner: string               // entity id ('common' for the household account)
+  type: AccountType
+  opening: number             // balance at the start of openingMonth (a card owing ₹18k is −18000)
+  openingMonth: string        // YYYY-MM the ledger starts from
+  primary?: boolean           // the owner's default account for anything not tagged
+  archived?: boolean
+  checkpoints?: Record<string, number>   // YYYY-MM -> closing balance the bank shows
+}
+
+export interface Transfer {
+  id: string
+  month: string               // YYYY-MM
+  date?: string | null
+  from: string                // account id
+  to: string                  // account id
+  amount: number
+  note?: string
+  by?: string                 // who recorded it
+}
+
+// ============================================================
+// v4 — goals as buckets. Savings used to be one number per pot; a goal
+// earmarks money for a purpose, with a date, so the sheet can say how much a
+// month it takes and whether the plan gets there.
+// ============================================================
+
+export interface GoalContribution { id: string; amount: number; at: string; by: string; month: string; note?: string; allocationId?: string }
+export interface Goal {
+  id: string
+  name: string
+  owner: string               // entity id, or 'household' for a shared goal
+  target: number
+  saved: number               // what is already set aside for it
+  targetDate?: string | null  // YYYY-MM
+  monthly?: number            // what the owner plans to put in each month
+  kind?: 'emergency' | 'travel' | 'vehicle' | 'education' | 'gadget' | 'home' | 'other'
+  color?: string
+  createdBy?: string
+  archived?: boolean
+  contributions?: GoalContribution[]
+}
+
+/** How a month's surplus is proposed to be split. `target` is a goal id, or
+ *  'carry' (leave it in the account) or 'invest' (move it to investments). */
+export interface AllocRule { target: string; pct: number }
+export interface AllocLine { target: string; label: string; amount: number }
+export interface Allocation {
+  id: string
+  owner: string               // entity id whose surplus it was
+  month: string
+  surplus: number
+  lines: AllocLine[]
+  at: string
+  by: string
+  undone?: boolean
+}
+
+// ============================================================
+// v4 — allowances for children and dependents: a monthly amount, what has
+// gone, what is left, and a threshold above which a parent must approve.
+// ============================================================
+
+export interface Allowance {
+  id: string
+  entity: string              // the dependent
+  monthly: number
+  threshold: number           // a single expense above this needs a parent's approval (0 = never)
+  approvers: string[]         // parents / guardians
+  categoryLimits?: Record<string, number>
+  startMonth: string          // YYYY-MM — unspent money accrues from here
+  active: boolean
+  note?: string
+}
+
+// ============================================================
+// v4 — delegated access. One person can ask to manage another's finances;
+// the owner decides exactly what they may do, and can take it back at once.
+// It is NOT admin access: every request is checked against the grant on the
+// server, and every action is logged as "X did this on behalf of Y".
+// ============================================================
+
+export const ACCESS_AREAS = ['expenses', 'income', 'accounts', 'savings', 'budgets', 'loans', 'investments', 'documents'] as const
+export type AccessArea = typeof ACCESS_AREAS[number]
+export const ACCESS_OPS = ['view', 'add', 'edit', 'delete'] as const
+export type AccessOp = typeof ACCESS_OPS[number]
+export type AccessPerms = Partial<Record<AccessArea, AccessOp[]>>
+export const ACCESS_LABEL: Record<AccessArea, string> = {
+  expenses: 'Expenses', income: 'Income', accounts: 'Bank accounts', savings: 'Savings & goals',
+  budgets: 'Budgets', loans: 'Loans', investments: 'Investments', documents: 'Documents & receipts',
+}
+export type DelegationStatus = 'pending' | 'active' | 'declined' | 'revoked' | 'cancelled'
+export interface Delegation {
+  id: string
+  grantee: string             // who will manage
+  owner: string               // whose finances
+  perms: AccessPerms          // what was asked for, then what was granted
+  requested: AccessPerms
+  status: DelegationStatus
+  message?: string
+  requestedAt: string
+  decidedAt?: string
+  endedAt?: string
+  endedBy?: string
+  expiresOn?: string | null   // YYYY-MM-DD, optional
+}
+
+export function can(perms: AccessPerms | undefined, area: AccessArea, op: AccessOp): boolean {
+  const ops = perms?.[area] ?? []
+  // Anything you may add, change or remove, you may obviously see.
+  return ops.includes(op) || (op === 'view' && ops.length > 0)
+}
+
+/** The live grant that lets `grantee` act for `owner`, if there is one. */
+export function activeDelegation(doc: FinanceDoc, grantee: string, owner: string, today: string = new Date().toISOString().slice(0, 10)): Delegation | null {
+  return (doc.delegations ?? []).find(d => d.grantee === grantee && d.owner === owner && d.status === 'active' && (!d.expiresOn || d.expiresOn >= today)) ?? null
 }
 
 // ----- ids ------------------------------------------------------
@@ -289,6 +438,7 @@ export function seedDoc(): FinanceDoc {
     proposals: [],
     budgets: seedBudgets(),
     envelopes: seedEnvelopes(entities),
+    accounts: [], transfers: [], goals: [], allocRules: {}, allocations: [], allowances: [], delegations: [],
     updatedAt: new Date().toISOString(),
   }
 }
@@ -325,6 +475,13 @@ export function migrate(raw: unknown): FinanceDoc {
     doc.template.monthly.forEach(stamp); doc.template.emis.forEach(stamp); doc.template.annual.forEach(stamp)
     for (const m of Object.values(doc.months)) m.items.forEach(stamp)
     if (!doc.budgets || typeof doc.budgets !== 'object') doc.budgets = seedBudgets()
+    if (!Array.isArray(doc.accounts)) doc.accounts = []
+    if (!Array.isArray(doc.transfers)) doc.transfers = []
+    if (!Array.isArray(doc.goals)) doc.goals = []
+    if (!doc.allocRules || typeof doc.allocRules !== 'object') doc.allocRules = {}
+    if (!Array.isArray(doc.allocations)) doc.allocations = []
+    if (!Array.isArray(doc.allowances)) doc.allowances = []
+    if (!Array.isArray(doc.delegations)) doc.delegations = []
     return doc
   }
   // Anything that is not a v2 document starts fresh rather than being guessed
@@ -636,7 +793,19 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   const auditLog = (doc.auditLog ?? []).filter(a => a.actor === e || (a.parties ?? []).includes(e))
   const reminders = (doc.reminders ?? []).filter(r => r.scope === 'common' || r.owner === e || (r.notify ?? []).includes(e))
   const envelopes = (doc.envelopes ?? []).filter(env => env.system || env.members.includes(e))
-  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements, reminders, envelopes }
+  // Money accounts, goals and surplus decisions are private to their owner,
+  // like savings. The common account and household goals are everybody's.
+  const accounts = (doc.accounts ?? []).filter(a => a.owner === e || a.owner === 'common')
+  const accIds = new Set(accounts.map(a => a.id))
+  const transfers = (doc.transfers ?? []).filter(t => accIds.has(t.from) || accIds.has(t.to))
+  const goals = (doc.goals ?? []).filter(g => g.owner === e || g.owner === 'household')
+  const allocRules = { [e]: doc.allocRules?.[e] ?? [] }
+  const allocations = (doc.allocations ?? []).filter(a => a.owner === e)
+  // An allowance is seen by the dependent it belongs to and by whoever approves it.
+  const allowances = (doc.allowances ?? []).filter(a => a.entity === e || a.approvers.includes(e))
+  const delegations = (doc.delegations ?? []).filter(d => d.grantee === e || d.owner === e)
+  return { ...doc, months, template, savings: doc.savings.filter(s => s.entity === e), budgets, proposals, auditLog, settlements: doc.settlements, reminders, envelopes,
+    accounts, transfers, goals, allocRules, allocations, allowances, delegations }
 }
 
 /** Everywhere an entity still appears. Removing someone who is referenced
@@ -886,12 +1055,12 @@ export interface LoanView {
 }
 
 /** Months from one month key to another, inclusive of both ends. */
-function monthsBetween(a: string, b: string): number {
+export function monthsBetween(a: string, b: string): number {
   const [ay, am] = a.split('-').map(Number)
   const [by, bm] = b.split('-').map(Number)
   return (by - ay) * 12 + (bm - am) + 1
 }
-const addMonths = (key: string, n: number) => {
+export const addMonths = (key: string, n: number) => {
   const [y, m] = key.split('-').map(Number)
   return monthKey(new Date(y, m - 1 + n, 1))
 }
@@ -1256,6 +1425,15 @@ export function restoreMerge(backup: FinanceDoc, current: FinanceDoc): FinanceDo
   merged.reminders = current.reminders ?? []
   // The log is append-only: it is the record OF the restore, so it must survive it.
   merged.auditLog = current.auditLog ?? []
+  // Access grants are consent decisions, and accounts, transfers, goals and
+  // surplus allocations are private records or money that really moved.
+  merged.delegations = current.delegations ?? []
+  merged.accounts = current.accounts ?? []
+  merged.transfers = current.transfers ?? []
+  merged.goals = current.goals ?? []
+  merged.allocRules = current.allocRules ?? {}
+  merged.allocations = current.allocations ?? []
+  merged.allowances = current.allowances ?? []
 
   // Private income lives in the same month rows as common income. Take the
   // common side from the backup and each person's own side from today.

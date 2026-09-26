@@ -12,8 +12,13 @@
 //   setSavings     replace only your own savings rows
 //   setBudget      set only your own budget
 //   setFamilyBudget (super only) set the household budget
+//   accounts, transfers, goals, surplus allocation, allowances,
+//   and delegated access (request / decide / revoke)
 //
-// Every action is authorised against the caller's identity.
+// Every action is authorised against the caller's identity. A member
+// managing someone else's finances sends `actingAs`; the action is then
+// checked against the owner's grant — area and operation — and logged as
+// "X did this on behalf of Y".
 // ============================================================
 
 import { NextResponse } from 'next/server'
@@ -23,7 +28,13 @@ import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateO
          currentOf, revertIsSafe, applyRevert, type AuditChange,
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
-import { readRaw, writeDoc, viewFor } from '../route'
+import { readRaw, writeDoc, viewFor, viewForGrant } from '../route'
+import { activeDelegation, can, ACCESS_AREAS, ACCESS_OPS, ACCESS_LABEL, bearerShares,
+         type Delegation, type AccessArea, type AccessOp, type AccessPerms, type Account, type Transfer, type Goal,
+         type AllocRule, type Allowance, INR } from '@/lib/finance-data'
+import { isLiquid, proposeAllocation, monthSurplus } from '@/lib/finance-plan'
+import { getUsers } from '@/lib/users'
+import { sendReminderEmail } from '@/lib/mailer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,23 +53,95 @@ const applyMonthEdit = (doc: FinanceDoc, mk: string, item: Item, op: 'update' | 
   else doc.months[mk] = item.src === 'template' ? putMonthOverride(m, item) : { ...m, items: m.items.map(x => (x.id === item.id ? item : x)) }
 }
 
+/**
+ * What an action needs from a grant when it is done on someone's behalf.
+ * Anything not listed here cannot be done for someone else at all — deciding
+ * approvals, settling money, closing a month, or changing who has access are
+ * the owner's own acts.
+ */
+function permFor(body: Record<string, unknown>): { area: AccessArea; op: AccessOp } | null {
+  const item = body.item as Item | undefined
+  const loanOr = (a: AccessArea) => (item?.kind === 'emi' ? 'loans' : a)
+  switch (body.action) {
+    case 'propose': return { area: loanOr('expenses'), op: 'add' }
+    case 'proposeMonthEdit': return { area: loanOr('expenses'), op: body.op === 'delete' ? 'delete' : 'edit' }
+    case 'proposeTemplate': return { area: body.section === 'emis' ? 'loans' : 'expenses', op: body.op === 'delete' ? 'delete' : body.op === 'add' ? 'add' : 'edit' }
+    case 'importRows': return { area: 'expenses', op: 'add' }
+    case 'setMonthIncome': case 'setTemplateIncome': return { area: 'income', op: 'edit' }
+    case 'setSavings': return { area: 'savings', op: 'edit' }          // refined below for investments
+    case 'setBudget': return { area: 'budgets', op: 'edit' }
+    case 'saveAccount': return { area: 'accounts', op: body.isNew ? 'add' : 'edit' }
+    case 'setCheckpoint': return { area: 'accounts', op: 'edit' }
+    case 'removeAccount': return { area: 'accounts', op: 'delete' }
+    case 'addTransfer': return { area: 'accounts', op: 'add' }
+    case 'removeTransfer': return { area: 'accounts', op: 'delete' }
+    case 'saveGoal': return { area: 'savings', op: body.isNew ? 'add' : 'edit' }
+    case 'contributeGoal': case 'setAllocRules': case 'applyAllocation': case 'undoAllocation': return { area: 'savings', op: 'edit' }
+    case 'removeGoal': return { area: 'savings', op: 'delete' }
+    default: return null
+  }
+}
+
+const cleanPerms = (p: unknown): AccessPerms => {
+  const out: AccessPerms = {}
+  if (!p || typeof p !== 'object') return out
+  for (const a of ACCESS_AREAS) {
+    const ops = (p as Record<string, unknown>)[a]
+    if (Array.isArray(ops)) {
+      const ok = ACCESS_OPS.filter(o => ops.includes(o))
+      if (ok.length) out[a] = ok.includes('view') ? ok : ['view', ...ok]
+    }
+  }
+  return out
+}
+const describePerms = (p: AccessPerms) => ACCESS_AREAS.filter(a => p[a]?.length)
+  .map(a => `${ACCESS_LABEL[a]}: ${(p[a] ?? []).join(', ')}`).join('\n')
+
+async function emailEntity(entityId: string, title: string, body: string) {
+  try {
+    const users = await getUsers()
+    const u = users.find(x => x.entityId === entityId && x.email)
+    if (u?.email) await sendReminderEmail([u.email], { title, body, name: u.firstName || u.name })
+  } catch { /* email is a courtesy — the request is in the app regardless */ }
+}
+
 export async function POST(request: Request) {
   const jar = await cookies()
   const session = await getSession(jar.get(VAULT_COOKIE)?.value)
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const body = await request.json().catch(() => null) as
-    | { action: string; item?: Item; monthKey?: string; id?: string; savings?: SavingItem[]; budget?: EntityBudget } | null
+    | { action: string; item?: Item; monthKey?: string; id?: string; savings?: SavingItem[]; budget?: EntityBudget; actingAs?: string } | null
   if (!body?.action) return NextResponse.json({ error: 'No action' }, { status: 400 })
 
   const raw = await readRaw()
   const doc: FinanceDoc = migrate(raw ?? {})
   const isSuper = session.r === 'super'
-  const actor = session.e   // entity id for members; null for super
-  const actorName = isSuper ? 'Super admin' : entName(doc, actor)
-  const audit = (event: 'propose' | 'accept' | 'decline' | 'revoke' | 'apply', what: string, extra: { reason?: string; monthKey?: string; proposalId?: string; parties?: string[]; personal?: boolean; change?: AuditChange; revertOf?: string } = {}) => {
-    doc.auditLog = [...(doc.auditLog ?? []), { id: uid('log'), ts: new Date().toISOString(), actor: actor ?? 'super', actorName, event, what, ...extra }].slice(-800)
+  // ----- acting on someone else's behalf --------------------------
+  let grant: Delegation | null = null
+  if (body.actingAs && body.actingAs !== session.e) {
+    if (isSuper || !session.e) return NextResponse.json({ error: 'Only a family member can manage another member’s finances.' }, { status: 403 })
+    grant = activeDelegation(doc, session.e, body.actingAs)
+    if (!grant) return NextResponse.json({ error: 'Your access to that profile has been revoked or has expired.', revoked: true }, { status: 403 })
+    const need = permFor(body as unknown as Record<string, unknown>)
+    if (!need) return NextResponse.json({ error: 'That can only be done by the owner themselves.' }, { status: 403 })
+    if (!can(grant.perms, need.area, need.op)) {
+      return NextResponse.json({ error: `${entName(doc, grant.owner)} has not given you permission to ${need.op} ${ACCESS_LABEL[need.area].toLowerCase()}.` }, { status: 403 })
+    }
+    // Receipts ride along on expenses — drop them if documents are not granted.
+    if (body.item && body.item.receiptKey && !can(grant.perms, 'documents', 'add')) body.item.receiptKey = null
   }
+  const actor = grant ? grant.owner : session.e   // whose data this acts on; null for super
+  const realActor = session.e                      // who is actually at the keyboard
+  const actorName = isSuper ? 'Super admin' : entName(doc, realActor)
+  const audit = (event: 'propose' | 'accept' | 'decline' | 'revoke' | 'apply', what: string, extra: { reason?: string; monthKey?: string; proposalId?: string; parties?: string[]; personal?: boolean; change?: AuditChange; revertOf?: string } = {}) => {
+    const behalf = grant ? { onBehalfOf: grant.owner, onBehalfName: entName(doc, grant.owner), parties: [...new Set([...(extra.parties ?? []), grant.owner, grant.grantee])] } : {}
+    doc.auditLog = [...(doc.auditLog ?? []), { id: uid('log'), ts: new Date().toISOString(), actor: realActor ?? 'super', actorName, event, what, ...extra, ...behalf }].slice(-800)
+  }
+  const respond = (extra: Record<string, unknown> = {}) => NextResponse.json({
+    ok: true, ...extra, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor },
+  })
+  const byName = grant ? `${entName(doc, grant.owner)} (via ${entName(doc, grant.grantee)})` : entName(doc, actor)
   const partiesOf = (pr: Proposal) => [pr.proposedBy, ...pr.approvers].filter(x => x && x !== 'super')
   // An existing pending proposal that TARGETS a specific item (an edit or a
   // template change/removal) — used to block a second, overlapping edit.
@@ -84,14 +167,31 @@ export async function POST(request: Request) {
         const item = body.item, monthKey = body.monthKey
         if (!item || !monthKey) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
         item.id = item.id || uid('one')
-        const addLabel = `Add · ${shortName(item)}`
+        const addLabel = `Add · ${shortName(item)} · ${INR(item.amount || 0)}`
+        // A dependent on an allowance: anything above the threshold goes to a
+        // parent first, unless a parent is the one recording it.
+        const alw = (doc.allowances ?? []).find(a => a.active && a.threshold > 0 && (bearerShares(item)[a.entity] ?? 0) > 0 && (item.amount || 0) > a.threshold)
+        if (alw && !isSuper && !(realActor && alw.approvers.includes(realActor))) {
+          const approvers = alw.approvers.filter(x => x !== actor)
+          if (approvers.length) {
+            const pr: Proposal = {
+              id: uid('prop'), item: { ...item, src: 'manual' }, monthKey, proposedBy: actor ?? 'super', proposedByName: byName,
+              approvers, approved: [], mode: 'any', status: 'pending', createdAt: new Date().toISOString(),
+              reason: `Above ${entName(doc, alw.entity)}’s allowance approval limit of ${INR(alw.threshold)}`,
+            }
+            doc.proposals = [...(doc.proposals ?? []), pr]
+            audit('propose', addLabel, { monthKey, proposalId: pr.id, reason: pr.reason, parties: [...new Set([actor ?? '', ...approvers].filter(Boolean))] })
+            await writeDoc(doc)
+            return respond({ proposed: true, allowance: true })
+          }
+        }
         // Super, or an expense that is purely the caller's own, is added straight away.
         if (isSuper || (actor && isPersonalTo(item, actor, doc.entities))) {
           const ch = monthChange(monthKey, { ...item, src: 'manual' }, { ...item, src: 'manual' })
           addToMonth(doc, monthKey, item)
           audit('apply', addLabel, { monthKey, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, added: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, added: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const { approvers, mode } = approversFor(item, actor, doc.entities)
@@ -100,16 +200,16 @@ export async function POST(request: Request) {
           addToMonth(doc, monthKey, item)
           audit('apply', addLabel, { monthKey, personal: true, parties: actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, added: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, added: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         const pr: Proposal = {
-          id: uid('prop'), item, monthKey, proposedBy: actor, proposedByName: entName(doc, actor),
+          id: uid('prop'), item, monthKey, proposedBy: actor, proposedByName: byName,
           approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(),
         }
         doc.proposals = [...(doc.proposals ?? []), pr]
         audit('propose', addLabel, { monthKey, proposalId: pr.id, parties: [actor, ...approvers] })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, proposed: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'accept':
@@ -137,7 +237,7 @@ export async function POST(request: Request) {
           audit('accept', prLabel, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr), change: ch })
         }
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setSavings': {
@@ -145,12 +245,20 @@ export async function POST(request: Request) {
         // super has nothing to save here. The old super branch replaced the
         // whole savings list, which would have wiped every member's pots.
         if (isSuper || !actor) return NextResponse.json({ error: 'Savings are private to each profile' }, { status: 403 })
-        const rows = (body.savings ?? [])
+        let rows = (body.savings ?? [])
         const who = actor
+        const existing = doc.savings.filter(s => s.entity === who)
+        if (grant) {
+          // A delegate only touches the kind of pot they were given: without
+          // investments, the investment rows stay exactly as they were.
+          const sav = can(grant.perms, 'savings', 'edit'), inv = can(grant.perms, 'investments', 'edit')
+          rows = [...rows.filter(r => (isLiquid(r) ? sav : inv)), ...existing.filter(r => (isLiquid(r) ? !sav : !inv))]
+        }
         const mine = rows.map(r => ({ ...r, entity: who }))
         doc.savings = [...doc.savings.filter(s => s.entity !== who), ...mine]
+        if (grant) audit('apply', 'Savings updated', { personal: true })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setMonthIncome': {
@@ -164,8 +272,9 @@ export async function POST(request: Request) {
         const m = doc.months[mk] ?? materialise(doc.template, mk)
         m.income = [...m.income.filter(i => i.entity !== actor), ...incoming]
         doc.months[mk] = m
+        if (grant) audit('apply', `Income updated · ${INR(incoming.reduce((a, r) => a + r.amount, 0))}`, { monthKey: mk, personal: true })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setTemplateIncome': {
@@ -179,7 +288,7 @@ export async function POST(request: Request) {
         doc.template.income = [...doc.template.income.filter(i => i.entity !== actor), ...incoming]
         audit('apply', 'Recurring income updated', { personal: true, parties: [actor] })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'revertChange': {
@@ -204,7 +313,7 @@ export async function POST(request: Request) {
           revertOf: entry.id, parties: entry.parties, personal: entry.personal,
         })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, reverted: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, reverted: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setUpi': {
@@ -216,15 +325,16 @@ export async function POST(request: Request) {
         doc.entities = doc.entities.map(e => (e.id === actor ? { ...e, upi: raw || undefined } : e))
         audit('apply', raw ? 'UPI id updated' : 'UPI id removed', { personal: true, parties: [actor] })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setBudget': {
         if (!body.budget) return NextResponse.json({ error: 'No budget' }, { status: 400 })
         const who = actor ?? 'su'
         doc.budgets.byEntity[who] = body.budget
+        if (grant) audit('apply', 'Budget updated', { personal: true })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setFamilyBudget': {
@@ -232,7 +342,7 @@ export async function POST(request: Request) {
         if (!body.budget) return NextResponse.json({ error: 'No budget' }, { status: 400 })
         doc.budgets.family = body.budget
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'importRows': {
@@ -259,6 +369,7 @@ export async function POST(request: Request) {
           const tags = Array.isArray(r.tags) ? r.tags.map(t => String(t).trim()).filter(Boolean) : undefined
 
           if (r.type === 'credit') {
+            if (grant && !can(grant.perms, 'income', 'add')) { skipped++; continue }
             // Credit = income, private to the owner. Applied directly.
             const m = doc.months[mk] ?? materialise(doc.template, mk)
             m.income = [...m.income, { id: uid('inc'), source: r.name || 'Income', entity: owner, amount: r.amount, src: 'manual', ref: r.ref } as IncomeItem]
@@ -303,7 +414,7 @@ export async function POST(request: Request) {
           }
         }
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, added, proposed, skipped, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, added, proposed, skipped, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'proposeMonthEdit': {
@@ -319,7 +430,7 @@ export async function POST(request: Request) {
           applyMonthEdit(doc, monthKey2, item, op)
           audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const ap = approversFor(item, actor, doc.entities)
@@ -328,20 +439,20 @@ export async function POST(request: Request) {
           applyMonthEdit(doc, monthKey2, item, op)
           audit('apply', label, { monthKey: monthKey2, reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         // Shared edit → needs approval. Require a reason and block a second,
         // overlapping edit on the same expense.
         if (!reason) return NextResponse.json({ error: 'Please give a reason for this change so the other person can review it.' }, { status: 400 })
         if (pendingEditFor(item.id)) return NextResponse.json({ error: 'This expense already has an edit waiting for approval. Revoke that one first, or wait for it to be decided.' }, { status: 409 })
         const pr2: Proposal = {
-          id: uid('prop'), item, monthKey: monthKey2, proposedBy: actor, proposedByName: entName(doc, actor),
+          id: uid('prop'), item, monthKey: monthKey2, proposedBy: actor, proposedByName: byName,
           approvers: ap.approvers, approved: [], mode: ap.mode, status: 'pending', createdAt: new Date().toISOString(), monthEdit: { op }, reason,
         }
         doc.proposals = [...(doc.proposals ?? []), pr2]
         audit('propose', label, { monthKey: monthKey2, reason, proposalId: pr2.id, parties: [actor, ...ap.approvers] })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, proposed: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'revoke': {
@@ -353,7 +464,7 @@ export async function POST(request: Request) {
         doc.proposals = doc.proposals.filter(p => p.id !== pr.id)
         audit('revoke', `Revoked · ${shortName(pr.item)}`, { monthKey: pr.monthKey, proposalId: pr.id, reason: pr.reason, parties: partiesOf(pr) })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, revoked: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, revoked: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'proposeTemplate': {
@@ -369,7 +480,7 @@ export async function POST(request: Request) {
           applyTemplateOp(doc, section, op, item)
           audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const { approvers, mode } = approversFor(item, actor, doc.entities)
@@ -378,18 +489,18 @@ export async function POST(request: Request) {
           applyTemplateOp(doc, section, op, item)
           audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         if (op !== 'add' && !reason) return NextResponse.json({ error: 'Please give a reason for this change so the other person can review it.' }, { status: 400 })
         if (op !== 'add' && pendingEditFor(item.id)) return NextResponse.json({ error: 'This item already has a change waiting for approval. Revoke that one first.' }, { status: 409 })
         const pr: Proposal = {
-          id: uid('prop'), item, monthKey: monthKey(), proposedBy: actor, proposedByName: entName(doc, actor),
+          id: uid('prop'), item, monthKey: monthKey(), proposedBy: actor, proposedByName: byName,
           approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(), template: { section, op }, reason: reason || undefined,
         }
         doc.proposals = [...(doc.proposals ?? []), pr]
         audit('propose', label, { reason: reason || undefined, proposalId: pr.id, parties: [actor, ...approvers] })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, proposed: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setCommonIncome': {
@@ -402,7 +513,7 @@ export async function POST(request: Request) {
           setCommonIncome(doc, mk, amount)
           audit('apply', `Common income → ${amount}`, { monthKey: mk })
           await writeDoc(doc)
-          return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+          return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
         }
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const approver = bt.approver
@@ -411,14 +522,14 @@ export async function POST(request: Request) {
         if (!reason) return NextResponse.json({ error: 'Please give a reason for changing the common income.' }, { status: 400 })
         const item: Item = { id: uid('cinc'), name: 'Common account income', amount, kind: 'oneoff', paidBy: 'common', alloc: { mode: 'single', who: 'common' } }
         const pr: Proposal = {
-          id: uid('prop'), item, monthKey: mk, proposedBy: actor, proposedByName: entName(doc, actor),
+          id: uid('prop'), item, monthKey: mk, proposedBy: actor, proposedByName: byName,
           approvers: [approver], approved: [], mode: 'any', status: 'pending', createdAt: new Date().toISOString(),
           incomeEdit: { monthKey: mk, amount }, reason,
         }
         doc.proposals = [...(doc.proposals ?? []), pr]
         audit('propose', `Common income → ${amount}`, { monthKey: mk, reason, proposalId: pr.id, parties: [actor, approver] })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, proposed: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, proposed: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'setCommonDisposition': {
@@ -454,7 +565,7 @@ export async function POST(request: Request) {
         doc.months[mk] = m
         audit('apply', `Common surplus · ${mode}`, { monthKey: mk })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, applied: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'settlePay': {
@@ -478,7 +589,7 @@ export async function POST(request: Request) {
         doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
         audit('apply', `Settled ${amount >= tr.due ? '' : 'part of '}· ${entName(doc, tr.from)} → ${tr.to === 'common' ? 'common account' : entName(doc, tr.to)}`, { monthKey: mk })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'settleUnpay': {
@@ -500,7 +611,7 @@ export async function POST(request: Request) {
           doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
         }
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'closeSettlement': {
@@ -533,7 +644,7 @@ export async function POST(request: Request) {
         }
         audit('apply', `Closed settlement · ${mk}${carry.length ? ` · ${carry.length} carried forward` : ''}`, { monthKey: mk })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, carried: carry.length, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, carried: carry.length, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'saveReminder': {
@@ -556,14 +667,14 @@ export async function POST(request: Request) {
         const idx = list.findIndex(x => x.id === rec.id)
         doc.reminders = idx >= 0 ? list.map(x => (x.id === rec.id ? { ...x, ...rec } : x)) : [...list, rec]
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'removeReminder': {
         const id = (body as unknown as { id?: string }).id
         doc.reminders = (doc.reminders ?? []).filter(r => r.id !== id)
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'resolveReminder': {
@@ -573,7 +684,7 @@ export async function POST(request: Request) {
           ? { ...r, done: { ...(r.done ?? {}), [mk]: { proofKey: bt.proofKey || '', at: new Date().toISOString(), by: actorName } } }
           : r)
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'unresolveReminder': {
@@ -581,7 +692,7 @@ export async function POST(request: Request) {
         const mk = bt.monthKey || monthKey()
         doc.reminders = (doc.reminders ?? []).map(r => { if (r.id === bt.id && r.done) { const d = { ...r.done }; delete d[mk]; return { ...r, done: d } } return r })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'reopenSettlement': {
@@ -601,7 +712,317 @@ export async function POST(request: Request) {
         }
         audit('apply', `Reopened settlement · ${mk}`, { monthKey: mk })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, doc: viewFor(session, doc), me: { role: session.r, entityId: session.e } })
+        return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
+      }
+
+      // ================= accounts & the rollover =================
+      case 'saveAccount': {
+        const bt = body as unknown as { account?: Partial<Account>; isNew?: boolean }
+        const a = bt.account
+        if (!a || !String(a.name ?? '').trim()) return NextResponse.json({ error: 'Give the account a name.' }, { status: 400 })
+        const owner = isSuper ? 'common' : actor
+        if (!owner) return NextResponse.json({ error: 'No profile' }, { status: 400 })
+        const list = doc.accounts ?? []
+        const prev = a.id ? list.find(x => x.id === a.id) : undefined
+        if (prev && prev.owner !== owner) return NextResponse.json({ error: 'That account is not yours to change.' }, { status: 403 })
+        const om = /^\d{4}-\d{2}$/.test(String(a.openingMonth ?? '')) ? String(a.openingMonth) : monthKey()
+        const rec: Account = {
+          id: prev?.id ?? uid('acc'), owner,
+          name: String(a.name).trim().slice(0, 60),
+          type: (['bank', 'cash', 'wallet', 'card'] as const).includes(a.type as Account['type']) ? a.type as Account['type'] : 'bank',
+          opening: Number(a.opening) || 0, openingMonth: om,
+          primary: !!a.primary, archived: prev?.archived, checkpoints: prev?.checkpoints ?? {},
+        }
+        doc.accounts = [...list.filter(x => x.id !== rec.id).map(x => (rec.primary && x.owner === owner ? { ...x, primary: false } : x)), rec]
+        audit('apply', `${prev ? 'Account updated' : 'Account added'} · ${rec.name}`, { personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond({ id: rec.id })
+      }
+
+      case 'removeAccount': {
+        const id = (body as unknown as { id?: string }).id
+        const acc = (doc.accounts ?? []).find(x => x.id === id)
+        if (!acc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        if (acc.owner !== (isSuper ? 'common' : actor)) return NextResponse.json({ error: 'That account is not yours.' }, { status: 403 })
+        const used = (doc.transfers ?? []).some(t => t.from === id || t.to === id)
+          || Object.values(doc.months).some(m => m.items.some(i => i.account === id) || m.income.some(i => i.account === id))
+        // History that points at an account keeps it: it is archived, not erased.
+        doc.accounts = used ? (doc.accounts ?? []).map(x => (x.id === id ? { ...x, archived: true, primary: false } : x)) : (doc.accounts ?? []).filter(x => x.id !== id)
+        audit('apply', `${used ? 'Account archived' : 'Account removed'} · ${acc.name}`, { personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'setCheckpoint': {
+        const bt = body as unknown as { id?: string; month?: string; balance?: number | null }
+        const acc = (doc.accounts ?? []).find(x => x.id === bt.id)
+        if (!acc || acc.owner !== (isSuper ? 'common' : actor)) return NextResponse.json({ error: 'That account is not yours.' }, { status: 403 })
+        const mk = /^\d{4}-\d{2}$/.test(String(bt.month ?? '')) ? String(bt.month) : monthKey()
+        const cps = { ...(acc.checkpoints ?? {}) }
+        if (bt.balance == null || Number.isNaN(Number(bt.balance))) delete cps[mk]
+        else cps[mk] = Number(bt.balance)
+        acc.checkpoints = cps
+        audit('apply', bt.balance == null ? `Balance check cleared · ${acc.name} · ${mk}` : `Balance checked · ${acc.name} · ${INR(Number(bt.balance))}`, { monthKey: mk, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'addTransfer': {
+        const bt = body as unknown as { transfer?: Partial<Transfer> }
+        const t = bt.transfer
+        const accs = doc.accounts ?? []
+        const from = accs.find(a => a.id === t?.from), to = accs.find(a => a.id === t?.to)
+        const amount = Number(t?.amount)
+        if (!t || !from || !to || from.id === to.id || !(amount > 0)) return NextResponse.json({ error: 'Pick two different accounts and an amount.' }, { status: 400 })
+        const mine = (a: Account) => a.owner === (isSuper ? 'common' : actor)
+        const reach = (a: Account) => mine(a) || a.owner === 'common'
+        if (!(mine(from) || mine(to)) || !reach(from) || !reach(to)) return NextResponse.json({ error: 'You can only move money between your own accounts and the common account.' }, { status: 403 })
+        const mk = /^\d{4}-\d{2}$/.test(String(t.month ?? '')) ? String(t.month) : (t.date ? String(t.date).slice(0, 7) : monthKey())
+        const rec: Transfer = { id: uid('trf'), month: mk, date: t.date || null, from: from.id, to: to.id, amount, note: String(t.note ?? '').slice(0, 120) || undefined, by: actorName }
+        doc.transfers = [...(doc.transfers ?? []), rec]
+        audit('apply', `Transfer · ${from.name} → ${to.name} · ${INR(amount)}`, { monthKey: mk, personal: !isSuper && from.owner !== 'common' && to.owner !== 'common', parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'removeTransfer': {
+        const id = (body as unknown as { id?: string }).id
+        const t = (doc.transfers ?? []).find(x => x.id === id)
+        if (!t) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        const own = isSuper ? 'common' : actor
+        const touches = (doc.accounts ?? []).some(a => a.owner === own && (a.id === t.from || a.id === t.to))
+        if (!touches) return NextResponse.json({ error: 'That transfer is not yours.' }, { status: 403 })
+        doc.transfers = (doc.transfers ?? []).filter(x => x.id !== id)
+        audit('apply', `Transfer removed · ${INR(t.amount)}`, { monthKey: t.month, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      // ================= goals & surplus =================
+      case 'saveGoal': {
+        const bt = body as unknown as { goal?: Partial<Goal> }
+        const g = bt.goal
+        if (!g || !String(g.name ?? '').trim() || !(Number(g.target) > 0)) return NextResponse.json({ error: 'A goal needs a name and a target.' }, { status: 400 })
+        const list = doc.goals ?? []
+        const prev = g.id ? list.find(x => x.id === g.id) : undefined
+        // Your own goal, or a household one. A delegate only touches the owner's own.
+        const owner = isSuper ? 'household' : (g.owner === 'household' && !grant ? 'household' : actor)
+        if (!owner) return NextResponse.json({ error: 'No profile' }, { status: 400 })
+        if (prev && prev.owner !== owner && !(prev.owner === 'household' && !grant)) return NextResponse.json({ error: 'That goal is not yours.' }, { status: 403 })
+        const kinds = ['emergency', 'travel', 'vehicle', 'education', 'gadget', 'home', 'other'] as const
+        const rec: Goal = {
+          id: prev?.id ?? uid('goal'), owner: prev?.owner ?? owner,
+          name: String(g.name).trim().slice(0, 60), target: Math.max(1, Number(g.target) || 0),
+          saved: prev ? prev.saved : Math.max(0, Number(g.saved) || 0),
+          targetDate: /^\d{4}-\d{2}/.test(String(g.targetDate ?? '')) ? String(g.targetDate).slice(0, 7) : null,
+          monthly: Math.max(0, Number(g.monthly) || 0),
+          kind: kinds.includes(g.kind as typeof kinds[number]) ? g.kind : 'other',
+          color: typeof g.color === 'string' ? g.color.slice(0, 9) : prev?.color,
+          createdBy: prev?.createdBy ?? actorName, contributions: prev?.contributions ?? [],
+        }
+        doc.goals = [...list.filter(x => x.id !== rec.id), rec]
+        audit('apply', `${prev ? 'Goal updated' : 'Goal added'} · ${rec.name} · ${INR(rec.target)}`, { personal: rec.owner !== 'household', parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond({ id: rec.id })
+      }
+
+      case 'removeGoal': {
+        const id = (body as unknown as { id?: string }).id
+        const g = (doc.goals ?? []).find(x => x.id === id)
+        if (!g) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        const ok = isSuper ? g.owner === 'household' : g.owner === actor || (g.owner === 'household' && !grant)
+        if (!ok) return NextResponse.json({ error: 'That goal is not yours.' }, { status: 403 })
+        doc.goals = (doc.goals ?? []).map(x => (x.id === id ? { ...x, archived: true } : x))
+        audit('apply', `Goal closed · ${g.name}`, { personal: g.owner !== 'household', parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'contributeGoal': {
+        const bt = body as unknown as { id?: string; amount?: number; note?: string; month?: string }
+        const g = (doc.goals ?? []).find(x => x.id === bt.id)
+        const amount = Number(bt.amount)
+        if (!g || !amount) return NextResponse.json({ error: 'Pick a goal and an amount.' }, { status: 400 })
+        const ok = isSuper ? g.owner === 'household' : g.owner === actor || (g.owner === 'household' && !grant)
+        if (!ok) return NextResponse.json({ error: 'That goal is not yours.' }, { status: 403 })
+        const mk = /^\d{4}-\d{2}$/.test(String(bt.month ?? '')) ? String(bt.month) : monthKey()
+        g.saved = Math.max(0, (g.saved || 0) + amount)
+        g.contributions = [...(g.contributions ?? []), { id: uid('gc'), amount, at: new Date().toISOString(), by: actorName, month: mk, note: String(bt.note ?? '').slice(0, 120) || undefined }].slice(-200)
+        audit('apply', `${amount > 0 ? 'Added to' : 'Took from'} goal · ${g.name} · ${INR(Math.abs(amount))}`, { monthKey: mk, personal: g.owner !== 'household', parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'setAllocRules': {
+        if (isSuper || !actor) return NextResponse.json({ error: 'Surplus rules are per person.' }, { status: 403 })
+        const rules = ((body as unknown as { rules?: AllocRule[] }).rules ?? [])
+          .filter(r => r && (r.target === 'carry' || r.target === 'invest' || (doc.goals ?? []).some(g => g.id === r.target && g.owner === actor)))
+          .map(r => ({ target: r.target, pct: Math.max(0, Math.min(100, Number(r.pct) || 0)) }))
+          .filter(r => r.pct > 0)
+        doc.allocRules = { ...(doc.allocRules ?? {}), [actor]: rules }
+        audit('apply', 'Surplus split updated', { personal: true, parties: [actor] })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'applyAllocation': {
+        if (isSuper || !actor) return NextResponse.json({ error: 'Surplus allocation is per person.' }, { status: 403 })
+        const bt = body as unknown as { month?: string; lines?: { target: string; amount: number }[] }
+        const mk = /^\d{4}-\d{2}$/.test(String(bt.month ?? '')) ? String(bt.month) : monthKey()
+        if ((doc.allocations ?? []).some(a => a.owner === actor && a.month === mk && !a.undone)) return NextResponse.json({ error: 'That month’s surplus has already been allocated. Undo it first to change it.' }, { status: 409 })
+        const surplus = Math.floor(monthSurplus(doc, actor, mk))
+        if (surplus <= 0) return NextResponse.json({ error: 'There is no surplus to allocate for that month.' }, { status: 400 })
+        const valid = (t: string) => t === 'carry' || t === 'invest' || (doc.goals ?? []).some(g => g.id === t && g.owner === actor && !g.archived)
+        const lines = (bt.lines?.length ? bt.lines : proposeAllocation(doc, actor, surplus))
+          .filter(l => valid(l.target) && Number(l.amount) > 0)
+          .map(l => ({ target: l.target, amount: Math.floor(Number(l.amount)), label: l.target === 'carry' ? 'Carry forward' : l.target === 'invest' ? 'Investments' : (doc.goals ?? []).find(g => g.id === l.target)!.name }))
+        const total = lines.reduce((a, l) => a + l.amount, 0)
+        if (total > surplus + 1) return NextResponse.json({ error: `That allocates ${INR(total)} but the surplus is ${INR(surplus)}.` }, { status: 400 })
+        const alloc = { id: uid('alloc'), owner: actor, month: mk, surplus, lines, at: new Date().toISOString(), by: actorName }
+        for (const l of lines) {
+          if (l.target === 'invest') {
+            const pot = doc.savings.find(x => x.entity === actor && x.label === 'Investments (from surplus)')
+            if (pot) pot.balance = (pot.balance || 0) + l.amount
+            else doc.savings = [...doc.savings, { id: uid('sav'), label: 'Investments (from surplus)', entity: actor, balance: l.amount, kind: 'MF', liquid: false }]
+          } else if (l.target !== 'carry') {
+            const g = (doc.goals ?? []).find(x => x.id === l.target)!
+            g.saved = (g.saved || 0) + l.amount
+            g.contributions = [...(g.contributions ?? []), { id: uid('gc'), amount: l.amount, at: alloc.at, by: actorName, month: mk, note: 'Month-end surplus', allocationId: alloc.id }]
+          }
+        }
+        doc.allocations = [...(doc.allocations ?? []), alloc]
+        audit('apply', `Surplus allocated · ${mk} · ${INR(total)}`, { monthKey: mk, personal: true, parties: [actor] })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'undoAllocation': {
+        const id = (body as unknown as { id?: string }).id
+        const al = (doc.allocations ?? []).find(a => a.id === id)
+        if (!al || al.undone) return NextResponse.json({ error: 'Nothing to undo.' }, { status: 404 })
+        if (isSuper || al.owner !== actor) return NextResponse.json({ error: 'Not yours.' }, { status: 403 })
+        for (const l of al.lines) {
+          if (l.target === 'invest') {
+            const pot = doc.savings.find(x => x.entity === actor && x.label === 'Investments (from surplus)')
+            if (pot) pot.balance = Math.max(0, (pot.balance || 0) - l.amount)
+          } else if (l.target !== 'carry') {
+            const g = (doc.goals ?? []).find(x => x.id === l.target)
+            if (g) { g.saved = Math.max(0, (g.saved || 0) - l.amount); g.contributions = (g.contributions ?? []).filter(c => c.allocationId !== al.id) }
+          }
+        }
+        al.undone = true
+        audit('apply', `Surplus allocation undone · ${al.month}`, { monthKey: al.month, personal: true, parties: [al.owner] })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      // ================= allowances =================
+      case 'saveAllowance': {
+        const a = (body as unknown as { allowance?: Partial<Allowance> }).allowance
+        const dep = a && doc.entities.find(e => e.id === a.entity && e.kind === 'person')
+        if (!a || !dep || !(Number(a.monthly) > 0)) return NextResponse.json({ error: 'Pick who it is for and a monthly amount.' }, { status: 400 })
+        const approvers = (a.approvers ?? []).filter(x => x !== dep.id && doc.entities.some(e => e.id === x && e.kind === 'person'))
+        if (!approvers.length) return NextResponse.json({ error: 'Choose at least one parent to approve larger expenses.' }, { status: 400 })
+        const prev = a.id ? (doc.allowances ?? []).find(x => x.id === a.id) : undefined
+        // Set by the family admin, or by a parent who will be approving it.
+        const allowed = isSuper || (realActor && approvers.includes(realActor) && (!prev || prev.approvers.includes(realActor)))
+        if (!allowed) return NextResponse.json({ error: 'Only a parent approving this allowance (or the family admin) can set it.' }, { status: 403 })
+        const limits: Record<string, number> = {}
+        for (const [c, v] of Object.entries(a.categoryLimits ?? {})) if (Number(v) > 0) limits[c] = Number(v)
+        const rec: Allowance = {
+          id: prev?.id ?? uid('alw'), entity: dep.id, monthly: Number(a.monthly), threshold: Math.max(0, Number(a.threshold) || 0),
+          approvers, categoryLimits: limits, active: a.active !== false,
+          startMonth: /^\d{4}-\d{2}$/.test(String(a.startMonth ?? '')) ? String(a.startMonth) : prev?.startMonth ?? monthKey(),
+          note: String(a.note ?? '').slice(0, 120) || undefined,
+        }
+        doc.allowances = [...(doc.allowances ?? []).filter(x => x.id !== rec.id), rec]
+        audit('apply', `${prev ? 'Allowance updated' : 'Allowance set'} · ${dep.name} · ${INR(rec.monthly)}/month`, { parties: [dep.id, ...approvers] })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'removeAllowance': {
+        const id = (body as unknown as { id?: string }).id
+        const a = (doc.allowances ?? []).find(x => x.id === id)
+        if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        if (!isSuper && !(realActor && a.approvers.includes(realActor))) return NextResponse.json({ error: 'Only a parent on this allowance can remove it.' }, { status: 403 })
+        doc.allowances = (doc.allowances ?? []).filter(x => x.id !== id)
+        audit('apply', `Allowance removed · ${entName(doc, a.entity)}`, { parties: [a.entity, ...a.approvers] })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      // ================= delegated access =================
+      case 'requestAccess': {
+        if (isSuper || !realActor) return NextResponse.json({ error: 'Only a family member can ask to manage someone’s finances.' }, { status: 403 })
+        const bt = body as unknown as { owner?: string; perms?: AccessPerms; message?: string; expiresOn?: string }
+        const owner = doc.entities.find(e => e.id === bt.owner && e.kind === 'person')
+        if (!owner || owner.id === realActor) return NextResponse.json({ error: 'Pick someone else in the family.' }, { status: 400 })
+        const perms = cleanPerms(bt.perms)
+        if (!Object.keys(perms).length) return NextResponse.json({ error: 'Ask for at least one permission.' }, { status: 400 })
+        const open = (doc.delegations ?? []).find(d => d.grantee === realActor && d.owner === owner.id && (d.status === 'pending' || d.status === 'active'))
+        if (open) return NextResponse.json({ error: open.status === 'active' ? `You already manage ${owner.name}’s finances. Ask them to change the permissions instead.` : 'A request is already waiting for them.' }, { status: 409 })
+        const d: Delegation = {
+          id: uid('dlg'), grantee: realActor, owner: owner.id, perms, requested: perms, status: 'pending',
+          message: String(bt.message ?? '').slice(0, 280) || undefined, requestedAt: new Date().toISOString(),
+          expiresOn: /^\d{4}-\d{2}-\d{2}$/.test(String(bt.expiresOn ?? '')) ? String(bt.expiresOn) : null,
+        }
+        doc.delegations = [...(doc.delegations ?? []), d]
+        audit('propose', `Access requested · ${actorName} → ${owner.name}’s finances`, { parties: [realActor, owner.id] })
+        await writeDoc(doc)
+        await emailEntity(owner.id, `${actorName} is asking to manage your finances`,
+          `${actorName} has asked for permission to manage your finances in the family vault.\n\nAccess requested:\n${describePerms(perms)}${d.message ? `\n\nTheir note: “${d.message}”` : ''}\n\nOpen the vault → Access to approve or decline. Nothing is shared until you approve, and you can revoke it at any time.`)
+        return respond()
+      }
+
+      case 'decideAccess': {
+        const bt = body as unknown as { id?: string; approve?: boolean; perms?: AccessPerms; expiresOn?: string | null }
+        const d = (doc.delegations ?? []).find(x => x.id === bt.id)
+        if (!d || d.status !== 'pending') return NextResponse.json({ error: 'That request is no longer waiting.' }, { status: 404 })
+        if (grant || realActor !== d.owner) return NextResponse.json({ error: 'Only the person whose finances these are can decide.' }, { status: 403 })
+        const ownerName = entName(doc, d.owner), granteeName = entName(doc, d.grantee)
+        if (bt.approve) {
+          const perms = cleanPerms(bt.perms ?? d.requested)
+          if (!Object.keys(perms).length) return NextResponse.json({ error: 'Tick at least one permission, or decline.' }, { status: 400 })
+          d.perms = perms; d.status = 'active'
+          if (bt.expiresOn !== undefined) d.expiresOn = bt.expiresOn && /^\d{4}-\d{2}-\d{2}$/.test(bt.expiresOn) ? bt.expiresOn : null
+        } else d.status = 'declined'
+        d.decidedAt = new Date().toISOString()
+        audit(bt.approve ? 'accept' : 'decline', `Access ${bt.approve ? 'granted' : 'declined'} · ${granteeName} → ${ownerName}’s finances`, { parties: [d.owner, d.grantee] })
+        await writeDoc(doc)
+        await emailEntity(d.grantee, bt.approve ? `${ownerName} approved your access` : `${ownerName} declined your access request`,
+          bt.approve ? `You can now manage ${ownerName}’s finances in the family vault.\n\nGranted:\n${describePerms(d.perms)}\n\nSwitch profiles from the top of the finance page. Everything you do is logged as done on ${ownerName}’s behalf.` : `${ownerName} declined your request to manage their finances.`)
+        return respond()
+      }
+
+      case 'updateAccess': {
+        const bt = body as unknown as { id?: string; perms?: AccessPerms; expiresOn?: string | null }
+        const d = (doc.delegations ?? []).find(x => x.id === bt.id)
+        if (!d || d.status !== 'active') return NextResponse.json({ error: 'That access is not active.' }, { status: 404 })
+        if (grant || realActor !== d.owner) return NextResponse.json({ error: 'Only the owner can change what is shared.' }, { status: 403 })
+        const perms = cleanPerms(bt.perms)
+        if (!Object.keys(perms).length) return NextResponse.json({ error: 'To remove every permission, revoke the access instead.' }, { status: 400 })
+        d.perms = perms
+        if (bt.expiresOn !== undefined) d.expiresOn = bt.expiresOn && /^\d{4}-\d{2}-\d{2}$/.test(bt.expiresOn) ? bt.expiresOn : null
+        audit('apply', `Access changed · ${entName(doc, d.grantee)} → ${entName(doc, d.owner)}’s finances`, { parties: [d.owner, d.grantee] })
+        await writeDoc(doc)
+        return respond()
+      }
+
+      case 'revokeAccess': {
+        // The owner revokes, the delegate steps away, or the admin pulls it.
+        const id = (body as unknown as { id?: string }).id
+        const d = (doc.delegations ?? []).find(x => x.id === id)
+        if (!d || (d.status !== 'active' && d.status !== 'pending')) return NextResponse.json({ error: 'Nothing to revoke.' }, { status: 404 })
+        if (grant) return NextResponse.json({ error: 'Switch back to your own profile first.' }, { status: 403 })
+        const who = isSuper ? 'super' : realActor
+        if (!(isSuper || who === d.owner || who === d.grantee)) return NextResponse.json({ error: 'Not yours to revoke.' }, { status: 403 })
+        d.status = who === d.grantee && d.status === 'pending' ? 'cancelled' : 'revoked'
+        d.endedAt = new Date().toISOString(); d.endedBy = actorName
+        audit('revoke', `Access ${d.status} · ${entName(doc, d.grantee)} → ${entName(doc, d.owner)}’s finances`, { parties: [d.owner, d.grantee] })
+        await writeDoc(doc)
+        if (who !== d.grantee) await emailEntity(d.grantee, `Access to ${entName(doc, d.owner)}’s finances has ended`, `${actorName} revoked your access to ${entName(doc, d.owner)}’s finances. It stopped working immediately.`)
+        return respond()
       }
 
       default:
