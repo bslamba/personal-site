@@ -10,9 +10,9 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import { VaultAppsBar } from '@/components/vault/vault-chrome'
 import {
-  ArrowLeft, Plus, Upload, Trash2, Loader2, X, ChevronLeft, ChevronRight,
+  Plus, Upload, Trash2, Loader2, X, ChevronLeft, ChevronRight,
   Play, FolderPlus, ImageOff,
 } from 'lucide-react'
 
@@ -115,11 +115,11 @@ export default function PhotoWall() {
   }
 
   return (
-    <div className="vg">
+    <div className="vg vg-root">
+      <VaultAppsBar active="photos" />
       <div className="vg-wrap">
         <div className="vg-top">
           <div>
-            <Link href="/vault" className="vg-back"><ArrowLeft className="h-4 w-4" /> Vault</Link>
             <h1 className="vg-h1">{cat ?? 'Family Photos'}</h1>
             {cat && <p className="vg-sub">{photos.length} photo{photos.length === 1 ? '' : 's'} · <button className="vg-btn-ghost vg-btn" style={{ padding: 0 }} onClick={backToCats}>all albums</button></p>}
           </div>

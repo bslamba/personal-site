@@ -11,9 +11,8 @@
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
+  ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
   Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards, Landmark, IndianRupee,
   UserCheck,
@@ -33,7 +32,7 @@ import {
   debtOverTime, debtFreeBy, simulatePrepay, type DebtPoint, type LoanView,
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
-import VaultLogout from '@/components/vault/logout-button'
+import { VaultTopBar, Hello, CountUp, type DockItem } from '@/components/vault/vault-chrome'
 import { AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-access'
 import IdleLogout from '@/components/vault/idle-logout'
 
@@ -42,6 +41,9 @@ const CAT_COLORS: Record<string, string> = {
   'Vehicles & Travel': '#e8963a', 'Insurance & Taxes': '#b0479a', 'Subscriptions': '#5bc0d0', 'Other': '#9b93b8',
 }
 const PALETTE = ['#6d4bd8', '#4b7bec', '#1f9d6b', '#e8963a', '#b0479a', '#5bc0d0', '#9b93b8', '#e2445c']
+/** A person's or category's colour as TEXT: mixed toward the theme's ink so
+ *  it keeps its hue but always reads on light and dark themes alike. */
+const inkOf = (c: string) => `color-mix(in oklab, ${c} 55%, var(--vg-ink))`
 const num = (v: string) => { const n = parseFloat(v.replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0 }
 
 // ---------- charts ----------------------------------------------
@@ -59,7 +61,7 @@ function Donut({ data, size = 168 }: { data: { name: string; value: number; colo
   })
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img">
-      <circle cx={cx} cy={cy} r={rad} fill="none" stroke="rgba(120,99,190,0.12)" strokeWidth={stroke} />
+      <circle cx={cx} cy={cy} r={rad} fill="none" stroke="color-mix(in srgb, var(--vg-ink-faint) 12%, transparent)" strokeWidth={stroke} />
       {arcs.map((arc, i) => arc.frac > 0 ? <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={stroke} strokeLinecap="round" /> : null)}
       <text x={cx} y={cy - 2} textAnchor="middle" fontSize={size * 0.1} fontWeight={800} fill="#241b40">{INR(total)}</text>
       <text x={cx} y={cy + size * 0.11} textAnchor="middle" fontSize={size * 0.07} fill="#8b81ad">total</text>
@@ -72,7 +74,7 @@ function Legend({ items }: { items: { name: string; color: string; value: number
       {items.map(it => (
         <span key={it.name} style={{ justifyContent: 'space-between', width: '100%' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><i className="vg-dot" style={{ background: it.color }} /> {it.name}</span>
-          <b style={{ fontVariantNumeric: 'tabular-nums', color: '#241b40' }}>{INR(it.value)}</b>
+          <b style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--vg-ink)' }}>{INR(it.value)}</b>
         </span>
       ))}
     </div>
@@ -82,7 +84,7 @@ function StackBar({ parts }: { parts: { label: string; value: number; color: str
   const t = parts.reduce((s, p) => s + p.value, 0) || 1
   return (
     <div>
-      <div style={{ display: 'flex', height: 26, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.6)' }}>
+      <div style={{ display: 'flex', height: 26, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--vg-edge)' }}>
         {parts.map((p, i) => <div key={i} style={{ width: `${(p.value / t) * 100}%`, background: p.color }} />)}
       </div>
       <div className="vg-legend">
@@ -114,7 +116,7 @@ function ShareCell({ it, entities }: { it: Item; entities: Entity[] }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
       {parts.map(p => (
-        <span key={p.id} className="vg-chip" style={{ background: p.color + '1c', color: p.color, fontSize: '0.72rem', fontWeight: 600 }}>
+        <span key={p.id} className="vg-chip" style={{ background: p.color + '1c', color: inkOf(p.color), fontSize: '0.72rem', fontWeight: 600 }}>
           {p.name} {INR(p.amount)}{parts.length > 1 ? <span style={{ opacity: 0.7, fontWeight: 500 }}> · {p.pct}%</span> : null}
         </span>
       ))}
@@ -158,12 +160,12 @@ function ExpenseTable({ rows, entities, shareCols, onEdit, onDelete, onTogglePai
           <tr>
             <th rowSpan={2}>Item</th>
             <th rowSpan={2}>Paid by</th>
-            {cols.length > 0 && <th colSpan={cols.length} style={{ textAlign: 'center', borderBottom: '1px solid rgba(109,75,216,0.15)' }}>Borne by — each share&rsquo;s amount</th>}
+            {cols.length > 0 && <th colSpan={cols.length} style={{ textAlign: 'center', borderBottom: '1px solid color-mix(in srgb, var(--vg-accent) 15%, transparent)' }}>Borne by — each share&rsquo;s amount</th>}
             <th rowSpan={2} className="num">Amount</th>
             <th rowSpan={2} style={{ width: 42 }}>Paid</th>
             <th rowSpan={2} style={{ width: 76 }}></th>
           </tr>
-          <tr>{cols.map(id => <th key={id} className="num" style={{ color: entColor(entities, id), fontSize: '0.76rem' }}>{colLabel(entities, id)}</th>)}</tr>
+          <tr>{cols.map(id => <th key={id} className="num" style={{ color: inkOf(entColor(entities, id)), fontSize: '0.76rem' }}>{colLabel(entities, id)}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map(it => {
@@ -174,10 +176,10 @@ function ExpenseTable({ rows, entities, shareCols, onEdit, onDelete, onTogglePai
                 <td><span className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</span>
                   {it.receiptKey && <span className="vg-chip" style={{ marginLeft: 6 }}>receipt</span>}
                   {member && !mine && <span className="vg-chip" style={{ marginLeft: 6 }}>shared</span>}
-                  {locked && <span className="vg-chip" style={{ marginLeft: 6, background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>under review</span>}
+                  {locked && <span className="vg-chip" style={{ marginLeft: 6, background: 'rgba(224,112,60,0.14)', color: 'var(--vg-warn)' }}>under review</span>}
                 </td>
-                <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
-                {cols.map(id => { const a = amtFor(it, id); return <td key={id} className="num" style={{ color: a > 0.5 ? entColor(entities, id) : 'var(--vg-muted)', fontVariantNumeric: 'tabular-nums' }}>{a > 0.5 ? INR(a) : '—'}</td> })}
+                <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: inkOf(entColor(entities, it.paidBy)) }}>{entName(entities, it.paidBy)}</span></td>
+                {cols.map(id => { const a = amtFor(it, id); return <td key={id} className="num" style={{ color: a > 0.5 ? inkOf(entColor(entities, id)) : 'var(--vg-ink-faint)', fontVariantNumeric: 'tabular-nums' }}>{a > 0.5 ? INR(a) : '—'}</td> })}
                 <td className="num" style={{ fontWeight: 600 }}>{INR(it.amount)}</td>
                 <td style={{ textAlign: 'center' }}>{(!member || mine) ? <input type="checkbox" checked={!!it.paid} onChange={e => onTogglePaid(it, e.target.checked)} /> : <span className="vg-muted">—</span>}</td>
                 <td>
@@ -193,9 +195,9 @@ function ExpenseTable({ rows, entities, shareCols, onEdit, onDelete, onTogglePai
         </tbody>
         {rows.length > 0 && (
           <tfoot>
-            <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+            <tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}>
               <td colSpan={2} style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Total</td>
-              {cols.map(id => <td key={id} className="num" style={{ fontWeight: 700, color: entColor(entities, id), paddingTop: '0.6rem' }}>{INR(colTotal(id))}</td>)}
+              {cols.map(id => <td key={id} className="num" style={{ fontWeight: 700, color: inkOf(entColor(entities, id)), paddingTop: '0.6rem' }}>{INR(colTotal(id))}</td>)}
               <td className="num" style={{ fontWeight: 800, paddingTop: '0.6rem' }}>{INR(grand)}</td>
               <td colSpan={2} style={{ paddingTop: '0.6rem' }}></td>
             </tr>
@@ -557,10 +559,15 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 type MeLite = { role: 'super' | 'member'; username?: string; firstName?: string; lastName?: string; name?: string; avatar?: string }
 
 function Avatar({ me, size = 30 }: { me?: MeLite; size?: number }) {
-  const initial = (me?.firstName || me?.name || me?.username || '?').trim().charAt(0).toUpperCase()
-  if (me?.avatar) return <img src={me.avatar} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+  const label = (me?.firstName || me?.name || me?.username || '').trim()
+  const initials = label.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
   return (
-    <span style={{ width: size, height: size, borderRadius: '50%', background: 'var(--vg-accent)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.42, fontWeight: 700 }}>{initial}</span>
+    <span className="vg-avatar" style={{ width: size + 4, height: size + 4, cursor: 'default' }}>
+      <span className="vg-avatar-in" style={{ width: size, height: size, fontSize: size * 0.38, borderWidth: Math.max(2, size / 16) }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- a small data-URL avatar, nothing to optimise */}
+        {me?.avatar ? <img src={me.avatar} alt="" /> : initials}
+      </span>
+    </span>
   )
 }
 
@@ -575,43 +582,20 @@ function Shell({ children, saveState, me, tabs, activeTab, onTab, role }: {
   role?: MeLite['role']          // known before `me` loads, for the wrapper class only
 }) {
   const firstName = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
+  // "Approvals (3)" becomes a Dock icon named Approvals with a red 3 badge.
+  const items: DockItem[] = (tabs ?? []).map(t => {
+    const m = t.label.match(/^(.*?)\s*\((\d+)\)$/)
+    return { id: t.id, label: m ? m[1] : t.label, icon: t.icon, badge: m ? Number(m[2]) : undefined }
+  })
+  const isMember = (me?.role ?? role) === 'member'
   return (
-    <div className={`vg vg-root${(me?.role ?? role) === 'member' ? ' vg-member' : ''}`}>
+    <div className={`vg vg-root${isMember ? ' vg-member' : ''}`}>
       <IdleLogout />
+      <VaultTopBar items={items} active={activeTab} onPick={id => onTab?.(id)}
+        me={me} onProfile={me ? () => onTab?.('profile') : undefined} profileOn={activeTab === 'profile'}
+        homeHref={isMember ? '/vault/finance' : '/vault'} status={saveState} />
       <div className="vg-wrap">
-        <div className="vg-appbar">
-          <div className="vg-appbar-left">
-            {me?.role === 'super' && <Link href="/vault" className="vg-back"><ArrowLeft className="h-4 w-4" /> Vault</Link>}
-          </div>
-
-          {tabs && tabs.length > 0 && (
-            <nav className="vg-navtabs" aria-label="Sections">
-              {tabs.map(t => { const I = t.icon; return (
-                <button key={t.id} className="vg-navtab" data-on={activeTab === t.id} onClick={() => onTab?.(t.id)}>
-                  <I className="h-3.5 w-3.5" style={{ display: 'inline', marginRight: 4, verticalAlign: '-2px' }} />{t.label}
-                </button>) })}
-            </nav>
-          )}
-
-          <div className="vg-appbar-right">
-            <span style={{ minWidth: 20, textAlign: 'right' }}>
-              {saveState === 'saving' && <Loader2 className="h-3.5 w-3.5 vg-spin" style={{ display: 'inline', color: 'var(--vg-muted)' }} />}
-              {saveState === 'saved' && <Check className="h-3.5 w-3.5" style={{ display: 'inline', color: 'var(--vg-pos, #16a34a)' }} />}
-              {saveState === 'conflict' && (
-                <span className="vg-chip" style={{ background: 'rgba(226,68,92,0.14)', color: 'var(--vg-neg)', whiteSpace: 'normal', textAlign: 'left' }}
-                  title="Someone else changed the sheet while this page was open. Their version is now loaded, so your last edit was not saved — please make it again.">
-                  Reloaded · redo last edit
-                </span>
-              )}
-            </span>
-            {me && (
-              <button className="vg-me" onClick={() => onTab?.('profile')} title={firstName ? `${firstName} — your profile` : 'Your profile'} data-on={activeTab === 'profile'}>
-                <Avatar me={me} />
-              </button>
-            )}
-            <VaultLogout />
-          </div>
-        </div>
+        {me && <Hello name={firstName} />}
         {children}
       </div>
     </div>
@@ -869,15 +853,14 @@ function EnvelopeImpact({ items, entities, env, viewer }: {
           {t.transfers.map((tr, i) => {
             const mine = viewer && (tr.from === viewer || tr.to === viewer)
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: 12, background: mine ? 'rgba(109,75,216,0.10)' : 'rgba(255,255,255,0.55)' }}>
-                <span><b style={{ color: entColor(entities, tr.from) }}>{entName(entities, tr.from)}</b> <span className="vg-muted">pays</span> <b style={{ color: entColor(entities, tr.to) }}>{entName(entities, tr.to)}</b></span>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: 12, background: mine ? 'color-mix(in srgb, var(--vg-accent) 10%, transparent)' : 'color-mix(in srgb, var(--vg-solid) 55%, transparent)' }}>
+                <span><b style={{ color: inkOf(entColor(entities, tr.from)) }}>{entName(entities, tr.from)}</b> <span className="vg-muted">pays</span> <b style={{ color: inkOf(entColor(entities, tr.to)) }}>{entName(entities, tr.to)}</b></span>
                 <b style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(tr.amount)}</b>
               </div>
             )
           })}
         </div>
       ) : <p className="vg-muted" style={{ margin: 0 }}>All square — nobody owes anyone in this envelope.</p>}
-      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Only money one person paid from their own account creates a debt here; anything paid from Common is already shared.</p>
     </div>
   )
 }
@@ -912,7 +895,7 @@ function CommonReconcile({ doc, k, entities, me, action }: {
             {carryIn > 0.5 && <tr><td>Carried forward from last month</td><td className="num vg-pos">{INR(carryIn)}</td></tr>}
             <tr><td>Common income</td><td className="num vg-pos">{INR(income)}</td></tr>
             <tr><td>Common spending</td><td className="num">− {INR(expenses)}</td></tr>
-            <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+            <tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}>
               <td style={{ fontWeight: 700 }}>{net >= 0 ? 'Surplus in the common account' : 'Shortfall to top up'}</td>
               <td className="num" style={{ fontWeight: 800 }}><b className={net >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(net))}</b></td>
             </tr>
@@ -928,8 +911,8 @@ function CommonReconcile({ doc, k, entities, me, action }: {
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {earners.map(e => (
-              <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0.5rem 0.8rem', borderRadius: 12, background: 'rgba(255,255,255,0.6)', minWidth: 190 }}>
-                <span><b style={{ color: e.color }}>{e.name}</b> <span className="vg-muted">{net < 0 ? 'owes common' : 'can take out'}</span></span>
+              <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0.5rem 0.8rem', borderRadius: 12, background: 'color-mix(in srgb, var(--vg-solid) 60%, transparent)', minWidth: 190 }}>
+                <span><b style={{ color: inkOf(e.color) }}>{e.name}</b> <span className="vg-muted">{net < 0 ? 'owes common' : 'can take out'}</span></span>
                 <b style={{ fontVariantNumeric: 'tabular-nums', color: net < 0 ? 'var(--vg-neg)' : 'var(--vg-pos)' }}>{INR(per)}</b>
               </div>
             ))}
@@ -982,9 +965,7 @@ function CommonIncomeCard({ doc, k, entities, me, action }: {
         <p className="vg-sec" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}><WalletCards className="h-4 w-4" style={{ color: 'var(--vg-accent)' }} /> Common income · {INR(current)}</p>
         {!editing && <button className="vg-btn" onClick={() => { setAmount(String(current)); setEditing(true) }}><Pencil className="h-4 w-4" /> Edit</button>}
       </div>
-      {!editing ? (
-        <p className="vg-muted" style={{ fontSize: '0.8rem', margin: 0 }}>What the Lamba Household account earns this month (e.g. rent). Visible to everyone in the household; {me.role === 'super' ? 'you can edit it directly.' : 'changes go to someone you pick to approve.'}</p>
-      ) : (
+      {!editing ? null : (
         <div style={{ display: 'grid', gap: '0.6rem', maxWidth: 460 }}>
           <div><label className="vg-lbl">Common account income</label><input className="vg-input" type="number" value={amount} onChange={e => setAmount(e.target.value)} /></div>
           {me.role !== 'super' && <>
@@ -1160,14 +1141,13 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
           {t.transfers.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {t.transfers.map((tr, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: 12, background: 'rgba(255,255,255,0.55)' }}>
-                  <span><b style={{ color: entColor(entities, tr.from) }}>{entName(entities, tr.from)}</b> <span className="vg-muted">pays</span> <b style={{ color: entColor(entities, tr.to) }}>{entName(entities, tr.to)}</b></span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: 12, background: 'color-mix(in srgb, var(--vg-solid) 55%, transparent)' }}>
+                  <span><b style={{ color: inkOf(entColor(entities, tr.from)) }}>{entName(entities, tr.from)}</b> <span className="vg-muted">pays</span> <b style={{ color: inkOf(entColor(entities, tr.to)) }}>{entName(entities, tr.to)}</b></span>
                   <b style={{ fontVariantNumeric: 'tabular-nums' }}>{INR(tr.amount)}</b>
                 </div>
               ))}
             </div>
           ) : <p className="vg-muted">{settleTxt}</p>}
-          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Only money a person paid from their own account creates a debt; anything paid from Common is already shared.</p>
         </div>
 
         <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
@@ -1225,11 +1205,11 @@ function YearTab({ doc, year, setYear, openMonth }: {
               const max = Math.max(1, ...per.map(x => x.t.expense))
               return (
                 <button key={p.k} onClick={() => openMonth(p.k)} title={`${MON[i]} · ${INR(p.t.expense)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', minWidth: 0 }}>
-                  <span style={{ fontSize: 9, color: '#5b5080', fontVariantNumeric: 'tabular-nums' }}>{p.t.expense ? Math.round(p.t.expense / 1000) + 'k' : ''}</span>
+                  <span style={{ fontSize: 9, color: 'var(--vg-ink-soft)', fontVariantNumeric: 'tabular-nums' }}>{p.t.expense ? Math.round(p.t.expense / 1000) + 'k' : ''}</span>
                   <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 130 }}>
                     <span style={{ width: '100%', height: `${(p.t.expense / max) * 100}%`, minHeight: p.t.expense ? 3 : 0, background: p.k === now ? 'linear-gradient(180deg,#e0708f,#b0479a)' : 'linear-gradient(180deg,#a06be0,#6d4bd8)', borderRadius: '6px 6px 3px 3px' }} />
                   </span>
-                  <span style={{ fontSize: 10, color: '#8b81ad' }}>{MON[i]}</span>
+                  <span style={{ fontSize: 10, color: 'var(--vg-ink-faint)' }}>{MON[i]}</span>
                 </button>
               )
             })}
@@ -1276,7 +1256,6 @@ function YearTab({ doc, year, setYear, openMonth }: {
             ))}
             {emiRows.length === 0 && <p className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>No active EMIs.</p>}
           </div>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>The bar is months paid so far; “left” is the EMI × months remaining — a runway, not an amortised balance.</p>
         </div>
       </div>
     </>
@@ -1312,7 +1291,7 @@ function TagsTab({ doc }: { doc: FinanceDoc }) {
   return (
     <>
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: '#241b40' }}><TagIcon className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Group spending by <b>event or tag</b> — a trip, a function, a project — no matter what category each expense sits in. Tag an expense from its edit form (or while importing), then pick the tag here to see the total and who bore what.</p>
+        <p style={{ margin: 0, color: 'var(--vg-ink)' }}><TagIcon className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Group spending by <b>event or tag</b> — a trip, a function, a project — no matter what category each expense sits in. Tag an expense from its edit form (or while importing), then pick the tag here to see the total and who bore what.</p>
       </div>
 
       {tags.length === 0 ? (
@@ -1344,13 +1323,13 @@ function TagsTab({ doc }: { doc: FinanceDoc }) {
                         <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || 'Untitled'}</td>
                         <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(mk)}</td>
                         <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{it.category || '—'}</td>
-                        <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
+                        <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: inkOf(entColor(entities, it.paidBy)) }}>{entName(entities, it.paidBy)}</span></td>
                         <td><ShareCell it={it} entities={entities} /></td>
                         <td className="num">{INR(it.amount)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot><tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}><td colSpan={5} style={{ fontWeight: 700 }}>Total</td><td className="num" style={{ fontWeight: 800, color: 'var(--vg-accent)' }}>{INR(total)}</td></tr></tfoot>
+                  <tfoot><tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}><td colSpan={5} style={{ fontWeight: 700 }}>Total</td><td className="num" style={{ fontWeight: 800, color: 'var(--vg-accent)' }}>{INR(total)}</td></tr></tfoot>
                 </table>
               </div>
             </div>
@@ -1477,7 +1456,7 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
   return (
     <>
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: '#241b40' }}><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> These are the people (and the shared <b>Common</b> pool) you split and tag money against. Onboard a family member here — mark whether they <b>earn</b>, are a <b>dependant</b>, and whether they can <b>pay</b> (have an account money comes from). Then give them a login below.</p>
+        <p style={{ margin: 0, color: 'var(--vg-ink)' }}><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> These are the people (and the shared <b>Common</b> pool) you split and tag money against. Onboard a family member here — mark whether they <b>earn</b>, are a <b>dependant</b>, and whether they can <b>pay</b> (have an account money comes from). Then give them a login below.</p>
       </div>
 
       <div className="vg-card vg-pad">
@@ -1516,7 +1495,6 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
           <option value="Wife" /><option value="Husband" /><option value="Daughter-in-law" /><option value="Son-in-law" />
           <option value="Brother" /><option value="Sister" /><option value="Brother-in-law" /><option value="Sister-in-law" />
         </datalist>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>A <b>UPI id</b> (and the common account can have one too) turns each settlement into a single tap — the app opens with the payee and the amount already filled in. The <b>role in family</b> is how everyone relates — e.g. Surinder Pal Singh is <b>Father</b>, Gurneet &amp; Bhawneet are his <b>Sons</b> (so, brothers), Harsimran Kaur is his <b>Wife</b> and the sons&rsquo; mother, and Mehak is Gurneet&rsquo;s wife (<b>Daughter-in-law</b>). Removing a member leaves any past expense tagged to them intact. &ldquo;Common&rdquo; is the shared pool — money paid from it is never counted as a debt between people.</p>
       </div>
 
       <div className="vg-card vg-pad" style={{ marginTop: '1.1rem' }}>
@@ -1563,7 +1541,6 @@ function EntitiesTab({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: Fi
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Every profile needs an email — it&rsquo;s where the one-time reset code is sent. New logins get the default password <b>Qwerty@123</b>. Only you (super) can create or reset logins.</p>
       </div>
 
       <EnvelopesCard doc={doc} patchDoc={patchDoc} />
@@ -1714,7 +1691,6 @@ function EnvelopesCard({ doc, patchDoc }: { doc: FinanceDoc; patchDoc: (fn: (d: 
         <p className="vg-sec" style={{ margin: 0 }}><WalletCards className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Envelopes</p>
         <button className="vg-btn vg-btn-primary" onClick={add}><Plus className="h-4 w-4" /> New envelope</button>
       </div>
-      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 0 }}>An envelope groups people who share a set of expenses (e.g. <b>Lamba Household</b>, <b>Brothers</b>, <b>Gurneet &amp; Mehak</b>). An expense assigned to an envelope splits equally among its members. Only members (and you) can see a private envelope&rsquo;s expenses. Every person also gets an automatic private <b>Personal</b> envelope (their <b>My Dashboard</b>) — not listed here since it&rsquo;s managed for you.</p>
       <div style={{ display: 'grid', gap: '0.7rem' }}>
         {envs.map(env => (
           <div key={env.id} className="vg-card" style={{ padding: '0.8rem 0.9rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
@@ -1791,7 +1767,7 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, openEdi
               <tr key={it.id}>
                 <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}</td>
                 <td><span className="vg-chip" style={{ fontSize: '0.72rem' }}>{envName(it.envelope)}</span></td>
-                <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: entColor(entities, it.paidBy) }}>{entName(entities, it.paidBy)}</span></td>
+                <td><span className="vg-chip" style={{ background: entColor(entities, it.paidBy) + '22', color: inkOf(entColor(entities, it.paidBy)) }}>{entName(entities, it.paidBy)}</span></td>
                 <td><ShareCell it={it} entities={entities} /></td>
                 <td className="num">{INR(it.amount)}</td>
                 {sec === 'emis' && <>
@@ -1816,7 +1792,7 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, openEdi
     <>
       {/* Save bar — Setup does NOT auto-save */}
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', position: 'sticky', top: '0.5rem', zIndex: 5 }}>
-        <p style={{ margin: 0, color: '#241b40' }}>
+        <p style={{ margin: 0, color: 'var(--vg-ink)' }}>
           <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
           {dirty ? <b>Unsaved changes</b> : 'Saved manually'} — edits here don’t save as you type. Once saved, every month follows these figures, apart from a month you have deliberately edited on its own.
         </p>
@@ -1866,7 +1842,7 @@ function Kpi({ label, value, cls, info, small }: {
   return (
     <div className="vg-kpi" style={{ position: 'relative' }}>
       <div className="k">{label}{info && <button className="vg-info" onClick={() => setOpen(o => !o)} aria-label={`What is ${label}?`}>i</button>}</div>
-      <div className={`v ${cls ?? ''}`} style={small ? { fontSize: '0.95rem', lineHeight: 1.3 } : undefined}>{value}</div>
+      <div className={`v ${cls ?? ''}`} style={small ? { fontSize: '0.95rem', lineHeight: 1.3 } : undefined}>{typeof value === 'string' && /^[−-]?₹[\d,]+$/.test(value) ? <CountUp text={value} /> : value}</div>
       {open && info && <div className="vg-pop" role="tooltip" onClick={() => setOpen(false)}>{info}</div>}
     </div>
   )
@@ -2015,7 +1991,6 @@ function RemindersCard({ doc, me, k, action }: {
           </table>
         </div>
       )}
-      <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>Emails are sent once a day from the due day until you mark the payment paid (with a screenshot). Needs an email provider key set up in Vercel (RESEND_API_KEY).</p>
     </div>
   )
 }
@@ -2117,12 +2092,7 @@ function MyUpiCard({ entity, action }: {
           {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : <Check className="h-4 w-4" />} Save
         </button>
       </div>
-      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>
-        {entity?.upi
-          ? <>Anyone who owes you this month gets a <b>Pay</b> button that opens their UPI app with your id and the exact amount already filled in.</>
-          : <>Add it once and anyone who owes you gets a <b>Pay</b> button with your id and the exact amount filled in, instead of typing it out each month.</>}
-        {saved && <b className="vg-pos"> Saved.</b>}
-      </p>
+      {saved && <p className="vg-pos" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>Saved.</p>}
     </div>
   )
 }
@@ -2157,7 +2127,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
 
   const kindChip = (kind: SettleTransfer['kind']) =>
     kind === 'common' ? <span className="vg-chip">common pot</span>
-      : kind === 'carry' ? <span className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>carried forward</span>
+      : kind === 'carry' ? <span className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: 'var(--vg-warn)' }}>carried forward</span>
         : <span className="vg-chip">peer</span>
 
   return (
@@ -2198,8 +2168,8 @@ function SettlementTab({ doc, me, k, setKey, action }: {
                   const link = upiLink(payee, tr.due, `${monthLabel(k)} settlement`)
                   return (
                     <tr key={tr.key}>
-                      <td><span className="vg-chip" style={{ background: entColor(entities, tr.from) + '22', color: entColor(entities, tr.from) }}>{nm(tr.from)}</span></td>
-                      <td><span className="vg-chip" style={{ background: (tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to)) + '22', color: tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to) }}>{nm(tr.to)}</span></td>
+                      <td><span className="vg-chip" style={{ background: entColor(entities, tr.from) + '22', color: inkOf(entColor(entities, tr.from)) }}>{nm(tr.from)}</span></td>
+                      <td><span className="vg-chip" style={{ background: (tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to)) + '22', color: inkOf(tr.to === 'common' ? '#6d4bd8' : entColor(entities, tr.to)) }}>{nm(tr.to)}</span></td>
                       <td>{kindChip(tr.kind)}{tr.kind === 'carry' && tr.fromMonth && <span className="vg-muted" style={{ fontSize: '0.72rem', marginLeft: 4 }}>from {fmtMon(tr.fromMonth)}</span>}</td>
                       <td className="num" style={{ fontWeight: 700 }}>{INR(tr.amount)}</td>
                       <td className="num">
@@ -2245,7 +2215,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
           <details style={{ marginTop: '0.9rem' }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--vg-accent)', fontSize: '0.85rem' }}>Show the full calculation — why these amounts?</summary>
             {s.contributors.length > 0 && s.shortfall > 0 && (
-              <div style={{ marginTop: '0.7rem', fontSize: '0.82rem', padding: '0.5rem 0.7rem', background: 'rgba(109,75,216,0.06)', borderRadius: 8 }}>
+              <div style={{ marginTop: '0.7rem', fontSize: '0.82rem', padding: '0.5rem 0.7rem', background: 'color-mix(in srgb, var(--vg-accent) 6%, transparent)', borderRadius: 8 }}>
                 <b>Common account:</b> earned {INR(s.commonIncome)}{s.carryIn > 0.5 && <> + {INR(s.carryIn)} carried in</>} − spent {INR(s.commonExpenses)} = <b style={{ color: 'var(--vg-neg)' }}>−{INR(s.shortfall)}</b> shortfall, split into {INR(s.perContributor)} each.
               </div>
             )}
@@ -2274,12 +2244,10 @@ function SettlementTab({ doc, me, k, setKey, action }: {
                 )
               })}
             </div>
-            <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>Each person&rsquo;s pluses (others&rsquo; shares of what they paid) and minuses (their share of what others paid, plus the common shortfall) net to the figure above — those nets are what the transfers settle.</p>
           </details>
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.9rem', gap: 8, flexWrap: 'wrap' }}>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', margin: 0, maxWidth: 560 }}>A transfer can be settled in instalments — record each payment as it happens, with the screenshot if there is one. Closing the month carries forward only what is <b>still owed</b>, so a part payment stays paid.</p>
           {s.closed
             ? (me.role === 'super' && <button className="vg-btn" onClick={() => action({ action: 'reopenSettlement', monthKey: k })}>Reopen</button>)
             : <button className="vg-btn vg-btn-primary" disabled={s.transfers.length === 0} onClick={() => action({ action: 'closeSettlement', monthKey: k })}><Check className="h-4 w-4" /> Close this month</button>}
@@ -2321,7 +2289,7 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
   const mineOut = props.filter(isMine)
   const log = (doc.auditLog ?? []).slice().reverse()
   const when = (ts: string) => { try { return new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return ts } }
-  const evColor: Record<string, string> = { propose: 'var(--vg-accent)', accept: 'var(--vg-pos)', decline: 'var(--vg-neg)', revoke: '#c0398b', apply: '#8b81ad' }
+  const evColor: Record<string, string> = { propose: 'var(--vg-accent)', accept: 'var(--vg-pos)', decline: 'var(--vg-neg)', revoke: 'var(--vg-warn)', apply: 'var(--vg-ink-faint)' }
 
   const Card = ({ p }: { p: Proposal }) => (
     <div className="vg-card" style={{ padding: '0.9rem 1rem', boxShadow: 'none', border: '1px solid var(--vg-line)' }}>
@@ -2331,7 +2299,7 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
           <div className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 2 }}>
             Proposed by <b>{p.proposedByName}</b> · paid by {entName(ent, p.item.paidBy)} · {shareSummary(p.item, ent)}
           </div>
-          {p.reason && <div style={{ fontSize: '0.82rem', marginTop: 4, padding: '0.35rem 0.55rem', background: 'rgba(109,75,216,0.06)', borderLeft: '2px solid var(--vg-accent)', borderRadius: 4 }}><b>Reason:</b> {p.reason}</div>}
+          {p.reason && <div style={{ fontSize: '0.82rem', marginTop: 4, padding: '0.35rem 0.55rem', background: 'color-mix(in srgb, var(--vg-accent) 6%, transparent)', borderLeft: '2px solid var(--vg-accent)', borderRadius: 4 }}><b>Reason:</b> {p.reason}</div>}
           <div className="vg-muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>
             Needs {p.mode === 'any' ? 'any one of' : 'all of'}: {p.approvers.map(a => entName(ent, a)).join(', ')}
             {p.approved.length > 0 && ` · approved by ${p.approved.map(a => entName(ent, a)).join(', ')}`}
@@ -2342,7 +2310,7 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
           <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
             {isMine(p) && !isSuper ? (
               <>
-                <span className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>waiting on {p.approvers.map(a => entName(ent, a)).join(', ')}</span>
+                <span className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: 'var(--vg-warn)' }}>waiting on {p.approvers.map(a => entName(ent, a)).join(', ')}</span>
                 {onRevoke && <button className="vg-btn" onClick={() => onRevoke(p.id)}>Revoke</button>}
               </>
             ) : (
@@ -2367,14 +2335,12 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>{toReview.map(p => <Card key={p.id} p={p} />)}</div>
         )}
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>When you accept, the change is applied to that month&rsquo;s sheet and logged below. Anything that&rsquo;s only yours is applied without asking.</p>
       </div>
 
       {mineOut.length > 0 && (
         <div className="vg-card vg-pad" style={{ gridColumn: '1 / -1' }}>
           <p className="vg-sec">Your requests — waiting on others</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>{mineOut.map(p => <Card key={p.id} p={p} />)}</div>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>You can <b>Revoke</b> a request to pull it back and make more changes. Only one edit per expense can be open at a time.</p>
         </div>
       )}
 
@@ -2389,7 +2355,7 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
                   <tr key={a.id}>
                     <td className="vg-muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{when(a.ts)}</td>
                     <td style={{ fontSize: '0.82rem' }}>{a.actorName}{a.onBehalfName && <span className="vg-muted" style={{ display: 'block', fontSize: '0.72rem' }}>for {a.onBehalfName}</span>}</td>
-                    <td><span className="vg-chip" style={{ background: (evColor[a.event] || '#8b81ad') + '22', color: evColor[a.event] || '#8b81ad', textTransform: 'capitalize' }}>{a.event}</span></td>
+                    <td><span className="vg-chip" style={{ background: `color-mix(in srgb, ${evColor[a.event] || 'var(--vg-ink-faint)'} 14%, transparent)`, color: evColor[a.event] || 'var(--vg-ink-faint)', textTransform: 'capitalize' }}>{a.event}</span></td>
                     <td style={{ fontSize: '0.85rem' }}>
                       {a.what}
                       {a.change && <ChangeBlurb c={a.change} />}
@@ -2410,10 +2376,6 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
             </table>
           </div>
         )}
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>
-          Every edit request, approval, decline and revoke is logged here with who did it and when.
-          {onRevert && ' An entry that changed an expense can be put back on its own — nothing else is touched.'}
-        </p>
       </div>
 
       {undoing && onRevert && <UndoChangeModal entry={undoing} entities={ent} onClose={() => setUndoing(null)} onConfirm={onRevert} />}
@@ -2457,7 +2419,7 @@ function UndoChangeModal({ entry, entities, onClose, onConfirm }: {
           <button className="vg-icobtn" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
 
-        <p style={{ margin: 0, color: '#241b40', fontSize: '0.9rem' }}>
+        <p style={{ margin: 0, color: 'var(--vg-ink)', fontSize: '0.9rem' }}>
           <b>{target?.name || entry.what}</b>
           {c.before && c.after
             ? <> goes back to <b>{INR(c.before.amount || 0)}</b>, from {INR(c.after.amount || 0)}.</>
@@ -2587,7 +2549,7 @@ function BudgetTab({ doc, me, onSaveBudget }: {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--vg-ink-soft)', marginBottom: 4 }}>
             <span>{INR(spent)} spent</span><span>budget {INR(draft.monthly)}</span>
           </div>
-          <div className="vg-emi-bar" style={{ height: 12 }}><i style={{ width: `${Math.min(100, (spent / draft.monthly) * 100)}%`, background: overBudget ? 'linear-gradient(90deg,#e2445c,#b0479a)' : 'linear-gradient(90deg,#a06be0,#6d4bd8)' }} /></div>
+          <div className="vg-emi-bar" style={{ height: 12 }}><i style={{ width: `${Math.min(100, (spent / draft.monthly) * 100)}%`, background: overBudget ? 'linear-gradient(90deg,#e2445c,#b0479a)' : 'linear-gradient(90deg,var(--vg-accent-2),var(--vg-accent))' }} /></div>
         </div>
       )}
 
@@ -2616,7 +2578,7 @@ function BudgetTab({ doc, me, onSaveBudget }: {
                       <td>
                         {lim > 0 ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'rgba(120,99,190,0.12)', overflow: 'hidden' }}>
+                            <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'color-mix(in srgb, var(--vg-ink-faint) 12%, transparent)', overflow: 'hidden' }}>
                               <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (a / lim) * 100)}%`, borderRadius: 999, background: over ? 'var(--vg-neg)' : c.color }} />
                             </span>
                             <b style={{ fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'right', color: over ? 'var(--vg-neg)' : 'var(--vg-ink-soft)' }}>{Math.round((a / lim) * 100)}%</b>
@@ -2629,7 +2591,6 @@ function BudgetTab({ doc, me, onSaveBudget }: {
               </tbody>
             </table>
           </div>
-          <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Leave a limit at 0 to just watch the category without capping it.</p>
         </div>
 
         {/* Planned purchases + projection */}
@@ -2671,11 +2632,7 @@ function BudgetTab({ doc, me, onSaveBudget }: {
                 )}
               </>
             ) : (
-              <p className="vg-muted" style={{ fontSize: '0.8rem', marginTop: '0.4rem' }}>
-                {who === 'family'
-                  ? 'Savings and income are private to each profile, so the family view plans the list without projecting when it can be afforded.'
-                  : `${entName(doc.entities, who)} sees their own savings and income against this list on their profile.`}
-              </p>
+              null
             )}
           </div>
         </div>
@@ -2726,7 +2683,6 @@ function MemberSavings({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: s
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Private to your profile — not other members, and not the family admin — unless you grant someone savings access under Access.</p>
       </div>
     </>
   )
@@ -2786,7 +2742,6 @@ function MemberIncomeCard({ rows, monthKey: mk, onSave, personalSpend }: {
           <b style={{ fontVariantNumeric: 'tabular-nums' }} className={left >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(left))}</b>
         </div>
       )}
-      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>Private to your profile — no one else, including the family admin, can see this.</p>
     </div>
   )
 }
@@ -2928,7 +2883,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
 
   const bar = (value: number, of: number, color: string) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'rgba(120,99,190,0.12)', overflow: 'hidden' }}>
+      <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'color-mix(in srgb, var(--vg-ink-faint) 12%, transparent)', overflow: 'hidden' }}>
         <span style={{ display: 'block', height: '100%', width: `${of > 0 ? Math.min(100, (value / of) * 100) : 0}%`, background: color, borderRadius: 999 }} />
       </span>
       <b style={{ fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums', minWidth: 46, textAlign: 'right', color: 'var(--vg-ink-soft)' }}>
@@ -2975,7 +2930,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
           <p className="vg-sec" style={{ marginBottom: '0.5rem' }}>Where your income went</p>
           <StackBar parts={[
             ...imp.groups.map(g => ({ label: g.name, value: g.charged, color: g.color })),
-            ...(imp.left > 0.5 ? [{ label: 'Left with you', value: imp.left, color: '#1f9d6b' }] : []),
+            ...(imp.left > 0.5 ? [{ label: 'Left with you', value: imp.left, color: 'var(--vg-pos)' }] : []),
           ]} />
 
           <div className="vg-tablewrap" style={{ marginTop: '1.2rem' }}>
@@ -3004,7 +2959,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
                 {imp.groups.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>Nothing is charged to you this month — your whole income stays with you.</td></tr>}
               </tbody>
               <tfoot>
-                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                <tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}>
                   <td style={{ fontWeight: 700, paddingTop: '0.6rem' }}>{imp.left >= 0 ? 'Left with you' : 'Short by'}</td>
                   <td colSpan={2}></td>
                   <td className="num" style={{ paddingTop: '0.6rem' }}><b className={imp.left >= 0 ? 'vg-pos' : 'vg-neg'}>{INR(Math.abs(imp.left))}</b></td>
@@ -3055,7 +3010,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
                   <tr key={ln.id}>
                     <td className="vg-nm" style={{ fontWeight: 600 }}>{ln.name}</td>
                     <td>{ln.paidBy
-                      ? <span className="vg-chip" style={{ background: entColor(entities, ln.paidBy) + '22', color: entColor(entities, ln.paidBy) }}>{ln.paidBy === entityId ? 'You' : nm(ln.paidBy)}</span>
+                      ? <span className="vg-chip" style={{ background: entColor(entities, ln.paidBy) + '22', color: inkOf(entColor(entities, ln.paidBy)) }}>{ln.paidBy === entityId ? 'You' : nm(ln.paidBy)}</span>
                       : <span className="vg-muted">—</span>}</td>
                     <td className="num vg-muted">{INR(ln.full)}</td>
                     <td className="num vg-muted">{Math.round(ln.frac * 100)}%</td>
@@ -3065,7 +3020,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                <tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}>
                   <td colSpan={4} style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Charged to you from {cur.name}</td>
                   <td className="num" style={{ paddingTop: '0.6rem' }}><b className="vg-neg">−{INR(cur.charged)}</b></td>
                   <td style={{ paddingTop: '0.6rem' }}></td>
@@ -3097,7 +3052,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
                 <span style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 96 }}>
                   <span style={{
                     width: '100%', height: `${(t.charged / trendMax) * 100}%`, minHeight: t.charged > 0 ? 3 : 0, borderRadius: '7px 7px 3px 3px',
-                    background: isNow ? (cur?.color ?? '#6d4bd8') : 'rgba(120,99,190,0.28)',
+                    background: isNow ? (cur?.color ?? '#6d4bd8') : 'color-mix(in srgb, var(--vg-ink-faint) 28%, transparent)',
                   }} />
                 </span>
                 <span style={{ fontSize: 10, color: isNow ? 'var(--vg-accent)' : 'var(--vg-ink-faint)', fontWeight: isNow ? 700 : 500 }}>{IMPACT_MON[mi]}</span>
@@ -3106,15 +3061,8 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
             )
           })}
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.5rem' }}>Each bar is what was charged to you that month; the small figure underneath is what slice of that month&rsquo;s income it took. Tap a bar to open that month.</p>
       </div>
 
-      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '1rem', paddingTop: '0.7rem', borderTop: '1px solid var(--vg-line)' }}>
-        The <b>{envs.find(e => e.system)?.name ?? 'Lamba Household'}</b> account earns its own money ({INR(imp.commonIncome)} this month) and paid {INR(imp.commonExpenses)} of bills from it, so none of that is charged to your salary
-        {imp.shortfall > 0.5
-          ? <> — except that it fell {INR(imp.shortfall)} short, and each earner pays in an equal share.</>
-          : <>. It covered itself this month, so there is nothing for you to pay in.</>}
-      </p>
     </div>
   )
 }
@@ -3256,13 +3204,11 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
             <button className="vg-btn vg-btn-primary" onClick={() => openAdd(isDash ? (pbucket === 'emi' ? 'emi' : 'personal') : isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
           </div>
         </div>
-        {isDash && <p className="vg-muted" style={{ fontSize: '0.78rem', margin: '0 0 0.7rem' }}>Your personal expenses — money borne entirely by you. Common and shared items live under <b>Lamba Household</b> and the other envelopes.</p>}
         {receiptWarn && <p className="vg-neg" style={{ fontSize: '0.8rem', margin: '0 0 0.7rem', display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{receiptWarn}</span><button className="vg-icobtn" onClick={() => setReceiptWarn(null)}><X className="h-4 w-4" /></button></p>}
         <ExpenseTable rows={rows} entities={entities} shareCols={shareColumns(rows, entities)}
           member={{ entityId, lockedIds: underReview }}
           onEdit={openEdit} onDelete={del} onTogglePaid={togglePaid}
           emptyLabel={`Nothing in ${isDash ? (pbucket === 'emi' ? 'personal EMIs' : 'personal expenses') : isHousehold ? bucket : (curEnv?.name ?? 'this envelope')}. Use Add or snap a Receipt.`} />
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Adding or changing a common/shared item sends it to the tagged person to approve; your own personal ones apply straight away.</p>
       </div>
 
       {isHousehold && <CommonReconcile doc={doc} k={k} entities={entities} me={{ role: 'member', entityId }} action={action} />}
@@ -3584,7 +3530,7 @@ function ImportTab({ doc, me, onImport }: {
     <>
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <p style={{ margin: 0, color: '#241b40' }}>
+          <p style={{ margin: 0, color: 'var(--vg-ink)' }}>
             <FileSpreadsheet className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Upload a <b>bank statement CSV</b>. It reads every credit and debit, guesses a category, and lets you tick which to bring in — you can fix the payee, category and add a remark first.
           </p>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -3604,7 +3550,7 @@ function ImportTab({ doc, me, onImport }: {
         <>
           <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span className="vg-muted" style={{ fontSize: '0.85rem' }}><b style={{ color: '#241b40' }}>{selected.length}</b> of {rows.length} selected</span>
+              <span className="vg-muted" style={{ fontSize: '0.85rem' }}><b style={{ color: 'var(--vg-ink)' }}>{selected.length}</b> of {rows.length} selected</span>
               {rows.some(r => r.dup) && <span className="vg-muted" style={{ fontSize: '0.85rem' }}>· {rows.filter(r => r.dup).length} already imported</span>}
               <span className="vg-neg" style={{ fontSize: '0.85rem' }}>− {INR(debitTotal)} out</span>
               <span className="vg-pos" style={{ fontSize: '0.85rem' }}>+ {INR(creditTotal)} in</span>
@@ -3680,9 +3626,6 @@ function ImportTab({ doc, me, onImport }: {
                 </tbody>
               </table>
             </div>
-            <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>
-              Each debit is <b>paid from {ownerName}</b>. Leave it <b>Personal</b> (lands on that profile, no split) or choose <b>Share…</b>, pick the person and their %; that one goes to them to approve before it joins the shared tracker. Credits are recorded as private income. Add a <b>Tag</b> to group an expense under an event (e.g. a trip) regardless of its category.
-            </p>
           </div>
         </>
       )}
@@ -3731,7 +3674,7 @@ function MemberSetup({ doc, entityId, envelopes, openTemplate, onRemove, onSaveI
                 <tr key={it.id}>
                   <td className="vg-nm" style={{ fontWeight: 600 }}>{it.name || <span className="vg-muted">Untitled</span>}{!mine && <span className="vg-chip" style={{ marginLeft: 6 }}>shared</span>}</td>
                   <td><span className="vg-chip" style={{ fontSize: '0.72rem' }}>{envName(it.envelope)}</span></td>
-                  <td><span className="vg-chip" style={{ background: entColor(doc.entities, it.paidBy) + '22', color: entColor(doc.entities, it.paidBy) }}>{entName(doc.entities, it.paidBy)}</span></td>
+                  <td><span className="vg-chip" style={{ background: entColor(doc.entities, it.paidBy) + '22', color: inkOf(entColor(doc.entities, it.paidBy)) }}>{entName(doc.entities, it.paidBy)}</span></td>
                   <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{shareSummary(it, doc.entities)}</td>
                   <td className="num">{INR(it.amount)}</td>
                   {section === 'emis' && <>
@@ -3758,7 +3701,7 @@ function MemberSetup({ doc, entityId, envelopes, openTemplate, onRemove, onSaveI
   return (
     <>
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: '#241b40' }}>
+        <p style={{ margin: 0, color: 'var(--vg-ink)' }}>
           <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your household&rsquo;s <b>recurring</b> items. Add or change anything here — items that are <b>only yours</b> apply straight away, while anything <b>common or shared</b> is sent to the tagged person to approve first. You only see common items and ones that involve you.
         </p>
       </div>
@@ -3812,7 +3755,7 @@ function MemberRecurringIncome({ doc, entityId, onSave }: {
             {draft.map(r => (
               <tr key={r.id}>
                 <td><input className="vg-input" value={r.source} onChange={e => set(r.id, { source: e.target.value })} /></td>
-                <td><span className="vg-chip" style={{ background: entColor(doc.entities, entityId) + '22', color: entColor(doc.entities, entityId) }}>{entName(doc.entities, entityId)}</span></td>
+                <td><span className="vg-chip" style={{ background: entColor(doc.entities, entityId) + '22', color: inkOf(entColor(doc.entities, entityId)) }}>{entName(doc.entities, entityId)}</span></td>
                 <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(r.amount)} onChange={e => set(r.id, { amount: num(e.target.value) })} /></td>
                 <td><button className="vg-icobtn" onClick={() => del(r.id)}><Trash2 className="h-4 w-4" /></button></td>
               </tr>
@@ -3821,7 +3764,6 @@ function MemberRecurringIncome({ doc, entityId, onSave }: {
           </tbody>
         </table>
       </div>
-      <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Your own rows are private and save straight away. The common baseline is set by the family admin.</p>
     </div>
   )
 }
@@ -3842,17 +3784,17 @@ function DebtCurve({ points, today }: { points: DebtPoint[]; today: string }) {
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" style={{ width: '100%', height: 150, display: 'block' }} role="img" aria-label="What is owed, month by month">
         <defs>
           <linearGradient id="debtFade" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6d4bd8" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="#6d4bd8" stopOpacity="0.02" />
+            <stop offset="0%" style={{ stopColor: 'var(--vg-accent)', stopOpacity: 0.32 }} />
+            <stop offset="100%" style={{ stopColor: 'var(--vg-accent)', stopOpacity: 0.02 }} />
           </linearGradient>
         </defs>
         <polygon points={area} fill="url(#debtFade)" />
-        <polyline points={line} fill="none" stroke="#6d4bd8" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-        <line x1={x(nowIdx)} y1="0" x2={x(nowIdx)} y2="38" stroke="#b0479a" strokeWidth="1" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+        <polyline points={line} fill="none" style={{ stroke: 'var(--vg-accent)' }} strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        <line x1={x(nowIdx)} y1="0" x2={x(nowIdx)} y2="38" style={{ stroke: 'var(--vg-g)' }} strokeWidth="1" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--vg-ink-faint)' }}>
         <span>{fmtMon(`${points[0]?.key}-01`)}</span>
-        <span style={{ color: '#b0479a', fontWeight: 700 }}>now</span>
+        <span style={{ color: 'var(--vg-g)', fontWeight: 700 }}>now</span>
         <span>{fmtMon(`${points[points.length - 1]?.key}-01`)}</span>
       </div>
     </div>
@@ -3913,9 +3855,6 @@ function PrepayCard({ loans, asOf }: { loans: LoanView[]; asOf: string }) {
                 <Kpi label="Cleared by" value={result.endsOn ? fmtMon(`${result.endsOn}-01`) : '—'} info={`Instead of ${chosen.endsOn ? fmtMon(`${chosen.endsOn}-01`) : '—'}.`} />
                 <Kpi label="Interest left to pay" small value={`${INR(result.interest)} of ${INR(result.baseInterest)}`} info="What the rest of this loan would cost in interest under the new plan, against what it costs now." />
               </div>
-              <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.7rem' }}>
-                The EMI stays as it is and the loan simply ends sooner, which is where the saving comes from. Some lenders charge a fee on prepayment, or reduce the EMI instead of the tenure — worth checking which yours does.
-              </p>
             </>
           )}
         </div>
@@ -3983,13 +3922,13 @@ function LoansTab({ doc, me }: {
       {(needRate.length > 0 || needPrincipal.length > 0) && (
         <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', borderLeft: '3px solid var(--vg-accent)' }}>
           {needRate.length > 0 && (
-            <p style={{ margin: 0, color: '#241b40', fontSize: '0.9rem' }}>
+            <p style={{ margin: 0, color: 'var(--vg-ink)', fontSize: '0.9rem' }}>
               <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
               <b>{needRate.map(v => v.item.name).join(', ')}</b> {needRate.length === 1 ? 'shows' : 'show'} no interest, because the recorded amount borrowed is exactly the instalments added up — so it looks like the <b>total payable</b> rather than the sum actually borrowed. Open the loan on the Budget page and correct the amount, or set the <b>rate</b> directly.
             </p>
           )}
           {needPrincipal.length > 0 && (
-            <p style={{ margin: needRate.length > 0 ? '0.6rem 0 0' : 0, color: '#241b40', fontSize: '0.9rem' }}>
+            <p style={{ margin: needRate.length > 0 ? '0.6rem 0 0' : 0, color: 'var(--vg-ink)', fontSize: '0.9rem' }}>
               <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
               <b>{needPrincipal.map(v => v.item.name).join(', ')}</b> {needPrincipal.length === 1 ? 'has' : 'have'} no amount borrowed or tenure recorded, so only EMI × instalments left can be shown — which overstates what is owed. Add those on the Budget page to get the real balance.
             </p>
@@ -4011,10 +3950,6 @@ function LoansTab({ doc, me }: {
           </div>
         )}
         <div style={{ marginTop: assets != null ? 0 : '0.8rem' }}><DebtCurve points={curve} today={asOf} /></div>
-        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.5rem' }}>
-          Every future balance is already set by the loan schedules, so the line to the right of <b>now</b> is what will happen if nothing is paid off early.
-          {assets == null && ' Savings are private to each profile, so a net worth can only be seen on a profile itself.'}
-        </p>
       </div>
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
@@ -4040,7 +3975,7 @@ function LoansTab({ doc, me }: {
                     <td>
                       <span className="vg-nm" style={{ fontWeight: 600 }}>{v.item.name}</span>
                       {f > 0 && f < 0.999 && <span className="vg-chip" style={{ marginLeft: 6 }}>your {Math.round(f * 100)}%</span>}
-                      {v.estimated && <span className="vg-chip" style={{ marginLeft: 6, background: 'rgba(224,112,60,0.14)', color: '#c0398b' }}>estimate</span>}
+                      {v.estimated && <span className="vg-chip" style={{ marginLeft: 6, background: 'rgba(224,112,60,0.14)', color: 'var(--vg-warn)' }}>estimate</span>}
                     </td>
                     <td className="num">{INR((v.item.amount || 0) * f)}</td>
                     <td className="num vg-muted">{v.annualRate != null ? `${v.annualRate.toFixed(2)}%` : '—'}</td>
@@ -4049,8 +3984,8 @@ function LoansTab({ doc, me }: {
                     <td>
                       {borrowed > 0 ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'rgba(120,99,190,0.12)', overflow: 'hidden' }}>
-                            <span style={{ display: 'block', height: '100%', width: `${Math.min(100, repaid * 100)}%`, borderRadius: 999, background: 'linear-gradient(90deg,#a06be0,#6d4bd8)' }} />
+                          <span style={{ flex: 1, height: 8, borderRadius: 999, background: 'color-mix(in srgb, var(--vg-ink-faint) 12%, transparent)', overflow: 'hidden' }}>
+                            <span style={{ display: 'block', height: '100%', width: `${Math.min(100, repaid * 100)}%`, borderRadius: 999, background: 'linear-gradient(90deg,var(--vg-accent-2),var(--vg-accent))' }} />
                           </span>
                           <b style={{ fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right', color: 'var(--vg-ink-soft)' }}>{Math.round(repaid * 100)}%</b>
                         </div>
@@ -4072,9 +4007,6 @@ function LoansTab({ doc, me }: {
             Paid off: {settled.map(v => v.item.name).join(', ')}.
           </p>
         )}
-        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>
-          Rates are worked back from the amount borrowed, the EMI and the tenure, so they are the rate those three imply. A loan marked <b>estimate</b> has no principal or tenure recorded, so only EMI × instalments left can be shown for it.
-        </p>
       </div>
 
       <div className="vg-card vg-pad">
@@ -4094,7 +4026,7 @@ function LoansTab({ doc, me }: {
               <th className="num">Paid in the year</th>
               <th className="num">Interest</th>
               <th className="num">Principal</th>
-              {!viewer && sharers.map(p => <th key={p.id} className="num" style={{ color: p.color }}>{p.name}&rsquo;s interest</th>)}
+              {!viewer && sharers.map(p => <th key={p.id} className="num" style={{ color: inkOf(p.color) }}>{p.name}&rsquo;s interest</th>)}
             </tr></thead>
             <tbody>
               {yearRows.map(({ it, y }) => (
@@ -4110,13 +4042,13 @@ function LoansTab({ doc, me }: {
             </tbody>
             {yearRows.length > 0 && (
               <tfoot>
-                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                <tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}>
                   <td style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Total</td>
                   <td className="num" style={{ paddingTop: '0.6rem' }}>{INR(yearRows.reduce((a, r) => a + r.y.paid * frac(r.it), 0))}</td>
                   <td className="num vg-neg" style={{ fontWeight: 800, paddingTop: '0.6rem' }}>{INR(fyInterest)}</td>
                   <td className="num" style={{ fontWeight: 700, paddingTop: '0.6rem' }}>{INR(fyPrincipal)}</td>
                   {!viewer && sharers.map(p => (
-                    <td key={p.id} className="num" style={{ fontWeight: 700, color: p.color, paddingTop: '0.6rem' }}>
+                    <td key={p.id} className="num" style={{ fontWeight: 700, color: inkOf(p.color), paddingTop: '0.6rem' }}>
                       {INR(yearRows.reduce((a, r) => a + (r.y.byEntity[p.id]?.interest ?? 0), 0))}
                     </td>
                   ))}
@@ -4125,9 +4057,6 @@ function LoansTab({ doc, me }: {
             )}
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.7rem' }}>
-          Interest is split the way the loan is split, so a 50/50 home loan gives each person half to claim. Only home-loan interest is deductible — this table does not judge which of these count, it just does the arithmetic.
-        </p>
       </div>
 
       <PrepayCard loans={live} asOf={asOf} />
@@ -4196,7 +4125,7 @@ function AheadTab({ doc, me }: {
                       {f.spikes.length > 0 && (
                         <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                           {f.spikes.map((s, i) => (
-                            <span key={i} className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: '#c0398b', fontSize: '0.68rem' }}>{s.name} {INR(s.amount)}</span>
+                            <span key={i} className="vg-chip" style={{ background: 'rgba(224,112,60,0.14)', color: 'var(--vg-warn)', fontSize: '0.68rem' }}>{s.name} {INR(s.amount)}</span>
                           ))}
                         </span>
                       )}
@@ -4207,7 +4136,7 @@ function AheadTab({ doc, me }: {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ position: 'relative', flex: 1, height: 10, borderRadius: 999, background: 'rgba(31,157,107,0.16)', overflow: 'hidden' }}>
-                          <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (f.outflow / maxScale) * 100)}%`, borderRadius: 999, background: over ? 'var(--vg-neg)' : 'linear-gradient(90deg,#a06be0,#6d4bd8)' }} />
+                          <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (f.outflow / maxScale) * 100)}%`, borderRadius: 999, background: over ? 'var(--vg-neg)' : 'linear-gradient(90deg,var(--vg-accent-2),var(--vg-accent))' }} />
                         </span>
                         <b style={{ fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'right', color: over ? 'var(--vg-neg)' : 'var(--vg-ink-soft)' }}>
                           {f.income > 0 ? `${Math.round((f.outflow / f.income) * 100)}%` : '—'}
@@ -4220,9 +4149,6 @@ function AheadTab({ doc, me }: {
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>
-          Projected from the recurring commitments as they stand today — EMIs that end along the way drop out, and yearly bills appear in the month they fall. Anything added by hand later is not in here, because it has not happened yet.
-        </p>
       </div>
 
       <div className="vg-card vg-pad">
@@ -4256,7 +4182,7 @@ function AheadTab({ doc, me }: {
             </tbody>
             {sinking.length > 0 && (
               <tfoot>
-                <tr style={{ borderTop: '2px solid rgba(109,75,216,0.25)' }}>
+                <tr style={{ borderTop: '2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent)' }}>
                   <td colSpan={3} style={{ fontWeight: 700, paddingTop: '0.6rem' }}>Every month, to stay ahead of all of them</td>
                   <td className="num" style={{ fontWeight: 800, paddingTop: '0.6rem' }}>{INR(setAside)}</td>
                   <td style={{ paddingTop: '0.6rem' }}></td>
@@ -4265,10 +4191,6 @@ function AheadTab({ doc, me }: {
             )}
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.72rem', marginTop: '0.6rem' }}>
-          <b>Set aside</b> spreads the bill evenly across the year. <b>If you start now</b> is what it takes from this month if nothing has been put by yet — larger, because there are fewer months left before it lands.
-          {viewer && ' Bills the common account pays are shared equally between the earners, so only your part is shown.'}
-        </p>
       </div>
     </>
   )

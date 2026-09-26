@@ -1,0 +1,379 @@
+'use client'
+
+// ============================================================
+// components/vault/vault-chrome.tsx
+//
+// Everything around the vault's pages, macOS-style:
+//   · VaultTopBar   slim bar pinned to the top — logo, a Dock of 3D app
+//                   icons that magnify under the cursor (it moves to the
+//                   bottom on a phone), Control Centre, avatar, sign-out
+//   · ControlCentre the theme picker (lib/vault-themes.ts), sounds, motion
+//   · SignOutButton a 3D power key with a synthesised power-down sound and
+//                   a shutdown animation
+//   · CountUp, Hello, ThemeSync — small touches used around the app
+//
+// Sounds are synthesised with Web Audio, so there are no audio files, and
+// they only ever play in answer to a click.
+// ============================================================
+
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
+import Link from 'next/link'
+import { Bungee, Kaushan_Script } from 'next/font/google'
+import { Power, Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
+import { VAULT_THEMES, DEFAULT_THEME, THEME_KEY } from '@/lib/vault-themes'
+
+const bungee = Bungee({ subsets: ['latin'], weight: '400', display: 'swap' })
+const kaushan = Kaushan_Script({ subsets: ['latin'], weight: '400', display: 'swap' })
+
+// ---------- preferences (per browser) ---------------------------
+const SOUND_KEY = 'vg-sound'
+const MOTION_KEY = 'vg-motion'
+const read = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
+const write = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* private mode */ } }
+const PREF_EVENT = 'vg-prefs'
+const subscribePrefs = (cb: () => void) => { window.addEventListener(PREF_EVENT, cb); window.addEventListener('storage', cb); return () => { window.removeEventListener(PREF_EVENT, cb); window.removeEventListener('storage', cb) } }
+const notify = () => window.dispatchEvent(new Event(PREF_EVENT))
+
+function usePref(key: string, fallback: string): string {
+  return useSyncExternalStore(subscribePrefs, () => read(key) ?? fallback, () => fallback)
+}
+const motionOff = () => read(MOTION_KEY) === 'off' || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+export function applyTheme(id: string) {
+  document.documentElement.setAttribute('data-vg-theme', id)
+  write(THEME_KEY, id)
+  notify()
+}
+
+/** Re-applies the chosen theme and motion setting on pages reached by client
+ *  navigation, where the boot script in the layout does not run again. */
+export function ThemeSync() {
+  useEffect(() => {
+    const t = read(THEME_KEY)
+    if (t) document.documentElement.setAttribute('data-vg-theme', t)
+    if (read(MOTION_KEY) === 'off') document.documentElement.setAttribute('data-vg-motion', 'off')
+  }, [])
+  return null
+}
+
+// ---------- sound ------------------------------------------------
+let ctx: AudioContext | null = null
+function audio(): AudioContext | null {
+  if (typeof window === 'undefined' || read(SOUND_KEY) === 'off') return null
+  try {
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    ctx ??= new AC()
+    if (ctx.state === 'suspended') void ctx.resume()
+    return ctx
+  } catch { return null }
+}
+function tone(a: AudioContext, type: OscillatorType, f0: number, f1: number, dur: number, vol: number, at = 0) {
+  const t = a.currentTime + at
+  const o = a.createOscillator(), g = a.createGain()
+  o.type = type
+  o.frequency.setValueAtTime(f0, t)
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur)
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+  o.connect(g).connect(a.destination)
+  o.start(t); o.stop(t + dur + 0.02)
+}
+/** tick: a Dock click · pop: a theme change · power: signing out. */
+export function sfx(kind: 'tick' | 'pop' | 'power') {
+  const a = audio()
+  if (!a) return
+  if (kind === 'tick') tone(a, 'triangle', 1400, 850, 0.06, 0.05)
+  else if (kind === 'pop') { tone(a, 'sine', 520, 880, 0.09, 0.07); tone(a, 'sine', 880, 1320, 0.08, 0.04, 0.06) }
+  else {
+    // A soft thunk, then the vault powering down.
+    const len = Math.floor(a.sampleRate * 0.14), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3)
+    const n = a.createBufferSource(), lp = a.createBiquadFilter(), g = a.createGain()
+    n.buffer = buf; lp.type = 'lowpass'; lp.frequency.value = 420; g.gain.value = 0.35
+    n.connect(lp).connect(g).connect(a.destination); n.start()
+    tone(a, 'sine', 520, 48, 1.05, 0.16, 0.04)
+    tone(a, 'triangle', 780, 70, 0.9, 0.05, 0.04)
+  }
+}
+
+// ---------- Logo -------------------------------------------------
+export function Logo({ href = '/vault' }: { href?: string }) {
+  return (
+    <Link href={href} className="vg-logo" aria-label="Lamba Family — home">
+      <span className={`vg-logo-lamba ${bungee.className}`}>LAMBA</span>
+      <span className={`vg-logo-family ${kaushan.className}`}>Family</span>
+    </Link>
+  )
+}
+
+// ---------- Dock -------------------------------------------------
+/** Apple system colours, light to deep — one per app in the Dock. */
+const APP_COLORS: Record<string, [string, string, string?]> = {
+  month: ['#64d2ff', '#0a7cff'], settle: ['#5fe07d', '#1fa244'], year: ['#ffc15a', '#ff8a00'],
+  loans: ['#8e8bff', '#4f4ad8'], tags: ['#ff7aa2', '#ff2d55'], savings: ['#6ee7d8', '#12a3b4'],
+  import: ['#ffe066', '#ffb800', '#3d2c00'], setup: ['#ff8a80', '#ff3b30'], approvals: ['#df9bff', '#a24bd9'],
+  access: ['#7ef0c9', '#00b89c'], entities: ['#b8bec8', '#5b626d'], profile: ['#9aa6ff', '#5b6cff'],
+  home: ['#9aa6ff', '#5b6cff'], finance: ['#7b8bff', '#6d4bd8'], photos: ['#ffb36b', '#ff5e7e'], files: ['#6cc6ff', '#2f6fe0'],
+}
+
+export interface DockItem { id: string; label: string; icon: LucideIcon; badge?: number; href?: string }
+
+function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; onPick?: (id: string) => void }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const centres = useRef<number[]>([])
+  const [bounce, setBounce] = useState<string | null>(null)
+
+  const canMagnify = () => typeof window !== 'undefined' && window.innerWidth > 760 && matchMedia('(hover: hover) and (pointer: fine)').matches && !motionOff()
+  const kids = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('.vg-dock-item') ?? [])
+  const reset = () => kids().forEach(k => k.style.setProperty('--s', '1'))
+  // Measure where the icons sit at rest, so magnifying never makes them jitter.
+  const measure = () => { centres.current = kids().map(k => { const r = k.getBoundingClientRect(); return r.left + r.width / 2 }) }
+  const move = (x: number) => {
+    if (!canMagnify()) return
+    if (!centres.current.length) measure()
+    kids().forEach((k, i) => {
+      const d = Math.abs(x - (centres.current[i] ?? 0))
+      const s = d < 120 ? 1 + 0.55 * (Math.cos((d / 120) * Math.PI) + 1) / 2 : 1
+      k.style.setProperty('--s', s.toFixed(3))
+    })
+  }
+  const pick = (id: string) => {
+    sfx('tick')
+    if (!motionOff()) { setBounce(id); setTimeout(() => setBounce(b => (b === id ? null : b)), 650) }
+    onPick?.(id)
+  }
+
+  return (
+    <nav ref={ref} className="vg-dock" aria-label="Sections"
+      onMouseEnter={() => { reset(); measure() }} onMouseMove={e => move(e.clientX)} onMouseLeave={() => { reset(); centres.current = [] }}>
+      {items.map(it => {
+        const [c1, c2, glyph] = APP_COLORS[it.id] ?? ['#9aa6ff', '#5b6cff']
+        const I = it.icon
+        const inner = (
+          <>
+            <span className="vg-app" style={{ '--c1': c1, '--c2': c2, '--glyph': glyph ?? '#fff' } as React.CSSProperties}><I strokeWidth={2.2} /></span>
+            {!!it.badge && <span className="vg-dock-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
+            <span className="vg-dock-tip">{it.label}</span>
+            <span className="vg-dock-lbl">{it.label}</span>
+          </>
+        )
+        const common = { className: 'vg-dock-item', 'data-on': active === it.id, 'data-bounce': bounce === it.id, 'aria-label': it.label, 'aria-current': active === it.id ? ('page' as const) : undefined }
+        return it.href
+          ? <Link key={it.id} href={it.href} {...common} onClick={() => sfx('tick')}>{inner}</Link>
+          : <button key={it.id} type="button" {...common} onClick={() => pick(it.id)}>{inner}</button>
+      })}
+    </nav>
+  )
+}
+
+// ---------- Control Centre --------------------------------------
+function ControlCentre() {
+  const [open, setOpen] = useState(false)
+  const theme = usePref(THEME_KEY, DEFAULT_THEME)
+  const sound = usePref(SOUND_KEY, 'on') !== 'off'
+  const motion = usePref(MOTION_KEY, 'on') !== 'off'
+  const panel = useRef<HTMLDivElement | null>(null)
+  const btn = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => { if (!panel.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', onDown); document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  const light = VAULT_THEMES.filter(t => !t.dark), dark = VAULT_THEMES.filter(t => t.dark)
+  const swatches = (list: typeof VAULT_THEMES) => (
+    <div className="vg-swatches">
+      {list.map(t => (
+        <button key={t.id} className="vg-swatch" data-on={theme === t.id} onClick={() => { applyTheme(t.id); sfx('pop') }} aria-pressed={theme === t.id}>
+          <span className="vg-swatch-win" style={{ background: `radial-gradient(60% 70% at 20% 10%, ${t.blobs[0]}, transparent), radial-gradient(60% 70% at 90% 20%, ${t.blobs[1]}, transparent), linear-gradient(180deg, ${t.bg[0]}, ${t.bg[1]})` }}>
+            <span className="vg-swatch-card" style={{ background: t.glass2, boxShadow: `inset 0 0 0 1px ${t.line}` }}>
+              <span style={{ position: 'absolute', left: 6, top: 5, width: 24, height: 4, borderRadius: 3, background: t.ink, opacity: 0.8 }} />
+              <span style={{ position: 'absolute', left: 6, top: 12, width: 36, height: 3, borderRadius: 3, background: t.faint }} />
+            </span>
+            <span className="vg-swatch-dot" style={{ background: `linear-gradient(180deg, ${t.accent2}, ${t.accent})` }} />
+          </span>
+          {t.name}
+        </button>
+      ))}
+    </div>
+  )
+
+  return (
+    <>
+      <button ref={btn} className="vg-cc-btn" data-on={open} onClick={() => setOpen(o => !o)} aria-label="Appearance" aria-expanded={open} title="Appearance">
+        <SlidersHorizontal className="h-4 w-4" />
+      </button>
+      {open && (
+        <div ref={panel} className="vg-cc" role="dialog" aria-label="Appearance">
+          <h4>Light</h4>
+          {swatches(light)}
+          <h4 style={{ marginTop: 14 }}>Dark</h4>
+          {swatches(dark)}
+          <div className="vg-cc-row">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Volume2 className="h-4 w-4" /> Sounds</span>
+            <button className="vg-switch" role="switch" aria-checked={sound} aria-label="Sounds" onClick={() => { write(SOUND_KEY, sound ? 'off' : 'on'); notify(); if (!sound) setTimeout(() => sfx('pop'), 0) }} />
+          </div>
+          <div className="vg-cc-row" style={{ borderTop: 0, marginTop: 0 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Sparkles className="h-4 w-4" /> Animations</span>
+            <button className="vg-switch" role="switch" aria-checked={motion} aria-label="Animations" onClick={() => {
+              write(MOTION_KEY, motion ? 'off' : 'on'); notify()
+              if (motion) document.documentElement.setAttribute('data-vg-motion', 'off'); else document.documentElement.removeAttribute('data-vg-motion')
+            }} />
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ---------- Avatar -----------------------------------------------
+export interface BarUser { firstName?: string; name?: string; username?: string; avatar?: string }
+function AvatarButton({ me, onClick, on }: { me: BarUser; onClick?: () => void; on?: boolean }) {
+  const label = (me.firstName || me.name || me.username || '').trim()
+  const initials = label.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+  const body = (
+    <span className="vg-avatar-in">
+      {/* eslint-disable-next-line @next/next/no-img-element -- a small data-URL avatar, nothing to optimise */}
+      {me.avatar ? <img src={me.avatar} alt="" /> : initials}
+    </span>
+  )
+  return onClick
+    ? <button className="vg-avatar" onClick={() => { sfx('tick'); onClick() }} data-on={on} aria-label={label ? `${label} — your profile` : 'Your profile'} title={label || 'Your profile'}>{body}</button>
+    : <span className="vg-avatar" title={label}>{body}</span>
+}
+
+// ---------- Sign out ---------------------------------------------
+export function SignOutButton({ name }: { name?: string }) {
+  const [down, setDown] = useState(false)
+  async function go() {
+    if (down) return
+    sfx('power')
+    setDown(true)
+    document.querySelector('.vg')?.classList.add('vg-shutting')
+    const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
+    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 1250))])
+    // A full page load rather than a router push, so nothing from the
+    // signed-in session survives in memory.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign('/vault/login')
+  }
+  return (
+    <>
+      <button className="vg-power" onClick={go} disabled={down} aria-label="Sign out" title="Sign out">
+        {down ? <Loader2 className="vg-spin" /> : <Power strokeWidth={2.6} />}
+        <span className="vg-power-lbl">Sign out</span>
+      </button>
+      {down && typeof document !== 'undefined' && createPortal(
+        <div className="vg-shutdown" role="status" aria-live="polite">
+          <div className="vg-shutdown-in">
+            <svg className="ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" /><line x1="50" y1="20" x2="50" y2="46" /></svg>
+            <p>See you soon{name ? `, ${name}` : ''}</p>
+            <small>Vault locked</small>
+          </div>
+        </div>, document.body)}
+    </>
+  )
+}
+
+// ---------- the bar ----------------------------------------------
+export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, homeHref = '/vault', status }: {
+  items: DockItem[]; active?: string; onPick?: (id: string) => void
+  me?: BarUser; onProfile?: () => void; profileOn?: boolean; homeHref?: string
+  status?: 'idle' | 'saving' | 'saved' | 'conflict'
+}) {
+  // A soft light follows the cursor across the glass cards.
+  useEffect(() => {
+    if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return
+    let raf = 0
+    const onMove = (e: PointerEvent) => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const card = (e.target as Element | null)?.closest?.('.vg-card') as HTMLElement | null
+        if (!card) return
+        const r = card.getBoundingClientRect()
+        card.style.setProperty('--mx', `${e.clientX - r.left}px`)
+        card.style.setProperty('--my', `${e.clientY - r.top}px`)
+      })
+    }
+    document.addEventListener('pointermove', onMove, { passive: true })
+    return () => { document.removeEventListener('pointermove', onMove); cancelAnimationFrame(raf) }
+  }, [])
+
+  const first = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
+  return (
+    <header className="vg-topbar">
+      <div className="vg-topbar-left"><Logo href={homeHref} /></div>
+      <Dock items={items} active={active} onPick={onPick} />
+      <div className="vg-topbar-right">
+        <span aria-live="polite" style={{ display: 'inline-flex', minWidth: 16, color: 'var(--vg-ink-faint)' }}>
+          {status === 'saving' && <Loader2 className="h-4 w-4 vg-spin" aria-label="Saving" />}
+          {status === 'saved' && <Check className="h-4 w-4" style={{ color: 'var(--vg-pos)' }} aria-label="Saved" />}
+          {status === 'conflict' && <span className="vg-chip" style={{ color: 'var(--vg-neg)', background: 'color-mix(in srgb, var(--vg-neg) 14%, transparent)' }} title="Someone else changed the sheet while this page was open. Their version is now loaded, so your last edit was not saved — please make it again.">Redo last edit</span>}
+        </span>
+        <ControlCentre />
+        {me && <AvatarButton me={me} onClick={onProfile} on={profileOn} />}
+        <SignOutButton name={first} />
+      </div>
+    </header>
+  )
+}
+
+// ---------- small touches -----------------------------------------
+/** Money figures count up to their value, like a Wallet balance. */
+export function CountUp({ text }: { text: string }) {
+  const el = useRef<HTMLSpanElement | null>(null)
+  const last = useRef(0)
+  useEffect(() => {
+    const m = text.match(/^([−-]?)₹([\d,]+)$/)
+    const node = el.current
+    if (!m || !node) return
+    const to = Number(m[2].replace(/,/g, '')) * (m[1] ? -1 : 1)
+    const from = last.current
+    last.current = to
+    if (motionOff() || from === to) { node.textContent = text; return }
+    const fmt = (v: number) => `${v < 0 ? '−' : ''}₹${Math.abs(v).toLocaleString('en-IN')}`
+    let raf = 0
+    const t0 = performance.now()
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / 750)
+      node.textContent = fmt(Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [text])
+  return <span ref={el}>{text}</span>
+}
+
+const tick30 = (cb: () => void) => { const id = setInterval(cb, 30_000); return () => clearInterval(id) }
+/** "Good evening, Bhawneet" with the date — rendered in the browser only,
+ *  so the server never guesses the wrong time of day. */
+export function Hello({ name }: { name?: string }) {
+  const now = useSyncExternalStore(tick30, () => Math.floor(Date.now() / 30_000), () => 0)
+  if (!now) return null
+  const d = new Date(now * 30_000)
+  const h = d.getHours()
+  const part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+  return (
+    <div className="vg-hello">
+      <h2>{part}{name ? <>, <span>{name}</span></> : null}</h2>
+      <time dateTime={d.toISOString()}>{d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · {d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</time>
+    </div>
+  )
+}
+
+/** The bar for the vault's own pages, where the Dock holds its apps. */
+export function VaultAppsBar({ active, me }: { active: 'home' | 'finance' | 'photos' | 'files'; me?: BarUser }) {
+  const items: DockItem[] = [
+    { id: 'home', label: 'Vault', icon: House, href: '/vault' },
+    { id: 'finance', label: 'Finance', icon: Wallet, href: '/vault/finance' },
+    { id: 'photos', label: 'Family Photos', icon: Images, href: '/vault/photos' },
+    { id: 'files', label: 'Files', icon: FolderLock, href: '/vault/files' },
+  ]
+  return <VaultTopBar items={items} active={active} me={me} />
+}

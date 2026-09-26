@@ -281,6 +281,8 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${anton.variable} ${interTight.variable} ${caveat.variable}`}
+      // The vault sets its theme on <html> before React loads (see app/vault/layout.tsx).
+      suppressHydrationWarning
     >
       <body className="flex min-h-screen flex-col">
 

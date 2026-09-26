@@ -13,7 +13,8 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { Wallet, Images, FolderLock, ArrowRight } from 'lucide-react'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
-import VaultLogout from '@/components/vault/logout-button'
+import { VaultAppsBar } from '@/components/vault/vault-chrome'
+import { findUser } from '@/lib/users'
 
 export const metadata: Metadata = {
   title: 'Vault',
@@ -52,9 +53,11 @@ export default async function VaultHome() {
   if (!session) redirect('/vault/login')
   // Members only get Finance — send them straight there.
   if (session.r !== 'super') redirect('/vault/finance')
+  const u = await findUser(session.u)
 
   return (
-    <div className="vg">
+    <div className="vg vg-root">
+      <VaultAppsBar active="home" me={{ firstName: u?.firstName, name: u?.name, username: session.u, avatar: u?.avatar }} />
       <div className="vg-wrap">
         <div className="vg-top">
           <div>
@@ -62,7 +65,6 @@ export default async function VaultHome() {
             <h1 className="vg-h1">The Vault</h1>
             <p className="vg-sub">Everything in one quiet place. Only you can see this.</p>
           </div>
-          <VaultLogout />
         </div>
 
         <div className="vg-tiles">

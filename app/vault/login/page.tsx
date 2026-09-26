@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Lock, Loader2, ArrowLeft } from 'lucide-react'
+import { Logo } from '@/components/vault/vault-chrome'
 
 type Mode = 'signin' | 'reset-request' | 'reset-verify'
 
@@ -31,8 +32,9 @@ export default function VaultLogin() {
     try { if (new URLSearchParams(window.location.search).get('reason') === 'idle') setNotice('You were signed out after 25 minutes of inactivity. Please sign in again.') } catch { /* ignore */ }
   }, [])
 
-  const HEADING = { fontFamily: 'var(--font-heading)' } as const
-  const inputCls = 'mt-2 w-full border border-ink-300 bg-paper px-3 py-2.5 text-sm outline-none transition-colors focus:border-signal-500'
+  // Same glass, themes and type as the rest of the vault.
+  const inputCls = 'vg-input'
+  const errBox = { padding: '0.55rem 0.75rem', borderRadius: 10, fontSize: '0.85rem', background: 'color-mix(in srgb, var(--vg-neg) 12%, transparent)', color: 'var(--vg-neg)' } as const
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -81,53 +83,51 @@ export default function VaultLogin() {
   }
 
   return (
-    <div className="flex min-h-[75vh] items-center justify-center bg-paper-dim px-6 py-20">
-      <div className="w-full max-w-sm border border-ink-200 bg-paper p-10">
+    <div className="vg vg-login" style={{ display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+      <div className="vg-card" style={{ width: 'min(400px, 100%)', padding: 'clamp(1.6rem, 5vw, 2.4rem)' }}>
 
-        <div className="mb-7 flex h-11 w-11 items-center justify-center bg-signal-500 text-paper">
-          <Lock className="h-5 w-5" aria-hidden="true" />
-        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.4rem' }}><Logo href="/vault" /></div>
 
-        <span className="label text-signal-500">Restricted</span>
-        <h1 className="heading mt-2 text-3xl">
+        <span className="vg-eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Private</span>
+        <h1 className="vg-h1" style={{ fontSize: '1.7rem' }}>
           {mode === 'signin' ? 'Vault sign in' : 'Reset password'}
         </h1>
-        <p className="mt-2 text-sm text-ink-500">
+        <p className="vg-sub">
           {mode === 'signin'
-            ? 'Private file storage. Authorised access only.'
+            ? 'The Lamba family’s private vault.'
             : mode === 'reset-request'
               ? 'Enter your username and we’ll email you a one-time code.'
               : `Enter the code we sent${emailHint ? ' to ' + emailHint : ''} and a new password.`}
         </p>
 
         {notice && (
-          <p className="mt-5 border-l-2 border-emerald-500 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p style={{ marginTop: '1rem', padding: '0.55rem 0.75rem', borderRadius: 10, fontSize: '0.85rem', background: 'color-mix(in srgb, var(--vg-pos) 12%, transparent)', color: 'var(--vg-pos)' }}>
             {notice}
           </p>
         )}
 
         {/* ---- Sign in ---- */}
         {mode === 'signin' && (
-          <form onSubmit={submit} className="mt-8 space-y-5">
+          <form onSubmit={submit} style={{ marginTop: '1.5rem', display: 'grid', gap: '0.9rem' }}>
             <div>
-              <label htmlFor="u" className="label block text-ink-500">Username</label>
+              <label htmlFor="u" className="vg-lbl">Username</label>
               <input id="u" required autoComplete="username" autoFocus value={username}
-                onChange={e => setUsername(e.target.value)} style={HEADING} className={inputCls} />
+                onChange={e => setUsername(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label htmlFor="p" className="label block text-ink-500">Password</label>
+              <label htmlFor="p" className="vg-lbl">Password</label>
               <input id="p" type="password" required autoComplete="current-password" value={password}
-                onChange={e => setPassword(e.target.value)} style={HEADING} className={inputCls} />
+                onChange={e => setPassword(e.target.value)} className={inputCls} />
             </div>
             {error && (
-              <p className="border-l-2 border-signal-500 bg-signal-50 px-3 py-2 text-sm text-signal-700">{error}</p>
+              <p style={errBox}>{error}</p>
             )}
-            <button type="submit" disabled={busy} className="btn-signal w-full justify-center disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <button type="submit" disabled={busy} className="vg-btn vg-btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '0.65rem' }}>
+              {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : null}
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
             <button type="button" onClick={() => goto('reset-request')}
-              className="w-full text-center text-sm text-signal-600 hover:underline">
+              className="vg-btn vg-btn-ghost" style={{ justifyContent: 'center' }}>
               Forgot password?
             </button>
           </form>
@@ -135,21 +135,21 @@ export default function VaultLogin() {
 
         {/* ---- Reset: request code ---- */}
         {mode === 'reset-request' && (
-          <form onSubmit={requestOtp} className="mt-8 space-y-5">
+          <form onSubmit={requestOtp} style={{ marginTop: '1.5rem', display: 'grid', gap: '0.9rem' }}>
             <div>
-              <label htmlFor="ru" className="label block text-ink-500">Username</label>
+              <label htmlFor="ru" className="vg-lbl">Username</label>
               <input id="ru" required autoFocus value={username}
-                onChange={e => setUsername(e.target.value)} style={HEADING} className={inputCls} />
+                onChange={e => setUsername(e.target.value)} className={inputCls} />
             </div>
             {error && (
-              <p className="border-l-2 border-signal-500 bg-signal-50 px-3 py-2 text-sm text-signal-700">{error}</p>
+              <p style={errBox}>{error}</p>
             )}
-            <button type="submit" disabled={busy} className="btn-signal w-full justify-center disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <button type="submit" disabled={busy} className="vg-btn vg-btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '0.65rem' }}>
+              {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : null}
               {busy ? 'Sending…' : 'Email me a code'}
             </button>
             <button type="button" onClick={() => goto('signin')}
-              className="flex w-full items-center justify-center gap-1 text-sm text-ink-500 hover:underline">
+              className="vg-btn vg-btn-ghost" style={{ justifyContent: 'center' }}>
               <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
             </button>
           </form>
@@ -157,30 +157,30 @@ export default function VaultLogin() {
 
         {/* ---- Reset: verify code + new password ---- */}
         {mode === 'reset-verify' && (
-          <form onSubmit={resetPassword} className="mt-8 space-y-5">
+          <form onSubmit={resetPassword} style={{ marginTop: '1.5rem', display: 'grid', gap: '0.9rem' }}>
             <div>
-              <label htmlFor="otp" className="label block text-ink-500">6-digit code</label>
+              <label htmlFor="otp" className="vg-lbl">6-digit code</label>
               <input id="otp" required autoFocus inputMode="numeric" maxLength={6} value={otp}
                 onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                style={HEADING} className={inputCls + ' tracking-[0.4em]'} placeholder="000000" />
+                className={inputCls}  placeholder="000000" />
             </div>
             <div>
-              <label htmlFor="np" className="label block text-ink-500">New password</label>
+              <label htmlFor="np" className="vg-lbl">New password</label>
               <input id="np" type="password" required minLength={6} autoComplete="new-password" value={newPass}
-                onChange={e => setNewPass(e.target.value)} style={HEADING} className={inputCls} />
+                onChange={e => setNewPass(e.target.value)} className={inputCls} />
             </div>
             {error && (
-              <p className="border-l-2 border-signal-500 bg-signal-50 px-3 py-2 text-sm text-signal-700">{error}</p>
+              <p style={errBox}>{error}</p>
             )}
-            <button type="submit" disabled={busy} className="btn-signal w-full justify-center disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <button type="submit" disabled={busy} className="vg-btn vg-btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '0.65rem' }}>
+              {busy ? <Loader2 className="h-4 w-4 vg-spin" /> : null}
               {busy ? 'Saving…' : 'Set new password'}
             </button>
-            <div className="flex items-center justify-between text-sm">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <button type="button" onClick={() => goto('reset-request')}
-                className="text-ink-500 hover:underline">Resend code</button>
+                className="vg-btn vg-btn-ghost">Resend code</button>
               <button type="button" onClick={() => goto('signin')}
-                className="text-ink-500 hover:underline">Back to sign in</button>
+                className="vg-btn vg-btn-ghost">Back to sign in</button>
             </div>
           </form>
         )}
