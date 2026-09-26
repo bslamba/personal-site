@@ -172,23 +172,21 @@ function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; o
   )
 }
 
-/** The menu-bar clock, as macOS shows it: "Sat 26 Sep 3:49 pm". */
-function MenuClock() {
-  const now = useSyncExternalStore(
-    cb => { const t = setInterval(cb, 15_000); return () => clearInterval(t) },
-    () => Math.floor(Date.now() / 15_000), () => 0)
-  if (!now) return null
-  const d = new Date(now * 15_000)
-  return (
-    <span className="vg-clock">
-      {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}&nbsp;&nbsp;{d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
-    </span>
-  )
-}
-
 // ---------- Control Centre --------------------------------------
 function ControlCentre() {
   const [open, setOpen] = useState(false)
+  const [at, setAt] = useState<React.CSSProperties>({})
+  // Open beside the button, on whichever side of the screen has room.
+  const toggle = () => {
+    const r = btn.current?.getBoundingClientRect()
+    if (r && !open) {
+      const onLeft = r.left + r.width / 2 < window.innerWidth / 2
+      const top = Math.max(10, Math.min(r.top - 40, window.innerHeight - 520))
+      const maxHeight = window.innerHeight - top - 10
+      setAt(onLeft ? { left: r.right + 12, top, maxHeight } : { right: window.innerWidth - r.left + 12, top, maxHeight })
+    }
+    setOpen(o => !o)
+  }
   const theme = usePref(THEME_KEY, DEFAULT_THEME)
   const sound = usePref(SOUND_KEY, 'on') !== 'off'
   const motion = usePref(MOTION_KEY, 'on') !== 'off'
@@ -223,11 +221,11 @@ function ControlCentre() {
 
   return (
     <>
-      <button ref={btn} className="vg-cc-btn" data-on={open} onClick={() => setOpen(o => !o)} aria-label="Appearance" aria-expanded={open} title="Appearance">
+      <button ref={btn} className="vg-cc-btn" data-on={open} onClick={toggle} aria-label="Appearance" aria-expanded={open} title="Appearance">
         <SlidersHorizontal className="h-4 w-4" />
       </button>
       {open && (
-        <div ref={panel} className="vg-cc" role="dialog" aria-label="Appearance">
+        <div ref={panel} className="vg-cc" style={at} role="dialog" aria-label="Appearance">
           <h4>Light</h4>
           {swatches(light)}
           <h4 style={{ marginTop: 14 }}>Dark</h4>
@@ -299,7 +297,7 @@ export function SignOutButton({ name }: { name?: string }) {
 }
 
 // ---------- the bar ----------------------------------------------
-export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, homeHref = '/vault', status }: {
+export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, status }: {
   items: DockItem[]; active?: string; onPick?: (id: string) => void
   me?: BarUser; onProfile?: () => void; profileOn?: boolean; homeHref?: string
   status?: 'idle' | 'saving' | 'saved' | 'conflict'
@@ -325,22 +323,81 @@ export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, h
   const first = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
     <>
-    <header className="vg-topbar">
-      <div className="vg-topbar-left"><Logo href={homeHref} /></div>
-      <div className="vg-topbar-right">
-        <MenuClock />
-        <span aria-live="polite" style={{ display: 'inline-flex', minWidth: 16, color: 'var(--vg-ink-faint)' }}>
-          {status === 'saving' && <Loader2 className="h-4 w-4 vg-spin" aria-label="Saving" />}
-          {status === 'saved' && <Check className="h-4 w-4" style={{ color: 'var(--vg-pos)' }} aria-label="Saved" />}
-          {status === 'conflict' && <span className="vg-chip" style={{ color: 'var(--vg-neg)', background: 'color-mix(in srgb, var(--vg-neg) 14%, transparent)' }} title="Someone else changed the sheet while this page was open. Their version is now loaded, so your last edit was not saved — please make it again.">Redo last edit</span>}
-        </span>
+      <Dock items={items} active={active} onPick={onPick} />
+      <FloatingControls status={status}>
         <ControlCentre />
         {me && <AvatarButton me={me} onClick={onProfile} on={profileOn} />}
         <SignOutButton name={first} />
-      </div>
-    </header>
-    <Dock items={items} active={active} onPick={onPick} />
+      </FloatingControls>
     </>
+  )
+}
+
+// ---------- the floating control strip ------------------------------
+const POS_KEY = 'vg-controls-pos'
+/** Appearance, profile and sign-out on a small vertical strip that floats
+ *  on the left edge by default and can be dragged anywhere by its grip.
+ *  Where it was left is remembered (as a fraction of the screen, so it
+ *  stays on screen when the window is resized). */
+function FloatingControls({ status, children }: { status?: 'idle' | 'saving' | 'saved' | 'conflict'; children: React.ReactNode }) {
+  const pos = usePref(POS_KEY, '')
+  const ref = useRef<HTMLDivElement | null>(null)
+  const drag = useRef<{ dx: number; dy: number } | null>(null)
+  const [fx, fy] = pos ? pos.split(',').map(Number) : [NaN, NaN]
+  const placed = Number.isFinite(fx) && Number.isFinite(fy)
+  const style: React.CSSProperties = placed
+    ? { left: `calc((100vw - var(--vg-fc-w)) * ${fx})`, top: `calc((100dvh - var(--vg-fc-h)) * ${fy})` }
+    : { left: 12, top: 'calc(50dvh - var(--vg-fc-h) / 2)' }
+
+  const where = (clientX: number, clientY: number) => {
+    const el = ref.current!
+    const w = el.offsetWidth, h = el.offsetHeight
+    const x = Math.max(0, Math.min(window.innerWidth - w, clientX - (drag.current?.dx ?? 0)))
+    const y = Math.max(0, Math.min(window.innerHeight - h, clientY - (drag.current?.dy ?? 0)))
+    return { x, y, fx: x / Math.max(1, window.innerWidth - w), fy: y / Math.max(1, window.innerHeight - h) }
+  }
+  const onDown = (e: React.PointerEvent) => {
+    const r = ref.current!.getBoundingClientRect()
+    drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    ref.current!.dataset.dragging = 'true'
+  }
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current) return
+    const { x, y } = where(e.clientX, e.clientY)
+    ref.current!.style.left = `${x}px`; ref.current!.style.top = `${y}px`
+  }
+  const onUp = (e: React.PointerEvent) => {
+    if (!drag.current) return
+    const { fx: nx, fy: ny } = where(e.clientX, e.clientY)
+    drag.current = null
+    delete ref.current!.dataset.dragging
+    write(POS_KEY, `${nx.toFixed(4)},${ny.toFixed(4)}`); notify()
+  }
+  // Keyboard: arrow keys on the grip nudge it; Home puts it back.
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = 0.04
+    let [x, y] = placed ? [fx, fy] : [0, 0.5]
+    if (e.key === 'ArrowLeft') x -= step; else if (e.key === 'ArrowRight') x += step
+    else if (e.key === 'ArrowUp') y -= step; else if (e.key === 'ArrowDown') y += step
+    else if (e.key === 'Home') { write(POS_KEY, ''); notify(); return } else return
+    e.preventDefault()
+    write(POS_KEY, `${Math.max(0, Math.min(1, x)).toFixed(4)},${Math.max(0, Math.min(1, y)).toFixed(4)}`); notify()
+  }
+
+  return (
+    <div ref={ref} className="vg-fc" style={style} role="toolbar" aria-orientation="vertical" aria-label="Your controls">
+      <button className="vg-fc-grip" aria-label="Move these controls (drag, or use the arrow keys)" title="Drag to move"
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onKeyDown={onKey} onDoubleClick={() => { write(POS_KEY, ''); notify() }}>
+        <span /><span /><span /><span /><span /><span />
+      </button>
+      {children}
+      <span className="vg-fc-status" aria-live="polite">
+        {status === 'saving' && <Loader2 className="h-3.5 w-3.5 vg-spin" aria-label="Saving" />}
+        {status === 'saved' && <Check className="h-3.5 w-3.5" style={{ color: 'var(--vg-pos)' }} aria-label="Saved" />}
+        {status === 'conflict' && <span title="Someone else changed the sheet while this page was open. Their version is now loaded, so your last edit was not saved — please make it again." style={{ color: 'var(--vg-neg)', fontWeight: 800 }}>!</span>}
+      </span>
+    </div>
   )
 }
 

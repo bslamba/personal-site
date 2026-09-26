@@ -1980,9 +1980,9 @@ body:has(.bday-root) .wa-float { display: none !important; }
 /* The finance dashboard ships its own app bar (Shell) — tabs plus
    sign-out — once you're logged in, so the site's black nav bar
    (Profile / Experience / Journal / Tools) has no business on top of it. */
-body:has(.vg-root), body:has(.vg-login) { padding-top: 0; }
-body:has(.vg-root) > header.brand-bar, body:has(.vg-login) > header.brand-bar { display: none !important; }
-body:has(.vg-login) > footer { display: none !important; }
+body:has(.vg-scope), body:has(.vg-root) { padding-top: 0; }
+body:has(.vg-scope) > header.brand-bar, body:has(.vg-scope) > footer,
+body:has(.vg-root) > header.brand-bar { display: none !important; }
 
 /* A member's profile is the finance app and nothing else, so the site
    footer goes too. The super keeps it — the vault is one stop of many
@@ -1996,7 +1996,7 @@ body:has(.vg-member) > footer { display: none !important; }
    them per theme); nothing here hard-codes a text or surface colour, which
    is what keeps every theme readable.
    ============================================================ */
-body:has(.vg) .wa-float { display: none !important; }
+body:has(.vg-scope) .wa-float { display: none !important; }
 
 .vg {
   --vg-bar-h: 48px;
@@ -2104,25 +2104,12 @@ body:has(.vg) .wa-float { display: none !important; }
 .vg .vg-subtab[data-on="true"] { background: var(--vg-solid); color: var(--vg-ink); box-shadow: 0 3px 10px -4px var(--vg-shadow); }
 
 /* ============================================================
-   macOS chrome: a slim menu bar across the top, and the Dock — a glass
-   shelf floating at the bottom of the screen.
+   The Dock — a glass shelf floating at the top of the screen — and a small
+   vertical strip of personal controls that floats wherever it is put.
    ============================================================ */
-.vg-topbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 50; height: var(--vg-bar-h);
-  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-  padding: 0 clamp(0.7rem, 2vw, 1.3rem);
-  background: color-mix(in srgb, var(--vg-solid) 62%, transparent);
-  backdrop-filter: blur(30px) saturate(190%); -webkit-backdrop-filter: blur(30px) saturate(190%);
-  border-bottom: 1px solid color-mix(in srgb, var(--vg-ink) 9%, transparent);
-}
-.vg-topbar-left { display: flex; align-items: center; min-width: 0; }
-.vg-topbar-right { display: flex; align-items: center; gap: 0.6rem; }
-.vg-clock { font-size: 13px; font-weight: 500; color: var(--vg-ink); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: 0.01em; }
-@media (max-width: 640px) { .vg-clock { display: none; } }
-
 .vg-dock {
-  position: fixed; left: 50%; bottom: calc(8px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 50;
-  display: flex; align-items: flex-end; gap: 6px; padding: 6px 8px 8px;
+  position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 50;
+  display: flex; align-items: flex-start; gap: 6px; padding: 8px 8px 7px;
   max-width: calc(100vw - 16px);
   border-radius: 22px;
   background: color-mix(in srgb, var(--vg-solid) 42%, transparent);
@@ -2132,7 +2119,7 @@ body:has(.vg) .wa-float { display: none !important; }
 }
 .vg-dock-item {
   position: relative; flex: 0 0 auto; width: 50px; height: 50px; border: 0; padding: 0; background: none; cursor: pointer;
-  transform-origin: bottom center; transform: scale(var(--s, 1)); margin: 0 calc((var(--s, 1) - 1) * 25px);
+  transform-origin: top center; transform: scale(var(--s, 1)); margin: 0 calc((var(--s, 1) - 1) * 25px);
   transition: transform 0.14s cubic-bezier(.2,.8,.2,1), margin 0.14s cubic-bezier(.2,.8,.2,1);
   text-decoration: none; -webkit-tap-highlight-color: transparent;
 }
@@ -2144,13 +2131,13 @@ body:has(.vg) .wa-float { display: none !important; }
 /* The dot under an open app. */
 .vg-dock-item[data-on="true"]::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 4px; height: 4px; border-radius: 50%; background: var(--vg-ink); opacity: 0.8; transform: translateX(-50%) scale(calc(1 / var(--s, 1))); }
 .vg-dock-item[data-bounce="true"] .vg-app { animation: vg-launch 0.7s cubic-bezier(.3,.7,.4,1); }
-@keyframes vg-launch { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-14px); } 55% { transform: translateY(0); } 75% { transform: translateY(-5px); } }
+@keyframes vg-launch { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(12px); } 55% { transform: translateY(0); } 75% { transform: translateY(4px); } }
 .vg-dock-badge { position: absolute; top: -5px; right: -6px; z-index: 2; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: #d70015; color: #fff; font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.35); transform: scale(calc(1 / var(--s, 1))); transform-origin: top right; }
 .vg-dock-sep { flex: 0 0 auto; align-self: center; width: 1px; height: 42px; margin: 0 4px; background: color-mix(in srgb, var(--vg-ink) 22%, transparent); }
 /* The name, above the icon, as the Dock shows it. */
 .vg-dock-tip {
-  position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) scale(calc(1 / var(--s, 1)));
-  transform-origin: bottom center; white-space: nowrap; pointer-events: none;
+  position: absolute; top: calc(100% + 14px); left: 50%; transform: translateX(-50%) scale(calc(1 / var(--s, 1)));
+  transform-origin: top center; white-space: nowrap; pointer-events: none;
   padding: 4px 10px; border-radius: 7px; font-size: 13px; font-weight: 500;
   background: color-mix(in srgb, var(--vg-solid) 88%, transparent); color: var(--vg-ink);
   border: 1px solid color-mix(in srgb, var(--vg-ink) 14%, transparent);
@@ -2159,7 +2146,7 @@ body:has(.vg) .wa-float { display: none !important; }
 }
 .vg-dock-item:hover .vg-dock-tip, .vg-dock-item:focus-visible .vg-dock-tip { opacity: 1; }
 .vg-dock-lbl { display: none; }
-.vg-root { padding-bottom: 104px; }
+.vg-root { padding-top: calc(86px + env(safe-area-inset-top)); }
 
 /* Phones: the Dock scrolls sideways and names its icons, like a home screen. */
 @media (max-width: 760px) {
@@ -2172,13 +2159,43 @@ body:has(.vg) .wa-float { display: none !important; }
   .vg-dock-item[data-on="true"] .vg-dock-lbl { color: var(--vg-ink); }
   .vg-dock-item[data-on="true"]::after { display: none; }
   .vg-dock-sep { height: 36px; }
-  .vg-root { padding-bottom: 7.5rem; }
+  .vg-root { padding-top: calc(96px + env(safe-area-inset-top)); }
 }
+
+/* ---------- The floating control strip ---------- */
+.vg { --vg-fc-w: 50px; --vg-fc-h: 190px; }
+.vg-fc {
+  position: fixed; z-index: 55; width: var(--vg-fc-w); height: var(--vg-fc-h);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 9px; padding: 6px 0 10px;
+  border-radius: 25px;
+  background: color-mix(in srgb, var(--vg-solid) 55%, transparent);
+  backdrop-filter: blur(30px) saturate(190%); -webkit-backdrop-filter: blur(30px) saturate(190%);
+  border: 1px solid color-mix(in srgb, var(--vg-ink) 12%, transparent);
+  box-shadow: 0 16px 36px -14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+  transition: box-shadow 0.2s, transform 0.2s;
+  touch-action: none;
+}
+.vg-fc[data-dragging="true"] { transform: scale(1.05); box-shadow: 0 26px 50px -16px rgba(0,0,0,0.55); transition: none; }
+.vg-fc-grip { display: grid; grid-template-columns: repeat(2, 4px); gap: 3px; padding: 5px 8px; border: 0; background: none; cursor: grab; border-radius: 8px; }
+.vg-fc-grip span { width: 4px; height: 4px; border-radius: 50%; background: color-mix(in srgb, var(--vg-ink) 38%, transparent); }
+.vg-fc-grip:hover span { background: var(--vg-ink-soft); }
+.vg-fc-grip:active { cursor: grabbing; }
+.vg-fc-grip:focus-visible { outline: 2px solid var(--vg-accent); outline-offset: 1px; }
+.vg-fc .vg-cc-btn { width: 34px; height: 34px; border-radius: 50%; }
+.vg-fc .vg-power { width: 34px; height: 34px; min-width: 34px; padding: 0; justify-content: center; }
+.vg-fc .vg-power:hover { gap: 0; padding: 0; }
+.vg-fc .vg-power-lbl { display: none; }
+.vg-fc-status { display: grid; place-items: center; min-height: 14px; color: var(--vg-ink-faint); font-size: 12px; }
+@media (max-width: 520px) { .vg-cc { left: 10px !important; right: 10px !important; width: auto; } }
 
 /* ---------- Logo: a signature, with FAMILY engraved beneath ---------- */
 .vg-logo { position: relative; display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; line-height: 1; user-select: none; padding: 0 6px; }
 .vg-logo-sign {
-  font-size: 34px; line-height: 0.86; padding: 0 5px;
+  font-size: 34px; line-height: 1;
+  /* The script's swashes reach well outside its letter box, and a gradient
+     clipped to the text only paints inside the padding box — so the box is
+     padded out generously and the padding cancelled with negative margins. */
+  padding: 0.22em 0.35em 0.28em 0.6em; margin: -0.22em -0.35em -0.28em -0.6em;
   background: linear-gradient(100deg, var(--vg-accent) 0%, color-mix(in srgb, var(--vg-accent) 55%, var(--vg-ink)) 60%, var(--vg-accent) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--vg-solid) 70%, transparent));
@@ -2201,11 +2218,11 @@ body:has(.vg) .wa-float { display: none !important; }
 .vg-cc-btn { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--vg-line); background: color-mix(in srgb, var(--vg-solid) 70%, transparent); color: var(--vg-ink-soft); cursor: pointer; transition: all 0.2s; }
 .vg-cc-btn:hover, .vg-cc-btn[data-on="true"] { color: var(--vg-accent); transform: translateY(-1px); box-shadow: 0 6px 14px -8px var(--vg-shadow); }
 .vg-cc {
-  position: fixed; top: calc(var(--vg-bar-h) + 8px); right: clamp(0.6rem, 2vw, 1.25rem); z-index: 55; width: min(340px, calc(100vw - 20px));
+  position: fixed; top: 80px; z-index: 56; width: min(340px, calc(100vw - 20px));
   padding: 14px; border-radius: 20px; background: color-mix(in srgb, var(--vg-solid) 86%, transparent);
   backdrop-filter: blur(30px) saturate(190%); -webkit-backdrop-filter: blur(30px) saturate(190%);
   border: 1px solid var(--vg-line); box-shadow: 0 30px 70px -28px rgba(0,0,0,0.5);
-  animation: vg-pop-in 0.22s cubic-bezier(.2,.8,.2,1) both; max-height: calc(100dvh - var(--vg-bar-h) - 24px); overflow-y: auto;
+  animation: vg-pop-in 0.22s cubic-bezier(.2,.8,.2,1) both; max-height: calc(100dvh - 20px); overflow-y: auto;
 }
 @keyframes vg-pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: none; } }
 .vg-cc h4 { margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--vg-ink-faint); font-weight: 700; }
@@ -2255,7 +2272,9 @@ body:has(.vg) .wa-float { display: none !important; }
 .vg-shutdown .ring line { stroke: #fff; stroke-width: 5; stroke-linecap: round; animation: vg-flicker 0.9s ease 0.2s both; }
 .vg-shutdown p { margin: 14px 0 0; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.01em; opacity: 0; animation: vg-fade-in 0.4s ease 0.35s forwards; }
 .vg-shutdown small { display: block; margin-top: 4px; opacity: 0.65; font-size: 0.78rem; }
-.vg-shutting .vg-wrap, .vg-shutting .vg-topbar, .vg-shutting .vg-dock { transition: transform 0.7s cubic-bezier(.6,0,.4,1), filter 0.7s, opacity 0.7s; transform: scale(0.94); filter: blur(6px) saturate(0.4); opacity: 0.35; }
+.vg-shutting .vg-wrap { transition: transform 0.7s cubic-bezier(.6,0,.4,1), filter 0.7s, opacity 0.7s; transform: scale(0.94); filter: blur(6px) saturate(0.4); opacity: 0.35; }
+/* The Dock and the strip are positioned with transforms, so they only fade. */
+.vg-shutting .vg-dock, .vg-shutting .vg-fc { transition: filter 0.7s, opacity 0.7s; filter: blur(6px) saturate(0.4); opacity: 0.3; }
 @keyframes vg-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes vg-power-in { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
 @keyframes vg-ring { to { stroke-dashoffset: 40; } }

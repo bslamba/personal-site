@@ -45,7 +45,9 @@ export default function VaultLogin() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setError(data.error ?? 'Sign in failed'); setBusy(false); return }
-    router.push('/vault'); router.refresh()
+    // Straight to where they belong — members to Finance — so there is no
+    // stop at /vault and its redirect on the way.
+    router.replace(data.role === 'super' ? '/vault' : '/vault/finance'); router.refresh()
   }
 
   async function requestOtp(e: React.FormEvent) {
