@@ -19,13 +19,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { Bungee, Sedgwick_Ave } from 'next/font/google'
+import { Great_Vibes, Cinzel } from 'next/font/google'
+import { AppIcon } from '@/components/vault/dock-icons'
 import { Power, Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
 import { VAULT_THEMES, DEFAULT_THEME, THEME_KEY } from '@/lib/vault-themes'
 
-// A graffiti hand-style tag for the name, and a hip-hop block face for the crew plate.
-const tag = Sedgwick_Ave({ subsets: ['latin'], weight: '400', display: 'swap' })
-const bungee = Bungee({ subsets: ['latin'], weight: '400', display: 'swap' })
+// The logo: a hand signature, and engraved Roman capitals beneath it.
+const signature = Great_Vibes({ subsets: ['latin'], weight: '400', display: 'swap' })
+const roman = Cinzel({ subsets: ['latin'], weight: ['500'], display: 'swap' })
 
 // ---------- preferences (per browser) ---------------------------
 const SOUND_KEY = 'vg-sound'
@@ -100,37 +101,26 @@ export function sfx(kind: 'tick' | 'pop' | 'power') {
 }
 
 // ---------- Logo -------------------------------------------------
+/** "Lamba" signed by hand, with a signature flourish beneath and FAMILY in
+ *  engraved capitals between two hairlines — a signet, not a sticker. */
 export function Logo({ href = '/vault' }: { href?: string }) {
-  // "Lamba" as a street tag — quote ticks, a halo and an underline swoosh,
-  // the way a writer signs a wall — with FAMILY on a crew plate beneath.
   return (
     <Link href={href} className="vg-logo" aria-label="Lamba Family — home">
-      <span className="vg-logo-tagline">
-        <span className={`vg-logo-tick ${tag.className}`} aria-hidden="true">,,</span>
-        <span className={`vg-logo-tag ${tag.className}`}>Lamba</span>
-        <span className={`vg-logo-tick end ${tag.className}`} aria-hidden="true">&quot;</span>
-        <span className="vg-logo-halo" aria-hidden="true" />
-        <svg className="vg-logo-swoosh" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M2 8 C 22 2, 48 11, 70 6 S 94 3, 98 5" />
-        </svg>
-      </span>
-      <span className={`vg-logo-crew ${bungee.className}`}>Family</span>
+      <span className={`vg-logo-sign ${signature.className}`}>Lamba</span>
+      <svg className="vg-logo-flourish" viewBox="0 0 120 14" aria-hidden="true">
+        <path d="M4 9.5C24 3 52 12.5 78 7.5S112 3.5 117 5.5" />
+      </svg>
+      <span className={`vg-logo-family ${roman.className}`}>Family</span>
     </Link>
   )
 }
 
 // ---------- Dock -------------------------------------------------
-/** Apple system colours, light to deep — one per app in the Dock. */
-const APP_COLORS: Record<string, [string, string, string?]> = {
-  month: ['#64d2ff', '#0a7cff'], settle: ['#5fe07d', '#1fa244'], year: ['#ffc15a', '#ff8a00'],
-  loans: ['#8e8bff', '#4f4ad8'], tags: ['#ff7aa2', '#ff2d55'], savings: ['#6ee7d8', '#12a3b4'],
-  import: ['#ffe066', '#ffb800', '#3d2c00'], setup: ['#ff8a80', '#ff3b30'], approvals: ['#df9bff', '#a24bd9'],
-  access: ['#7ef0c9', '#00b89c'], entities: ['#b8bec8', '#5b626d'], profile: ['#9aa6ff', '#5b6cff'],
-  home: ['#9aa6ff', '#5b6cff'], finance: ['#7b8bff', '#6d4bd8'], photos: ['#ffb36b', '#ff5e7e'], files: ['#6cc6ff', '#2f6fe0'],
-}
+export interface DockItem { id: string; label: string; icon: LucideIcon; badge?: number; href?: string; sep?: boolean }
 
-export interface DockItem { id: string; label: string; icon: LucideIcon; badge?: number; href?: string }
-
+/** The macOS Dock: a glass shelf at the bottom of the screen whose icons
+ *  swell under the cursor, name themselves above, bounce when opened and
+ *  keep a dot under whichever is open. */
 function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; onPick?: (id: string) => void }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const centres = useRef<number[]>([])
@@ -146,13 +136,13 @@ function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; o
     if (!centres.current.length) measure()
     kids().forEach((k, i) => {
       const d = Math.abs(x - (centres.current[i] ?? 0))
-      const s = d < 120 ? 1 + 0.55 * (Math.cos((d / 120) * Math.PI) + 1) / 2 : 1
+      const s = d < 150 ? 1 + 0.62 * (Math.cos((d / 150) * Math.PI) + 1) / 2 : 1
       k.style.setProperty('--s', s.toFixed(3))
     })
   }
   const pick = (id: string) => {
     sfx('tick')
-    if (!motionOff()) { setBounce(id); setTimeout(() => setBounce(b => (b === id ? null : b)), 650) }
+    if (!motionOff()) { setBounce(id); setTimeout(() => setBounce(b => (b === id ? null : b)), 700) }
     onPick?.(id)
   }
 
@@ -160,22 +150,39 @@ function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; o
     <nav ref={ref} className="vg-dock" aria-label="Sections"
       onMouseEnter={() => { reset(); measure() }} onMouseMove={e => move(e.clientX)} onMouseLeave={() => { reset(); centres.current = [] }}>
       {items.map(it => {
-        const [c1, c2, glyph] = APP_COLORS[it.id] ?? ['#9aa6ff', '#5b6cff']
-        const I = it.icon
         const inner = (
           <>
-            <span className="vg-app" style={{ '--c1': c1, '--c2': c2, '--glyph': glyph ?? '#fff' } as React.CSSProperties}><I strokeWidth={2.2} /></span>
+            <span className="vg-app"><AppIcon id={it.id} /></span>
             {!!it.badge && <span className="vg-dock-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
             <span className="vg-dock-tip">{it.label}</span>
             <span className="vg-dock-lbl">{it.label}</span>
           </>
         )
         const common = { className: 'vg-dock-item', 'data-on': active === it.id, 'data-bounce': bounce === it.id, 'aria-label': it.label, 'aria-current': active === it.id ? ('page' as const) : undefined }
-        return it.href
-          ? <Link key={it.id} href={it.href} {...common} onClick={() => sfx('tick')}>{inner}</Link>
-          : <button key={it.id} type="button" {...common} onClick={() => pick(it.id)}>{inner}</button>
+        return (
+          <span key={it.id} style={{ display: 'contents' }}>
+            {it.sep && <span className="vg-dock-sep" aria-hidden="true" />}
+            {it.href
+              ? <Link href={it.href} {...common} onClick={() => sfx('tick')}>{inner}</Link>
+              : <button type="button" {...common} onClick={() => pick(it.id)}>{inner}</button>}
+          </span>
+        )
       })}
     </nav>
+  )
+}
+
+/** The menu-bar clock, as macOS shows it: "Sat 26 Sep 3:49 pm". */
+function MenuClock() {
+  const now = useSyncExternalStore(
+    cb => { const t = setInterval(cb, 15_000); return () => clearInterval(t) },
+    () => Math.floor(Date.now() / 15_000), () => 0)
+  if (!now) return null
+  const d = new Date(now * 15_000)
+  return (
+    <span className="vg-clock">
+      {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}&nbsp;&nbsp;{d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
+    </span>
   )
 }
 
@@ -317,10 +324,11 @@ export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, h
 
   const first = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
+    <>
     <header className="vg-topbar">
       <div className="vg-topbar-left"><Logo href={homeHref} /></div>
-      <Dock items={items} active={active} onPick={onPick} />
       <div className="vg-topbar-right">
+        <MenuClock />
         <span aria-live="polite" style={{ display: 'inline-flex', minWidth: 16, color: 'var(--vg-ink-faint)' }}>
           {status === 'saving' && <Loader2 className="h-4 w-4 vg-spin" aria-label="Saving" />}
           {status === 'saved' && <Check className="h-4 w-4" style={{ color: 'var(--vg-pos)' }} aria-label="Saved" />}
@@ -331,6 +339,8 @@ export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, h
         <SignOutButton name={first} />
       </div>
     </header>
+    <Dock items={items} active={active} onPick={onPick} />
+    </>
   )
 }
 

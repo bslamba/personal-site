@@ -24,13 +24,14 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
-import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateOp, materialise, monthKey, uid, paymentsFor, isUpiId,
+import { migrate, approversFor, isPersonalTo, commitProposalItem, materialise, monthKey, uid, paymentsFor, isUpiId,
          currentOf, revertIsSafe, applyRevert, type AuditChange,
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
 import { readRaw, writeDoc as saveDoc, viewFor, viewForGrant } from '../route'
 import { keepFinalSheets } from '../sheets'
 import { activeDelegation, can, isLiquid, ACCESS_AREAS, ACCESS_OPS, ACCESS_LABEL,
+         applyTemplateOpRanged, describeRange, validRange, pushBudget, resetMonthFromBudget, type IncomeOp, type ResetScope,
          type Delegation, type AccessArea, type AccessOp, type AccessPerms, INR, monthLabel } from '@/lib/finance-data'
 import { getUsers } from '@/lib/users'
 import { sendReminderEmail } from '@/lib/mailer'
@@ -72,6 +73,7 @@ function permFor(body: Record<string, unknown>, doc: FinanceDoc): { area: Access
     case 'proposeTemplate': return { area: loanOr('expenses'), op: body.op === 'delete' ? 'delete' : body.op === 'add' && !stored ? 'add' : 'edit' }
     case 'importRows': return { area: 'expenses', op: 'add' }
     case 'setMonthIncome': case 'setTemplateIncome': return { area: 'income', op: 'edit' }
+    case 'resetMonth': return body.scope === 'income' ? { area: 'income', op: 'edit' } : { area: 'expenses', op: 'edit' }
     case 'setSavings': return { area: 'savings', op: 'edit' }          // refined below for investments
     case 'setBudget': return { area: 'budgets', op: 'edit' }
     case 'setUpi': return { area: 'accounts', op: 'edit' }
@@ -264,7 +266,7 @@ export async function POST(request: Request) {
           let ch: AuditChange | undefined
           if (done) {
             // Capture what accepting is about to do, so it can be undone too.
-            if (pr.template) ch = templateChange(pr.template.section, pr.item, pr.template.op === 'delete' ? null : pr.item)
+            if (pr.template && (!pr.range || pr.range.to === null)) ch = templateChange(pr.template.section, pr.item, pr.template.op === 'delete' ? null : pr.item)
             else if (pr.item && !pr.incomeEdit) ch = monthChange(pr.monthKey, pr.monthEdit ? pr.item : { ...pr.item, src: 'manual' }, pr.monthEdit?.op === 'delete' ? null : { ...pr.item, src: pr.monthEdit ? pr.item.src : 'manual' })
             commitProposalItem(doc, pr)
             doc.proposals = doc.proposals.filter(p => p.id !== pr.id)
@@ -321,8 +323,20 @@ export async function POST(request: Request) {
         if (isSuper || !actor) return NextResponse.json({ error: 'Members only' }, { status: 403 })
         const incoming = ((body as unknown as { income?: { id?: string; source?: string; amount?: number }[] }).income ?? [])
           .map(r => ({ id: r.id || uid('inc'), source: r.source || 'Income', amount: Number(r.amount) || 0, entity: actor }))
-        doc.template.income = [...doc.template.income.filter(i => i.entity !== actor), ...incoming]
-        audit('apply', 'Recurring income updated', { personal: true, parties: [actor] })
+        const rawRange = (body as unknown as { range?: unknown }).range
+        const range = rawRange == null ? null : validRange(rawRange)
+        if (rawRange != null && !range) return NextResponse.json({ error: 'Pick a valid range of months.' }, { status: 400 })
+        if (!range) {
+          doc.template.income = [...doc.template.income.filter(i => i.entity !== actor), ...incoming]
+        } else {
+          // Only this person's rows, compared as they were and as they are now.
+          const was = doc.template.income.filter(i => i.entity === actor)
+          const ops: IncomeOp[] = []
+          for (const r of incoming) { const old = was.find(w => w.id === r.id); if (!old) ops.push({ op: 'add', item: r }); else if (old.source !== r.source || old.amount !== r.amount) ops.push({ op: 'update', item: r, before: old }) }
+          for (const old of was) if (!incoming.some(r => r.id === old.id)) ops.push({ op: 'delete', item: old, before: old })
+          pushBudget(doc, [], ops, range)
+        }
+        audit('apply', `Recurring income updated${range ? ` · ${describeRange(range)}` : ''}`, { personal: true, parties: [actor] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
@@ -507,16 +521,21 @@ export async function POST(request: Request) {
       }
 
       case 'proposeTemplate': {
-        const bt = body as unknown as { item?: Item; section?: 'monthly' | 'emis' | 'annual'; op?: 'add' | 'update' | 'delete'; reason?: string }
+        const bt = body as unknown as { item?: Item; section?: 'monthly' | 'emis' | 'annual'; op?: 'add' | 'update' | 'delete'; reason?: string; range?: unknown }
         const item = bt.item, section = bt.section, op = bt.op
         const reason = (bt.reason || '').trim()
         if (!item || !section || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
+        // Which months the change is for. None means the Budget itself, as before.
+        const range = bt.range == null ? null : validRange(bt.range)
+        if (bt.range != null && !range) return NextResponse.json({ error: 'Pick a valid range of months — the end cannot come before the start.' }, { status: 400 })
         if (op === 'add') item.id = item.id || uid(section)
         const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
-        const label = `${op === 'delete' ? 'Remove' : op === 'add' ? 'Add' : 'Change'} recurring · ${shortName(item)}`
+        const label = `${op === 'delete' ? 'Remove' : op === 'add' ? 'Add' : 'Change'} recurring · ${shortName(item)}${range ? ` · ${describeRange(range)}` : ''}`
+        // Only a whole-Budget change can be undone from the history on its own.
+        const undoable = !range || range.to === null
         if (isSuper || personal) {
-          const ch = templateChange(section, item, op === 'delete' ? null : item)
-          applyTemplateOp(doc, section, op, item)
+          const ch = undoable ? templateChange(section, item, op === 'delete' ? null : item) : undefined
+          applyTemplateOpRanged(doc, section, op, item, range)
           audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
@@ -524,8 +543,8 @@ export async function POST(request: Request) {
         if (!actor) return NextResponse.json({ error: 'No entity' }, { status: 400 })
         const { approvers, mode } = approversFor(item, actor, doc.entities)
         if (approvers.length === 0) {
-          const ch = templateChange(section, item, op === 'delete' ? null : item)
-          applyTemplateOp(doc, section, op, item)
+          const ch = undoable ? templateChange(section, item, op === 'delete' ? null : item) : undefined
+          applyTemplateOpRanged(doc, section, op, item, range)
           audit('apply', label, { reason: reason || undefined, personal: !isSuper, parties: !isSuper && actor ? [actor] : undefined, change: ch })
           await writeDoc(doc)
           return NextResponse.json({ ok: true, applied: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
@@ -535,6 +554,7 @@ export async function POST(request: Request) {
         const pr: Proposal = {
           id: uid('prop'), item, monthKey: monthKey(), proposedBy: actor, proposedByName: byName,
           approvers, approved: [], mode, status: 'pending', createdAt: new Date().toISOString(), template: { section, op }, reason: reason || undefined,
+          range: range ?? undefined,
         }
         doc.proposals = [...(doc.proposals ?? []), pr]
         audit('propose', label, { reason: reason || undefined, proposalId: pr.id, parties: [actor, ...approvers] })
@@ -777,6 +797,25 @@ export async function POST(request: Request) {
         audit('apply', `Reopened settlement · ${mk}`, { monthKey: mk })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
+      }
+
+      // ================= fetch a month back from the Budget =================
+      case 'resetMonth': {
+        const bt = body as unknown as { monthKey?: string; scope?: ResetScope; includeOneOffs?: boolean }
+        const mk = bt.monthKey ?? ''
+        const scope = bt.scope
+        if (!/^\d{4}-\d{2}$/.test(mk) || !scope || !['all', 'household', 'personal', 'income'].includes(scope)) return NextResponse.json({ error: 'Pick a month and what to fetch.' }, { status: 400 })
+        if (isClosed(mk)) return closedErr(mk)
+        // Shared figures are everybody's: a member refreshes their own part —
+        // their personal expenses and their income. The household is reset by
+        // the family admin.
+        if (!isSuper && (scope === 'all' || scope === 'household')) return NextResponse.json({ error: 'Only the family admin can fetch the whole household back from the Budget. You can fetch your own expenses and income.' }, { status: 403 })
+        if (isSuper && scope === 'personal') return NextResponse.json({ error: 'Personal figures belong to each person.' }, { status: 400 })
+        const r = resetMonthFromBudget(doc, mk, scope, isSuper ? null : actor, !!bt.includeOneOffs)
+        const what = { all: 'everything', household: 'Lamba Household', personal: 'personal expenses', income: 'income' }[scope]
+        audit('apply', `Fetched ${what} from the Budget · ${monthLabel(mk)}${bt.includeOneOffs ? ' · one-offs cleared' : ''}`, { monthKey: mk, personal: scope === 'personal' || (scope === 'income' && !isSuper), parties: !isSuper && actor ? [actor] : undefined })
+        await writeDoc(doc)
+        return respond({ reset: r })
       }
 
       // ================= delegated access =================

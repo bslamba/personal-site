@@ -62,6 +62,7 @@ export interface Item {
   tags?: string[]              // free-form event tags (e.g. "Ooty 2026"), independent of category
   envelope?: string            // which envelope this expense belongs to (default household)
   account?: string             // which money account it left (default: the payer's main account)
+  budgetOf?: string            // a month's copy of a Budget item, pushed to a range of months (the item's id)
 }
 
 export interface IncomeItem {
@@ -72,6 +73,8 @@ export interface IncomeItem {
   src?: 'template' | 'manual'
   ref?: string           // stable fingerprint of an imported bank txn (for de-dup)
   account?: string       // which money account it landed in (default: the earner's main account)
+  tmplId?: string        // on a month's copy: the recurring-income row it came from
+  budgetOf?: string      // a month's copy of a Budget income row, pushed to a range of months
 }
 
 export interface SavingItem {
@@ -91,6 +94,7 @@ export interface MonthData {
   commonCarryIn?: number   // common-account surplus carried forward from the previous month
   commonDisposition?: 'transfer' | 'carry'   // what was decided about this month's common surplus
   deletedTemplate?: string[]   // template item keys (kind|name) removed for this month only
+  deletedIncome?: string[]     // recurring-income rows (template ids) set aside for this month only
   // Set when the month is closed: exactly what it held at that moment. A
   // closed month is read from here, so a later change to the recurring
   // template can never rewrite it. Removed again if the month is reopened.
@@ -536,7 +540,7 @@ export function materialise(template: Template, key: string): MonthData {
     ...template.emis.filter(e => emiActive(e, key)).map(clone),
     ...template.annual.filter(a => (a.dueDate ?? '').slice(5, 7) === mm).map(clone),
   ]
-  return { items, income: template.income.map(i => ({ ...i, id: uid('inc'), src: 'template' as const })), note: '' }
+  return { items, income: template.income.map(i => ({ ...i, id: uid('inc'), tmplId: i.id, src: 'template' as const })), note: '' }
 }
 
 export function monthView(doc: FinanceDoc, key: string): MonthData {
@@ -578,8 +582,11 @@ export function monthView(doc: FinanceDoc, key: string): MonthData {
   const manualIncome = stored.income.filter(i => i.src !== 'template')
   // A per-month common-income row (manual, entity 'common') overrides the
   // template's common income for that month; other income stacks on top.
-  const hasManualCommon = manualIncome.some(i => i.entity === 'common')
-  const freshIncome = hasManualCommon ? fresh.income.filter(i => i.entity !== 'common') : fresh.income
+  // (A row pushed from the Budget replaces only the row it came from — below.)
+  const hasManualCommon = manualIncome.some(i => i.entity === 'common' && !i.budgetOf)
+  const deletedInc = new Set(stored.deletedIncome ?? [])
+  const freshIncome = (hasManualCommon ? fresh.income.filter(i => i.entity !== 'common') : fresh.income)
+    .filter(i => !(i.tmplId && deletedInc.has(i.tmplId)))
   return { items: [...items, ...manual], income: [...freshIncome, ...manualIncome], note: stored.note, commonCarryIn: stored.commonCarryIn }
 }
 
@@ -762,6 +769,7 @@ export interface Proposal {
   template?: { section: 'monthly' | 'emis' | 'annual'; op: 'add' | 'update' | 'delete' }
   monthEdit?: { op: 'update' | 'delete' }
   incomeEdit?: { monthKey: string; amount: number }   // common-account income change
+  range?: PushRange          // for a Budget change: which months it applies to (none = the Budget itself)
 }
 
 /** Everyone touched by an expense: the payer plus anyone who bears a share. */
@@ -860,7 +868,7 @@ export function applyTemplateOp(doc: FinanceDoc, section: 'monthly' | 'emis' | '
 /** Apply an accepted proposal — either a template change or a month item. */
 export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
   if (pr.incomeEdit) { setCommonIncome(doc, pr.incomeEdit.monthKey, pr.incomeEdit.amount); return }
-  if (pr.template) { applyTemplateOp(doc, pr.template.section, pr.template.op, pr.item); return }
+  if (pr.template) { applyTemplateOpRanged(doc, pr.template.section, pr.template.op, pr.item, pr.range); return }
   const m = doc.months[pr.monthKey] ?? { items: [], income: [], note: '' }
   if (pr.monthEdit) {
     if (pr.monthEdit.op === 'delete') doc.months[pr.monthKey] = pr.item.src === 'template' ? deleteMonthTemplate(m, pr.item) : { ...m, items: m.items.filter(x => x.id !== pr.item.id) }
@@ -868,6 +876,223 @@ export function commitProposalItem(doc: FinanceDoc, pr: Proposal) {
   } else {
     doc.months[pr.monthKey] = { ...m, items: [...m.items, { ...pr.item, src: 'manual' as const }] }
   }
+}
+
+// ============================================================
+// Pushing a Budget change to a range of months, and fetching a month back
+// from the Budget.
+//
+// The Budget (the template) is what every month follows unless the month
+// says otherwise. A change can now be aimed at:
+//   · a range of months — written into those months only; the Budget and
+//     every other month are left exactly as they were
+//   · this month onwards — the Budget itself changes, and the months before
+//     are pinned to the old figures so history does not shift under them
+// Closed months are never touched.
+// ============================================================
+
+export interface TemplateOp { section: 'monthly' | 'emis' | 'annual'; op: 'add' | 'update' | 'delete'; item: Item; before?: Item | null }
+export interface IncomeOp { op: 'add' | 'update' | 'delete'; item: IncomeItem; before?: IncomeItem | null }
+export interface PushRange { from: string; to: string | null }   // to null = this month onwards (changes the Budget)
+
+const SECTIONS = ['monthly', 'emis', 'annual'] as const
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+/** What changed between the Budget as it was and as it is being saved. */
+export function diffTemplate(before: Template, after: Template): { ops: TemplateOp[]; income: IncomeOp[] } {
+  const ops: TemplateOp[] = []
+  for (const section of SECTIONS) {
+    const was = new Map(before[section].map(i => [i.id, i]))
+    const now = new Map(after[section].map(i => [i.id, i]))
+    for (const [id, it] of now) {
+      const old = was.get(id)
+      if (!old) ops.push({ section, op: 'add', item: it, before: null })
+      else if (!same(old, it)) ops.push({ section, op: 'update', item: it, before: old })
+    }
+    for (const [id, old] of was) if (!now.has(id)) ops.push({ section, op: 'delete', item: old, before: old })
+  }
+  const income: IncomeOp[] = []
+  const wasI = new Map(before.income.map(i => [i.id, i])), nowI = new Map(after.income.map(i => [i.id, i]))
+  for (const [id, it] of nowI) {
+    const old = wasI.get(id)
+    if (!old) income.push({ op: 'add', item: it, before: null })
+    else if (!same(old, it)) income.push({ op: 'update', item: it, before: old })
+  }
+  for (const [id, old] of wasI) if (!nowI.has(id)) income.push({ op: 'delete', item: old, before: old })
+  return { ops, income }
+}
+
+/** Whether a recurring item falls in a month at all. */
+const appliesIn = (it: Item, k: string) =>
+  it.kind === 'emi' ? emiActive(it, k) : it.kind === 'annual' ? (it.dueDate ?? '').slice(5, 7) === k.slice(5, 7) : true
+
+/** Make one month show `item` in place of the recurring item `tmplId` (or show
+ *  nothing for it when `item` is null). `inTemplate` says whether the Budget
+ *  still has that item — if not, the month keeps its own copy instead. */
+function setMonthItem(m: MonthData, k: string, tmplId: string, item: Item | null, inTemplate: boolean): MonthData {
+  // A bill already ticked paid this month stays paid.
+  const wasPaid = m.items.some(x => (x.tmplId === tmplId || x.budgetOf === tmplId) && x.paid)
+  // Drop anything this month held for the item before.
+  let out: MonthData = {
+    ...m,
+    items: m.items.filter(x => !(x.budgetOf === tmplId) && !(x.src === 'template' && x.tmplId === tmplId && x.override)),
+    deletedTemplate: (m.deletedTemplate ?? []).filter(id => id !== tmplId),
+  }
+  if (!item || !appliesIn(item, k)) {
+    return inTemplate ? { ...out, deletedTemplate: [...(out.deletedTemplate ?? []), tmplId] } : out
+  }
+  if (inTemplate) out = putMonthOverride(out, { ...item, id: tmplId, tmplId, src: 'template', paid: wasPaid })
+  else out = { ...out, items: [...out.items, { ...item, id: uid('bud'), src: 'manual', budgetOf: tmplId, tmplId: undefined, override: undefined, paid: wasPaid }] }
+  return out
+}
+
+function setMonthIncome(m: MonthData, tmplId: string, row: IncomeItem | null, inTemplate: boolean): MonthData {
+  const out: MonthData = { ...m, income: m.income.filter(x => x.budgetOf !== tmplId), deletedIncome: (m.deletedIncome ?? []).filter(id => id !== tmplId) }
+  if (inTemplate) out.deletedIncome = [...(out.deletedIncome ?? []), tmplId]
+  if (row) out.income = [...out.income, { ...row, id: uid('inc'), src: 'manual', budgetOf: tmplId, tmplId: undefined }]
+  return out
+}
+
+/** Every month from a to b inclusive. */
+export function monthsIn(a: string, b: string): string[] {
+  const out: string[] = []
+  for (let k = a; k <= b && out.length < 600; k = addMonths(k, 1)) out.push(k)
+  return out
+}
+
+/**
+ * Apply Budget changes to a range of months. Returns how many months were
+ * changed and how many were skipped because they are closed.
+ */
+export function pushBudget(doc: FinanceDoc, ops: TemplateOp[], income: IncomeOp[], range: PushRange): { months: number; skipped: string[] } {
+  const skipped: string[] = []
+  let months = 0
+  const closed = (k: string) => !!doc.settlements?.[k]?.closed
+  const inTemplate = (id: string) => SECTIONS.some(sec => doc.template[sec].some(x => x.id === id))
+  const incInTemplate = (id: string) => doc.template.income.some(x => x.id === id)
+
+  if (range.to === null) {
+    // This month onwards: the Budget itself changes. First pin the months
+    // before, so they keep showing what they showed.
+    const past = Object.keys(doc.months).filter(k => k < range.from)
+    const earliest = [addMonths(range.from, -12), ...past].sort()[0]
+    const pastMonths = earliest < range.from ? monthsIn(earliest, addMonths(range.from, -1)) : []
+    const snapshot = structuredClone(doc.template)
+    for (const o of ops) applyTemplateOp(doc, o.section, o.op, o.item)
+    for (const i of income) {
+      if (i.op === 'add') doc.template.income = [...doc.template.income, i.item]
+      else if (i.op === 'update') doc.template.income = doc.template.income.map(x => (x.id === i.item.id ? i.item : x))
+      else doc.template.income = doc.template.income.filter(x => x.id !== i.item.id)
+    }
+    for (const k of pastMonths) {
+      if (closed(k) || doc.months[k]?.frozen) continue
+      let m = doc.months[k] ?? { items: [], income: [], note: '' }
+      let touched = false
+      for (const o of ops) {
+        // A month that already overrides this item keeps its own figure.
+        if (o.op !== 'add' && m.items.some(x => x.src === 'template' && x.override && x.tmplId === o.item.id)) continue
+        const old = snapshot[o.section].find(x => x.id === o.item.id) ?? null
+        if (o.op === 'add') { if (appliesIn(o.item, k)) { m = setMonthItem(m, k, o.item.id, null, true); touched = true } }
+        else if (old && appliesIn(old, k)) { m = setMonthItem(m, k, o.item.id, old, inTemplate(o.item.id)); touched = true }
+        else if (o.op === 'update' && appliesIn(o.item, k)) { m = setMonthItem(m, k, o.item.id, null, true); touched = true }
+      }
+      for (const i of income) {
+        const old = snapshot.income.find(x => x.id === i.item.id) ?? null
+        m = setMonthIncome(m, i.item.id, i.op === 'add' ? null : old, incInTemplate(i.item.id)); touched = true
+      }
+      if (touched) doc.months[k] = m
+    }
+    // The months from here on simply follow the new Budget — unless they
+    // were changed by hand for this item before, which is cleared so the
+    // push actually lands.
+    for (const k of Object.keys(doc.months).filter(k => k >= range.from)) {
+      if (closed(k) || doc.months[k].frozen) { if (closed(k)) skipped.push(k); continue }
+      let m = doc.months[k]
+      for (const o of ops) m = { ...m, items: m.items.filter(x => !(x.src === 'template' && x.override && x.tmplId === o.item.id) && x.budgetOf !== o.item.id), deletedTemplate: (m.deletedTemplate ?? []).filter(id => id !== o.item.id) }
+      for (const i of income) m = { ...m, income: m.income.filter(x => x.budgetOf !== i.item.id), deletedIncome: (m.deletedIncome ?? []).filter(id => id !== i.item.id) }
+      doc.months[k] = m
+      months++
+    }
+    return { months: Math.max(months, 1), skipped }
+  }
+
+  // A range: only those months change; the Budget stays as it is.
+  for (const k of monthsIn(range.from, range.to)) {
+    if (closed(k) || doc.months[k]?.frozen) { skipped.push(k); continue }
+    let m = doc.months[k] ?? { items: [], income: [], note: '' }
+    for (const o of ops) m = setMonthItem(m, k, o.item.id, o.op === 'delete' ? null : o.item, inTemplate(o.item.id))
+    for (const i of income) m = setMonthIncome(m, i.item.id, i.op === 'delete' ? null : i.item, incInTemplate(i.item.id))
+    doc.months[k] = m
+    months++
+  }
+  return { months, skipped }
+}
+
+/** One Budget item change, to the months chosen. Without a range it changes
+ *  the Budget for every month, as it always did. */
+export function applyTemplateOpRanged(doc: FinanceDoc, section: 'monthly' | 'emis' | 'annual', op: 'add' | 'update' | 'delete', item: Item, range?: PushRange | null) {
+  if (!range) { applyTemplateOp(doc, section, op, item); return { months: 0, skipped: [] as string[] } }
+  return pushBudget(doc, [{ section, op, item }], [], range)
+}
+
+/** "September 2026 onwards", "September – November 2026", "September 2026 only". */
+export function describeRange(r: PushRange): string {
+  if (r.to === null) return `${monthLabel(r.from)} onwards`
+  if (r.to === r.from) return `${monthLabel(r.from)} only`
+  return `${monthLabel(r.from)} – ${monthLabel(r.to)}`
+}
+
+export const validRange = (r: unknown): PushRange | null => {
+  const x = r as PushRange | null | undefined
+  if (!x || !/^\d{4}-\d{2}$/.test(x.from ?? '')) return null
+  if (x.to !== null && !(typeof x.to === 'string' && /^\d{4}-\d{2}$/.test(x.to) && x.to >= x.from)) return null
+  return { from: x.from, to: x.to }
+}
+
+export type ResetScope = 'all' | 'household' | 'personal' | 'income'
+
+/**
+ * Fetch a month back from the Budget: undo what the month changed on its own
+ * — its edits to recurring items, the ones it removed, the copies pushed into
+ * it — for the chosen part of the sheet. One-off expenses are real spending
+ * and are only cleared when asked. `viewer` is the person for "personal"
+ * and "income"; the household's income for the family admin.
+ */
+export function resetMonthFromBudget(doc: FinanceDoc, k: string, scope: ResetScope, viewer: string | null, includeOneOffs: boolean): { items: number; income: number } {
+  const m = doc.months[k]
+  if (!m) return { items: 0, income: 0 }
+  const persons = doc.entities
+  const inScope = (it: Item) => {
+    if (scope === 'all') return true
+    if (scope === 'income') return false
+    const personal = classify(it, persons) === 'personal' || (it.envelope ?? HOUSEHOLD).startsWith('personal:')
+    if (scope === 'personal') return personal && !!viewer && (bearersOf(it).includes(viewer) || it.envelope === personalEnvId(viewer))
+    return !personal && (it.envelope ?? HOUSEHOLD) === HOUSEHOLD
+  }
+  const tmplItems = [...doc.template.monthly, ...doc.template.emis, ...doc.template.annual]
+  let items = 0, income = 0
+  const keep = m.items.filter(x => {
+    if (!inScope(x)) return true
+    const drop = (x.src === 'template' && x.override) || !!x.budgetOf || (includeOneOffs && x.src !== 'template')
+    if (drop) items++
+    return !drop
+  })
+  // Items the month had removed come back, if they are in scope.
+  const deleted = (m.deletedTemplate ?? []).filter(id => {
+    const t = tmplItems.find(x => x.id === id)
+    const back = !!t && inScope(t)
+    if (back) items++
+    return !back
+  })
+  let inc = m.income
+  let deletedIncome = m.deletedIncome ?? []
+  if (scope === 'all' || scope === 'income') {
+    const mine = (i: IncomeItem) => (viewer ? i.entity === viewer : i.entity === 'common')
+    inc = m.income.filter(i => { const drop = mine(i) && (!!i.budgetOf || i.src !== 'template'); if (drop) income++; return !drop })
+    deletedIncome = deletedIncome.filter(id => { const t = doc.template.income.find(x => x.id === id); const back = !!t && mine(t); if (back) income++; return !back })
+  }
+  doc.months[k] = { ...m, items: keep, deletedTemplate: deleted, income: inc, deletedIncome }
+  return { items, income }
 }
 
 /** Set the common-account income for a month to a single "rent" row. */

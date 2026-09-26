@@ -34,6 +34,8 @@ import {
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import { VaultTopBar, Hello, CountUp, type DockItem } from '@/components/vault/vault-chrome'
 import { SheetButton, ClosedBanner } from '@/components/vault/finance-sheets'
+import { PushDialog, FetchButton } from '@/components/vault/finance-budget-push'
+import { diffTemplate, pushBudget, describeRange, type PushRange } from '@/lib/finance-data'
 import { AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-access'
 import IdleLogout from '@/components/vault/idle-logout'
 
@@ -425,6 +427,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   const [editing, setEditing] = useState<Editing | null>(null)
   const [setupDraft, setSetupDraft] = useState<Template | null>(null)
   const [budgetView, setBudgetView] = useState<BudgetView>('recurring')
+  const [pushOpen, setPushOpen] = useState(false)
   const [me, setMe] = useState<{ role: 'super' | 'member'; entityId: string | null; username?: string; name?: string; firstName?: string; lastName?: string; email?: string; avatar?: string } | null>(null)
   const firstLoad = useRef(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -515,10 +518,14 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   const setupTemplate = setupDraft ?? doc.template
   const setupDirty = setupDraft !== null && JSON.stringify(setupDraft) !== JSON.stringify(doc.template)
   const setSetupTemplate = (fn: (t: Template) => Template) => setSetupDraft(prev => fn(structuredClone(prev ?? doc.template) as Template))
-  const saveSetup = () => {
+  // Saving the Budget asks which months the change is for, then writes it
+  // there — see pushBudget in lib/finance-data.ts.
+  const saveSetup = () => setPushOpen(true)
+  const pushSetup = (range: PushRange) => {
     const draft = structuredClone(setupDraft ?? doc.template) as Template
-    patchDoc(d => { d.template = draft; return d })
+    patchDoc(d => { const { ops, income } = diffTemplate(d.template, draft); pushBudget(d, ops, income, range); return d })
     setSetupDraft(null)
+    setPushOpen(false)
   }
 
   return (
@@ -544,6 +551,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
       )}
       {tab === 'profile' && <ProfileTab me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} />}
       <ErrorToast text={actErr} onClose={() => setActErr(null)} />
+      {pushOpen && <PushDialog what="You’ve changed the Budget." onClose={() => setPushOpen(false)} onConfirm={pushSetup} />}
 
       {editing && (
         <ExpenseEditor
@@ -587,7 +595,8 @@ function Shell({ children, saveState, me, tabs, activeTab, onTab, role }: {
   // "Approvals (3)" becomes a Dock icon named Approvals with a red 3 badge.
   const items: DockItem[] = (tabs ?? []).map(t => {
     const m = t.label.match(/^(.*?)\s*\((\d+)\)$/)
-    return { id: t.id, label: m ? m[1] : t.label, icon: t.icon, badge: m ? Number(m[2]) : undefined }
+    // A divider before the "system" group, like the macOS Dock's separator.
+    return { id: t.id, label: m ? m[1] : t.label, icon: t.icon, badge: m ? Number(m[2]) : undefined, sep: t.id === 'approvals' }
   })
   const isMember = (me?.role ?? role) === 'member'
   return (
@@ -1084,7 +1093,8 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
           </div>
           <EnvelopeSelect envelopes={envs} value={env} onChange={setEnv} includeDash={false} />
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {!closed && <FetchButton k={k} isSuper onFetch={(scope, includeOneOffs) => action({ action: 'resetMonth', monthKey: k, scope, includeOneOffs })} />}
           <SheetButton k={k} />
           <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
         </div>
@@ -1801,9 +1811,9 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, openEdi
     <>
       {/* Save bar — Setup does NOT auto-save */}
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', position: 'sticky', top: '0.5rem', zIndex: 5 }}>
-        <p style={{ margin: 0, color: 'var(--vg-ink)' }}>
+        <p style={{ margin: 0, color: 'var(--vg-ink)', fontSize: '0.86rem' }}>
           <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} />{' '}
-          {dirty ? <b>Unsaved changes</b> : 'Saved manually'} — edits here don’t save as you type. Once saved, every month follows these figures, apart from a month you have deliberately edited on its own.
+          {dirty ? <b>Unsaved changes</b> : 'Saved manually'} — edits here don’t save as you type. When you save, you choose which months the change applies to.
         </p>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {dirty && <button className="vg-btn" onClick={onDiscard}>Discard</button>}
@@ -2275,7 +2285,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
 
 // ---------- Approvals -------------------------------------------
 function editKind(p: Proposal): string {
-  if (p.template) return `Recurring ${p.template.section === 'emis' ? 'EMI' : p.template.section} · ${p.template.op}`
+  if (p.template) return `Recurring ${p.template.section === 'emis' ? 'EMI' : p.template.section} · ${p.template.op}${p.range ? ` · ${describeRange(p.range)}` : ''}`
   if (p.monthEdit) return p.monthEdit.op === 'delete' ? 'Remove' : 'Change'
   return 'New charge'
 }
@@ -3182,7 +3192,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor, actingAs }:
           </div>
           <EnvelopeSelect envelopes={envs.filter(e => e.personalOf !== entityId)} value={env} onChange={setEnv} />
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {!closed && <FetchButton k={k} isSuper={false} onFetch={(scope, includeOneOffs) => action({ action: 'resetMonth', monthKey: k, scope, includeOneOffs })} />}
           <SheetButton k={k} actingAs={actingAs} />
           <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
         </div>
@@ -3317,6 +3328,8 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
   const [editing, setEditing] = useState<{ item: Item; onSave: (it: Item) => void } | null>(null)
   const [meState, setMeState] = useState<(MeLite & { email?: string }) | undefined>(profile)
   const [actErr, setActErr] = useState<string | null>(null)
+  // A Budget change waiting for "which months?"
+  const [ask, setAsk] = useState<{ what: string; run: (r: PushRange) => void } | null>(null)
   const me = { role: 'member' as const, entityId }
   const perm = permFrom(acting)
 
@@ -3376,9 +3389,9 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
           <BudgetSwitch view={budgetView} onView={setBudgetView} />
           {budgetView === 'recurring'
             ? <MemberSetup doc={doc} entityId={entityId} envelopes={doc.envelopes ?? []}
-                openTemplate={(item, section, op) => setEditing({ item, onSave: it => action({ action: 'proposeTemplate', item: it, section, op }) })}
-                onRemove={(item, section) => action({ action: 'proposeTemplate', item, section, op: 'delete' })}
-                onSaveIncome={rows => action({ action: 'setTemplateIncome', income: rows })} />
+                openTemplate={(item, section, op) => setEditing({ item, onSave: it => setAsk({ what: `${op === 'add' ? 'Adding' : 'Changing'} ${it.name || 'this item'} in the Budget.`, run: range => action({ action: 'proposeTemplate', item: it, section, op, range }) }) })}
+                onRemove={(item, section) => setAsk({ what: `Removing ${item.name || 'this item'} from the Budget.`, run: range => action({ action: 'proposeTemplate', item, section, op: 'delete', range }) })}
+                onSaveIncome={rows => setAsk({ what: 'Changing your recurring income.', run: range => action({ action: 'setTemplateIncome', income: rows, range }) })} />
             : budgetView === 'ahead'
               ? <AheadTab doc={doc} me={me} />
               : <BudgetTab doc={doc} me={me} onSaveBudget={(_who, b) => action({ action: 'setBudget', budget: b })} />}
@@ -3388,6 +3401,7 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} onRevert={(auditId, reason) => action({ action: 'revertChange', auditId, reason })} />}
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
       <ErrorToast text={actErr} onClose={() => setActErr(null)} />
+      {ask && <PushDialog what={ask.what} onClose={() => setAsk(null)} onConfirm={range => { ask.run(range); setAsk(null) }} />}
 
       {editing && (
         <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
@@ -3717,11 +3731,9 @@ function MemberSetup({ doc, entityId, envelopes, openTemplate, onRemove, onSaveI
 
   return (
     <>
-      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <p style={{ margin: 0, color: 'var(--vg-ink)' }}>
-          <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your household&rsquo;s <b>recurring</b> items. Add or change anything here — items that are <b>only yours</b> apply straight away, while anything <b>common or shared</b> is sent to the tagged person to approve first. You only see common items and ones that involve you.
-        </p>
-      </div>
+      <p className="vg-muted" style={{ fontSize: '0.84rem', margin: '0 0 0.9rem' }}>
+        <SlidersHorizontal className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Items only you pay for apply straight away; shared ones go to the others for approval. Each save asks which months it is for.
+      </p>
       <div className="vg-grid2">
         <Section title="Monthly recurring" section="monthly" />
         <Section title="EMIs & loans" section="emis" />
