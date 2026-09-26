@@ -15,6 +15,8 @@
 // v1 docs (fixed Bhawneet/Gurneet + shareB) are migrated on load.
 // ============================================================
 
+import { rdView, fdView, type RdTerms, type FdTerms } from '@/lib/deposits'
+
 export type EntityKind = 'person' | 'common'
 
 export interface Entity {
@@ -63,6 +65,7 @@ export interface Item {
   envelope?: string            // which envelope this expense belongs to (default household)
   account?: string             // which money account it left (default: the payer's main account)
   budgetOf?: string            // a month's copy of a Budget item, pushed to a range of months (the item's id)
+  rdOf?: string                // the monthly instalment of a recurring deposit — the saving's id
 }
 
 export interface IncomeItem {
@@ -82,9 +85,11 @@ export interface SavingItem {
   label: string
   entity: string         // whose savings
   balance: number
-  kind?: string          // FD, MF, RD, cash, gold…
+  kind?: string          // 'RD', 'FD', or a free label for anything else (MF, gold, cash…)
   note?: string
   liquid?: boolean       // can be drawn on this month; unset = guessed from the kind
+  rd?: RdTerms           // a recurring deposit: its instalment, rate, start and tenure
+  fd?: FdTerms           // a fixed deposit: principal, rate, dates and how interest is paid
 }
 
 export interface MonthData {
@@ -438,6 +443,7 @@ export function seedCategories(): Category[] {
     { name: 'Subscriptions', color: '#5bc0d0' },
     { name: 'Loans & EMIs', color: '#6d4bd8' },
     { name: 'Transfers', color: '#8593a8' },
+    { name: 'Savings (RD)', color: '#0e9f8f' },
     { name: 'Other', color: '#9b93b8' },
   ]
 }
@@ -472,6 +478,7 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.savings)) doc.savings = []
     if (!Array.isArray(doc.entities) || doc.entities.length === 0) doc.entities = seedEntities()
     if (!Array.isArray(doc.categories) || doc.categories.length === 0) doc.categories = seedCategories()
+    if (!doc.categories.some(c => c.name === 'Savings (RD)')) doc.categories = [...doc.categories, { name: 'Savings (RD)', color: '#0e9f8f' }]
     if (!Array.isArray(doc.proposals)) doc.proposals = []
     if (!Array.isArray(doc.auditLog)) doc.auditLog = []
     if (!doc.settlements || typeof doc.settlements !== 'object') doc.settlements = {}
@@ -1095,6 +1102,45 @@ export function resetMonthFromBudget(doc: FinanceDoc, k: string, scope: ResetSco
   return { items, income }
 }
 
+// ============================================================
+// Deposits in savings.
+//
+// A recurring deposit comes out of salary every month, so each RD also
+// lives in the Budget as a personal EMI — "RD · <name>" — from its first
+// instalment to its last, and shows on that person's My Dashboard under
+// EMIs. It is kept in step from Savings: changing or removing the RD there
+// changes or removes the instalment. A fixed deposit is money put aside
+// from elsewhere, so it touches nothing but Savings.
+// ============================================================
+
+export const rdItemId = (savingId: string) => `rd:${savingId}`
+
+/** What a saving is worth today (a deposit's value moves on by itself). */
+export function savingValue(s: SavingItem): number {
+  if (s.kind === 'RD' && s.rd) return rdView(s.rd).currentValue
+  if (s.kind === 'FD' && s.fd) return fdView(s.fd).currentValue
+  return s.balance || 0
+}
+
+/** Make the Budget's RD instalments match this person's RDs in Savings. */
+export function syncRdItems(doc: FinanceDoc, entity: string) {
+  const rds = doc.savings.filter(s => s.entity === entity && s.kind === 'RD' && s.rd && s.rd.monthly > 0 && s.rd.months > 0)
+  const want = new Map(rds.map(s => [rdItemId(s.id), s]))
+  doc.template.emis = doc.template.emis.filter(it => !(it.rdOf && it.paidBy === entity && !want.has(it.id)))
+  for (const [id, s] of want) {
+    const v = rdView(s.rd!)
+    const item: Item = {
+      id, name: `RD · ${s.label || 'Recurring deposit'}`, amount: s.rd!.monthly, kind: 'emi',
+      paidBy: entity, alloc: { mode: 'single', who: entity },
+      startDate: s.rd!.start, endDate: v.lastInstalment, category: 'Savings (RD)',
+      envelope: personalEnvId(entity), rdOf: s.id, rate: s.rd!.rate,
+    }
+    const i = doc.template.emis.findIndex(x => x.id === id)
+    if (i >= 0) doc.template.emis[i] = item
+    else doc.template.emis = [...doc.template.emis, item]
+  }
+}
+
 /** Set the common-account income for a month to a single "rent" row. */
 export function setCommonIncome(doc: FinanceDoc, monthKey: string, amount: number) {
   const m = doc.months[monthKey] ?? { items: [], income: [], note: '' }
@@ -1563,7 +1609,7 @@ export function owedAt(it: Item, k: string, schedule?: AmortRow[]): number {
 
 /** The debt curve: what is owed each month, for one person or the household. */
 export function debtOverTime(doc: FinanceDoc, entityId: string | null, back = 12, ahead = 36, from: string = monthKey()): DebtPoint[] {
-  const prepared = doc.template.emis.map(it => ({
+  const prepared = doc.template.emis.filter(it => !it.rdOf).map(it => ({
     it,
     frac: entityId ? (shares(it)[entityId] ?? 0) : 1,
     sched: amortise(it),
@@ -1580,6 +1626,7 @@ export function debtOverTime(doc: FinanceDoc, entityId: string | null, back = 12
 export function debtFreeBy(doc: FinanceDoc, entityId: string | null): string | null {
   let last: string | null = null
   for (const it of doc.template.emis) {
+    if (it.rdOf) continue                                   // a deposit, not a debt
     if (entityId && (shares(it)[entityId] ?? 0) <= 0.001) continue
     const v = loanView(it)
     if (v.endsOn && (!last || v.endsOn > last)) last = v.endsOn

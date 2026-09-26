@@ -32,6 +32,7 @@ import { readRaw, writeDoc as saveDoc, viewFor, viewForGrant } from '../route'
 import { keepFinalSheets } from '../sheets'
 import { activeDelegation, can, isLiquid, ACCESS_AREAS, ACCESS_OPS, ACCESS_LABEL,
          applyTemplateOpRanged, describeRange, validRange, pushBudget, resetMonthFromBudget, type IncomeOp, type ResetScope,
+         syncRdItems, savingValue,
          type Delegation, type AccessArea, type AccessOp, type AccessPerms, INR, monthLabel } from '@/lib/finance-data'
 import { getUsers } from '@/lib/users'
 import { sendReminderEmail } from '@/lib/mailer'
@@ -291,9 +292,34 @@ export async function POST(request: Request) {
           const sav = can(grant.perms, 'savings', 'edit'), inv = can(grant.perms, 'investments', 'edit')
           rows = [...rows.filter(r => (isLiquid(r) ? sav : inv)), ...existing.filter(r => (isLiquid(r) ? !sav : !inv))]
         }
-        const mine = rows.map(r => ({ ...r, entity: who }))
+        // Deposits are checked and their value worked out here, not trusted
+        // from the browser.
+        const DATE = /^\d{4}-\d{2}-\d{2}$/
+        const bad: string[] = []
+        const mine = rows.map(r => {
+          const out: SavingItem = { ...r, entity: who, label: String(r.label ?? '').slice(0, 80) }
+          // A row that only says "RD"/"FD" as a label (older entries) stays a
+          // plain balance; the deposit maths applies once its terms are filled in.
+          if (r.kind === 'RD' && r.rd) {
+            const t = r.rd
+            if (!t || !(Number(t.monthly) > 0) || !DATE.test(t.start ?? '') || !(Number(t.months) >= 1 && Number(t.months) <= 600) || !(Number(t.rate) >= 0 && Number(t.rate) <= 30)) { bad.push(r.label || 'An RD'); return out }
+            out.rd = { monthly: Number(t.monthly), rate: Number(t.rate), start: t.start, months: Math.round(Number(t.months)) }
+            delete out.fd
+            out.liquid = false
+          } else if (r.kind === 'FD' && r.fd) {
+            const t = r.fd
+            if (!t || !(Number(t.principal) > 0) || !DATE.test(t.start ?? '') || !DATE.test(t.maturity ?? '') || t.maturity <= t.start || !(Number(t.rate) >= 0 && Number(t.rate) <= 30)) { bad.push(r.label || 'An FD'); return out }
+            out.fd = { principal: Number(t.principal), rate: Number(t.rate), start: t.start, maturity: t.maturity, payout: (['cumulative', 'monthly', 'quarterly', 'yearly'] as const).includes(t.payout) ? t.payout : 'cumulative' }
+            delete out.rd
+          } else { delete out.rd; delete out.fd }
+          out.balance = Math.round(savingValue(out))
+          return out
+        })
+        if (bad.length) return NextResponse.json({ error: `${bad.join(', ')}: fill in the amount, rate, start date and ${bad.length === 1 ? 'its' : 'their'} tenure or maturity date.` }, { status: 400 })
         doc.savings = [...doc.savings.filter(s => s.entity !== who), ...mine]
-        if (grant) audit('apply', 'Savings updated', { personal: true })
+        // Each RD's monthly instalment comes out of salary: keep it in step.
+        syncRdItems(doc, who)
+        audit('apply', 'Savings updated', { personal: true, parties: [who] })
         await writeDoc(doc)
         return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
@@ -525,6 +551,7 @@ export async function POST(request: Request) {
         const item = bt.item, section = bt.section, op = bt.op
         const reason = (bt.reason || '').trim()
         if (!item || !section || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
+        if (item.rdOf || item.id?.startsWith('rd:')) return NextResponse.json({ error: 'That is a recurring deposit — change it from Savings.' }, { status: 400 })
         // Which months the change is for. None means the Budget itself, as before.
         const range = bt.range == null ? null : validRange(bt.range)
         if (bt.range != null && !range) return NextResponse.json({ error: 'Pick a valid range of months — the end cannot come before the start.' }, { status: 400 })

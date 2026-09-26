@@ -35,6 +35,7 @@ import { parseStatement, type StatementRow } from '@/lib/statement'
 import { VaultTopBar, Hello, CountUp, type DockItem } from '@/components/vault/vault-chrome'
 import { SheetButton, ClosedBanner } from '@/components/vault/finance-sheets'
 import { PushDialog, FetchButton } from '@/components/vault/finance-budget-push'
+import { SavingsTab } from '@/components/vault/finance-savings'
 import { diffTemplate, pushBudget, describeRange, type PushRange } from '@/lib/finance-data'
 import { AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-access'
 import IdleLogout from '@/components/vault/idle-logout'
@@ -1195,7 +1196,7 @@ function YearTab({ doc, year, setYear, openMonth }: {
   const cats = [...catMap.entries()].map(([name, value], i) => ({ name, value, color: catColor(name, doc.categories, i) })).sort((a, b) => b.value - a.value)
 
   const now = monthKey()
-  const emiRows = doc.template.emis.filter(e => !e.endDate || e.endDate >= `${now}-01`).map(e => ({ ...emiProgress(e), name: e.name, monthly: e.amount, end: e.endDate }))
+  const emiRows = doc.template.emis.filter(e => !e.rdOf && (!e.endDate || e.endDate >= `${now}-01`)).map(e => ({ ...emiProgress(e), name: e.name, monthly: e.amount, end: e.endDate }))
 
   const perEntYear = doc.entities.map((e, i) => ({ label: e.name, value: per.reduce((s, p) => s + (p.t.byEntity[e.id] ?? 0), 0), color: e.color || catColor(e.name, doc.categories, i) })).filter(p => p.value > 0).sort((a, b) => b.value - a.value)
 
@@ -1794,10 +1795,12 @@ function SetupTab({ entities, draft, setDraft, dirty, onSave, onDiscard, openEdi
                   <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{it.endDate ? fmtMon(it.endDate) : 'Open'}</td>
                 </>}
                 {sec === 'annual' && <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(it.dueDate)}</td>}
-                <td><div style={{ display: 'flex', gap: 4 }}>
-                  <button className="vg-icobtn" onClick={() => openEditor({ item: it, commit: x => updT(sec, x), remove: () => delT(sec, it.id) })}><Pencil className="h-4 w-4" /></button>
-                  <button className="vg-icobtn" onClick={() => delT(sec, it.id)}><Trash2 className="h-4 w-4" /></button>
-                </div></td>
+                <td>{it.rdOf
+                  ? <span className="vg-chip" title="A member's recurring deposit — managed from their Savings">From Savings</span>
+                  : <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="vg-icobtn" onClick={() => openEditor({ item: it, commit: x => updT(sec, x), remove: () => delT(sec, it.id) })}><Pencil className="h-4 w-4" /></button>
+                      <button className="vg-icobtn" onClick={() => delT(sec, it.id)}><Trash2 className="h-4 w-4" /></button>
+                    </div>}</td>
               </tr>
             ))}
             {draft[sec].length === 0 && <tr><td colSpan={sec === 'emis' ? 8 : sec === 'annual' ? 7 : 6} className="vg-muted" style={{ textAlign: 'center', padding: '1rem' }}>Nothing yet.</td></tr>}
@@ -2661,53 +2664,6 @@ function BudgetTab({ doc, me, onSaveBudget }: {
 }
 
 // ---------- Member: My Savings ----------------------------------
-function MemberSavings({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: string; onSave: (rows: SavingItem[]) => void }) {
-  const stored = () => doc.savings.filter(s => s.entity === entityId).map(s => ({ ...s }))
-  const [rows, setRows] = useState<SavingItem[]>(stored)
-  useEffect(() => { setRows(stored()) /* eslint-disable-next-line */ }, [doc, entityId])
-  const dirty = JSON.stringify(rows) !== JSON.stringify(stored())
-  const total = rows.reduce((a, b) => a + (b.balance || 0), 0)
-  const upd = (id: string, patch: Partial<SavingItem>) => setRows(r => r.map(x => x.id === id ? { ...x, ...patch } : x))
-  const del = (id: string) => setRows(r => r.filter(x => x.id !== id))
-  const add = () => setRows(r => [...r, { id: uid('sav'), label: 'New savings', entity: entityId, balance: 0, kind: 'FD' }])
-  return (
-    <>
-      <div className="vg-kpis" style={{ marginBottom: '1.1rem' }}>
-        <div className="vg-kpi"><div className="k">My savings</div><div className="v vg-pos">{INR(total)}</div></div>
-        <div className="vg-kpi"><div className="k">Pots</div><div className="v">{rows.length}</div></div>
-      </div>
-      <div className="vg-card vg-pad">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <p className="vg-sec" style={{ margin: 0 }}><ShieldCheck className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-pos)', verticalAlign: '-3px' }} /> Private to you</p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {dirty && <button className="vg-btn" onClick={() => setRows(stored())}>Discard</button>}
-            <button className="vg-btn" onClick={add}><Plus className="h-4 w-4" /> Add</button>
-            <button className="vg-btn vg-btn-primary" disabled={!dirty} onClick={() => onSave(rows)}><Check className="h-4 w-4" /> Save</button>
-          </div>
-        </div>
-        <div className="vg-tablewrap">
-          <table className="vg-table" style={{ minWidth: 560 }}>
-            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th className="num">Balance</th><th>Note</th><th style={{ width: 36 }}></th></tr></thead>
-            <tbody>
-              {rows.map(s => (
-                <tr key={s.id}>
-                  <td><input className="vg-input" value={s.label} onChange={e => upd(s.id, { label: e.target.value })} /></td>
-                  <td><input className="vg-input" value={s.kind ?? ''} placeholder="FD / MF…" onChange={e => upd(s.id, { kind: e.target.value })} /></td>
-                  <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(s.balance)} onChange={e => upd(s.id, { balance: num(e.target.value) })} /></td>
-                  <td><input className="vg-input" value={s.note ?? ''} onChange={e => upd(s.id, { note: e.target.value })} /></td>
-                  <td><button className="vg-icobtn" onClick={() => del(s.id)}><Trash2 className="h-4 w-4" /></button></td>
-                </tr>
-              ))}
-              {rows.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
-  )
-}
-
-// ---------- Member: This month (same layout as super, writes via approval) ----
 function memberNewItem(bucket: Bucket, entities: Entity[], entityId: string): Item {
   const it = newItem(bucket, entities)
   if (bucket === 'personal') { it.paidBy = entityId; it.alloc = { mode: 'single', who: entityId } }
@@ -3383,7 +3339,7 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
       {tab === 'year' && <YearTab doc={doc} year={year} setYear={setYear} openMonth={k => { setKey(k); setTab('month') }} />}
       {tab === 'tags' && <TagsTab doc={doc} />}
       {tab === 'loans' && <LoansTab doc={doc} me={me} />}
-      {tab === 'savings' && <MemberSavings doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
+      {tab === 'savings' && <SavingsTab doc={doc} entityId={entityId} onSave={rows => action({ action: 'setSavings', savings: rows })} />}
       {tab === 'setup' && (
         <>
           <BudgetSwitch view={budgetView} onView={setBudgetView} />
@@ -3714,10 +3670,12 @@ function MemberSetup({ doc, entityId, envelopes, openTemplate, onRemove, onSaveI
                   </>}
                   {section === 'annual' && <td className="vg-muted" style={{ fontSize: '0.8rem' }}>{fmtMon(it.dueDate)}</td>}
                   <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="vg-icobtn" title={mine ? 'Edit' : 'Propose a change (needs approval)'} onClick={() => openTemplate(it, section, 'update')}><Pencil className="h-4 w-4" /></button>
-                      <button className="vg-icobtn" title={mine ? 'Remove' : 'Propose removal (needs approval)'} onClick={() => onRemove(it, section)}><Trash2 className="h-4 w-4" /></button>
-                    </div>
+                    {it.rdOf
+                      ? <span className="vg-chip" title="A recurring deposit — change it from Savings">From Savings</span>
+                      : <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="vg-icobtn" title={mine ? 'Edit' : 'Propose a change (needs approval)'} onClick={() => openTemplate(it, section, 'update')}><Pencil className="h-4 w-4" /></button>
+                          <button className="vg-icobtn" title={mine ? 'Remove' : 'Propose removal (needs approval)'} onClick={() => onRemove(it, section)}><Trash2 className="h-4 w-4" /></button>
+                        </div>}
                   </td>
                 </tr>
               )
@@ -3902,7 +3860,7 @@ function LoansTab({ doc, me }: {
 }) {
   const asOf = monthKey()
   const entities = doc.entities
-  const loans = doc.template.emis
+  const loans = useMemo(() => doc.template.emis.filter(it => !it.rdOf), [doc.template.emis])
   const views = useMemo(() => loans.map(it => loanView(it, asOf)).sort((a, b) => (b.outstanding ?? 0) - (a.outstanding ?? 0)), [loans, asOf])
   const years = useMemo(() => {
     const set = new Set<string>([fyOf(asOf)])

@@ -128,21 +128,24 @@ export function viewForGrant(doc: FinanceDoc, g: Delegation): FinanceDoc {
   const p = g.perms
   const seeExp = can(p, 'expenses', 'view'), seeLoans = can(p, 'loans', 'view'), seeInc = can(p, 'income', 'view')
   const seeDocs = can(p, 'documents', 'view')
-  const keepItem = (kind: string) => (kind === 'emi' ? seeLoans : seeExp)
+  const seeSavings = can(p, 'savings', 'view')
+  // An RD's instalment is part of their savings, not a loan.
+  const keepItem = (it: { kind: string; rdOf?: string; tmplId?: string }) =>
+    it.rdOf || it.tmplId?.startsWith('rd:') ? seeSavings : it.kind === 'emi' ? seeLoans : seeExp
   const scrub = <T extends { receiptKey?: string | null }>(it: T): T => (seeDocs ? it : { ...it, receiptKey: null })
   for (const m of Object.values(v.months)) {
-    m.items = m.items.filter(it => keepItem(it.kind)).map(scrub)
+    m.items = m.items.filter(it => keepItem(it)).map(scrub)
     if (!seeInc) m.income = m.income.filter(i => i.entity === 'common')
     if (m.frozen) m.frozen = {
       ...m.frozen,
-      items: m.frozen.items.filter(it => keepItem(it.kind)).map(scrub),
+      items: m.frozen.items.filter(it => keepItem(it)).map(scrub),
       income: seeInc ? m.frozen.income : m.frozen.income.filter(i => i.entity === 'common'),
     }
   }
   v.template = {
     monthly: seeExp ? v.template.monthly.map(scrub) : [],
     annual: seeExp ? v.template.annual.map(scrub) : [],
-    emis: seeLoans ? v.template.emis.map(scrub) : [],
+    emis: v.template.emis.filter(it => keepItem(it)).map(scrub),
     income: seeInc ? v.template.income : v.template.income.filter(i => i.entity === 'common'),
   }
   if (!can(p, 'accounts', 'view')) {
@@ -239,6 +242,9 @@ export async function PUT(request: Request) {
     // keep stored reminders as the source of truth (managed via the action API).
     body.doc.reminders = stored?.reminders ?? body.doc.reminders ?? []
     body.doc.envelopes = body.doc.envelopes ?? stored?.envelopes
+    // RD instalments are owned by Savings (syncRdItems): a document write can
+    // neither add, change nor drop them.
+    body.doc.template.emis = [...body.doc.template.emis.filter(it => !it.rdOf), ...(stored?.template.emis ?? []).filter(it => it.rdOf)]
     // Accounts, transfers, goals, allowances and grants are only ever changed
     // through the action API, and the admin's view of them is partial — so a
     // document write always carries the stored copies forward untouched.
