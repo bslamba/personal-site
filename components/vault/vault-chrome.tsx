@@ -19,12 +19,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { Bungee, Kaushan_Script } from 'next/font/google'
+import { Bungee, Sedgwick_Ave } from 'next/font/google'
 import { Power, Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
 import { VAULT_THEMES, DEFAULT_THEME, THEME_KEY } from '@/lib/vault-themes'
 
+// A graffiti hand-style tag for the name, and a hip-hop block face for the crew plate.
+const tag = Sedgwick_Ave({ subsets: ['latin'], weight: '400', display: 'swap' })
 const bungee = Bungee({ subsets: ['latin'], weight: '400', display: 'swap' })
-const kaushan = Kaushan_Script({ subsets: ['latin'], weight: '400', display: 'swap' })
 
 // ---------- preferences (per browser) ---------------------------
 const SOUND_KEY = 'vg-sound'
@@ -100,10 +101,20 @@ export function sfx(kind: 'tick' | 'pop' | 'power') {
 
 // ---------- Logo -------------------------------------------------
 export function Logo({ href = '/vault' }: { href?: string }) {
+  // "Lamba" as a street tag — quote ticks, a halo and an underline swoosh,
+  // the way a writer signs a wall — with FAMILY on a crew plate beneath.
   return (
     <Link href={href} className="vg-logo" aria-label="Lamba Family — home">
-      <span className={`vg-logo-lamba ${bungee.className}`}>LAMBA</span>
-      <span className={`vg-logo-family ${kaushan.className}`}>Family</span>
+      <span className="vg-logo-tagline">
+        <span className={`vg-logo-tick ${tag.className}`} aria-hidden="true">,,</span>
+        <span className={`vg-logo-tag ${tag.className}`}>Lamba</span>
+        <span className={`vg-logo-tick end ${tag.className}`} aria-hidden="true">&quot;</span>
+        <span className="vg-logo-halo" aria-hidden="true" />
+        <svg className="vg-logo-swoosh" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M2 8 C 22 2, 48 11, 70 6 S 94 3, 98 5" />
+        </svg>
+      </span>
+      <span className={`vg-logo-crew ${bungee.className}`}>Family</span>
     </Link>
   )
 }

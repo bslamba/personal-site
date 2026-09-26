@@ -2174,21 +2174,30 @@ body:has(.vg) .wa-float { display: none !important; }
 }
 
 /* ---------- Logo: LAMBA with a hand-written Family ---------- */
-.vg-logo { display: inline-flex; align-items: center; text-decoration: none; position: relative; padding: 0 2px; line-height: 1; user-select: none; gap: 3px; }
-.vg-logo-lamba {
-  font-size: 22px; letter-spacing: 0.03em;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--vg-accent-2) 80%, #fff) 0%, var(--vg-accent) 55%, color-mix(in srgb, var(--vg-accent) 70%, #000) 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--vg-accent) 45%, #000)) drop-shadow(0 2px 0 color-mix(in srgb, var(--vg-accent) 30%, #000)) drop-shadow(0 4px 6px var(--vg-shadow));
-  transition: filter 0.3s;
+.vg-logo { display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; line-height: 1; user-select: none; color: var(--vg-ink); padding: 0 4px; }
+/* The tag: ink letters with a two-step 3D drop in the theme colour. */
+.vg-logo-tagline { position: relative; display: inline-flex; align-items: flex-start; padding: 0 3px; }
+.vg-logo-tag {
+  font-size: 29px; line-height: 0.95; letter-spacing: 0.01em; color: var(--vg-ink);
+  transform: rotate(-4deg); display: inline-block;
+  text-shadow: 1.5px 1.5px 0 var(--vg-accent), 3px 3px 0 color-mix(in srgb, var(--vg-accent) 55%, #000);
+  transition: transform 0.35s cubic-bezier(.2,.8,.2,1), text-shadow 0.35s;
 }
-.vg-logo-family {
-  position: relative; top: 6px; font-size: 21px; color: var(--vg-accent);
-  transform: rotate(-8deg); transform-origin: left center; text-shadow: 0 1px 0 var(--vg-solid), 0 3px 8px var(--vg-shadow);
-  transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
+.vg-logo-tick { font-size: 17px; line-height: 1; color: var(--vg-ink); opacity: 0.9; margin-top: 12px; transform: rotate(-4deg); }
+.vg-logo-tick.end { margin-top: -2px; margin-left: 1px; }
+.vg-logo-halo { position: absolute; top: -5px; left: 47%; width: 11px; height: 5px; border: 2px solid var(--vg-ink); border-radius: 50%; transform: rotate(-8deg); transition: transform 0.35s cubic-bezier(.2,.8,.2,1); }
+.vg-logo-swoosh { position: absolute; left: 6%; right: 2%; bottom: -3px; width: 92%; height: 7px; overflow: visible; }
+.vg-logo-swoosh path { fill: none; stroke: var(--vg-accent); stroke-width: 2.4; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 120; stroke-dashoffset: 0; transition: stroke-dashoffset 0.6s ease; }
+/* FAMILY: a skewed crew plate, hip-hop block letters, wide tracking. */
+.vg-logo-crew {
+  margin-top: 4px; padding: 1px 6px 1px 8px; font-size: 7.5px; letter-spacing: 0.42em; text-transform: uppercase;
+  color: var(--vg-on-accent); background: linear-gradient(180deg, var(--vg-accent-2), var(--vg-accent));
+  border-radius: 2px; transform: skewX(-14deg); box-shadow: 2px 2px 0 color-mix(in srgb, var(--vg-accent) 45%, #000);
 }
-.vg-logo:hover .vg-logo-family { transform: rotate(-4deg) translateY(-1px) scale(1.06); }
-.vg-logo:hover .vg-logo-lamba { filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--vg-accent) 45%, #000)) drop-shadow(0 2px 0 color-mix(in srgb, var(--vg-accent) 30%, #000)) drop-shadow(0 0 14px color-mix(in srgb, var(--vg-accent) 55%, transparent)); }
+.vg-logo:hover .vg-logo-tag { transform: rotate(-2deg) scale(1.04); text-shadow: 1.5px 1.5px 0 var(--vg-accent), 3px 3px 0 color-mix(in srgb, var(--vg-accent) 55%, #000), 0 0 14px color-mix(in srgb, var(--vg-accent) 45%, transparent); }
+.vg-logo:hover .vg-logo-halo { transform: rotate(-8deg) translateY(-2px); }
+.vg-logo:hover .vg-logo-swoosh path { animation: vg-swoosh 0.7s ease; }
+@keyframes vg-swoosh { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
 
 /* ---------- Avatar ---------- */
 .vg-avatar { flex: 0 0 auto; position: relative; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; background: none; transition: transform 0.25s cubic-bezier(.2,.8,.2,1); }
