@@ -8,8 +8,8 @@
 //                   icons that magnify under the cursor (it moves to the
 //                   bottom on a phone), Control Centre, avatar, sign-out
 //   · ControlCentre the theme picker (lib/vault-themes.ts), sounds, motion
-//   · SignOutButton a 3D power key with a synthesised power-down sound and
-//                   a shutdown animation
+//   · SignOutButton an armoured mech core; signing out plays a robot
+//                   transformation with synthesised servo sound design
 //   · CountUp, Hello, ThemeSync — small touches used around the app
 //
 // Sounds are synthesised with Web Audio, so there are no audio files, and
@@ -103,15 +103,16 @@ function click(a: AudioContext) {
 }
 
 /**
- * Locking the vault — sound design timed to the door, not music:
- *   0.00  air moving as the door swings shut (a filtered whoosh)
- *   0.62  the door lands — a deep thud with a steel ring
- *   0.72  the wheel spins — ratchet clicks, fast then slowing
- *   1.40  four bolts shoot home — heavy metallic clunks
- *   1.72  the lock engages — a low hit and a short, cool synth chord
+ * The transformation — sound design timed to the animation, not music:
+ *   0.30  twelve armour plates slam onto the screen, clank by clank
+ *   0.62  the seams charge up — a rising whine
+ *   0.85  servos whirr as the plates break apart and fold inward
+ *   1.28  fifteen helmet pieces lock into place, click by click
+ *   1.70  the eyes ignite — an impact and a deep, cinematic brass swell
+ *   2.50  power down — a falling tone as the screen collapses to a line
  * A limiter at the end keeps the heavy hits clean.
  */
-function vaultSound(a: AudioContext) {
+function mechSound(a: AudioContext) {
   const t0 = a.currentTime + 0.02
   const limit = a.createDynamicsCompressor()
   limit.threshold.value = -10; limit.knee.value = 6; limit.ratio.value = 12; limit.attack.value = 0.003; limit.release.value = 0.2
@@ -123,61 +124,71 @@ function vaultSound(a: AudioContext) {
     const f = a.createBiquadFilter(); f.type = type; f.Q.value = q
     f.frequency.setValueAtTime(f0, at); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), at + dur)
     const g = a.createGain()
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.03, dur / 4)); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.02, dur / 4)); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
     n.connect(f).connect(g).connect(out); n.start(at)
   }
-  const ping = (at: number, f: number, dur: number, vol: number, type: OscillatorType = 'sine', drop = 1) => {
+  const tone = (at: number, f0: number, f1: number, dur: number, vol: number, type: OscillatorType = 'sine', attack = 0.004, lp = 0) => {
     const o = a.createOscillator(), g = a.createGain()
-    o.type = type; o.frequency.setValueAtTime(f, at); o.frequency.exponentialRampToValueAtTime(f * drop, at + dur)
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
-    o.connect(g).connect(out); o.start(at); o.stop(at + dur + 0.02)
+    o.type = type; o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + dur)
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + attack); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+    if (lp) { const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f).connect(g) } else o.connect(g)
+    g.connect(out); o.start(at); o.stop(at + dur + 0.02)
+  }
+  // Struck metal rings at inharmonic partials — that's what makes it sound like steel.
+  const clank = (at: number, f: number, vol: number) => {
+    burst(at, 0.07, 'bandpass', 2200, 900, 1.8, vol)
+    tone(at, 95, 60, 0.12, vol * 0.9)
+    ;[1, 1.47, 2.09, 2.76].forEach((k, i) => tone(at, f * k, f * k * 0.995, 0.18 - i * 0.03, vol * 0.09 / (i + 1), 'triangle'))
   }
 
-  // 1. The swing: air rushing past a heavy door.
-  burst(t0, 0.62, 'bandpass', 380, 1800, 0.9, 0.22)
-  // 2. The door lands: a sub thud, a body knock, and a short steel ring.
-  const land = t0 + 0.62
-  ping(land, 62, 0.55, 0.9, 'sine', 0.6)
-  burst(land, 0.18, 'lowpass', 900, 120, 0.7, 0.55)
-  ping(land, 1480, 0.5, 0.05, 'triangle'); ping(land, 2210, 0.4, 0.03, 'triangle')
-  // 3. The wheel: ratchet clicks, quickening then settling — like a safe.
-  const clicks = [0, 0.07, 0.13, 0.18, 0.225, 0.265, 0.3, 0.335, 0.375, 0.42, 0.475, 0.54, 0.62]
-  clicks.forEach((c, i) => {
-    const at = t0 + 0.72 + c
-    burst(at, 0.018, 'highpass', 2600, 2200, 0.7, 0.28 - i * 0.012)
-    ping(at, 900 + (i % 2) * 120, 0.035, 0.07, 'square')
+  // 1. Armour plates slam on.
+  for (let i = 0; i < 12; i++) clank(t0 + 0.3 + i * 0.03, 640 + ((i * 137) % 5) * 70, 0.32)
+  // 2. The seams charge: a rising, buzzing whine.
+  tone(t0 + 0.62, 90, 420, 0.28, 0.07, 'sawtooth', 0.2, 1400)
+  burst(t0 + 0.62, 0.28, 'bandpass', 600, 3200, 3, 0.08)
+  // 3. Servos whirr as the plates break apart and fold in.
+  ;[0, 0.11, 0.2, 0.31, 0.4].forEach((d, i) => {
+    const at = t0 + 0.85 + d, up = i % 2 === 0
+    tone(at, up ? 180 : 420, up ? 520 : 230, 0.12, 0.06, 'sawtooth', 0.01, 1800)
+    tone(at, up ? 360 : 840, up ? 1040 : 460, 0.12, 0.025, 'square', 0.01, 2400)
   })
-  // 4. Four bolts shoot home, one after another.
-  for (let i = 0; i < 4; i++) {
-    const at = t0 + 1.4 + i * 0.075
-    burst(at, 0.12, 'bandpass', 1300, 700, 1.4, 0.5)
-    ping(at, 2400 - i * 90, 0.16, 0.045, 'triangle')
-    ping(at, 110, 0.12, 0.35, 'sine', 0.7)
+  burst(t0 + 0.85, 0.45, 'bandpass', 900, 2400, 1.2, 0.1)
+  // 4. Helmet pieces lock into place.
+  for (let i = 0; i < 15; i++) {
+    const at = t0 + 1.28 + i * 0.026
+    burst(at, 0.02, 'highpass', 3000, 2500, 0.8, 0.26)
+    tone(at, 1300 + (i % 3) * 180, 1200, 0.04, 0.05, 'square')
+    tone(at, 150, 90, 0.06, 0.16)
   }
-  // 5. Locked: a low hit, then a short, cool chord that opens and settles.
-  const lock = t0 + 1.72
-  ping(lock, 48, 0.9, 0.85, 'sine', 0.8)
-  burst(lock, 0.3, 'lowpass', 400, 60, 0.7, 0.4)
-  const hz = (m: number) => 440 * Math.pow(2, (m - 69) / 12)
-  ;[50, 57, 62, 64, 69].forEach((m, i) => {                 // D3 A3 D4 E4 A4 — an open, modern sus chord
-    const at = lock + 0.04 + i * 0.012
-    for (const det of [-6, 6]) {
+  // 5. Eyes ignite: a zap, a heavy impact, and a low brass swell (A1 + E2 + A2).
+  const ig = t0 + 1.7
+  tone(ig - 0.08, 300, 2400, 0.1, 0.05, 'sawtooth', 0.01, 5000)
+  tone(ig, 58, 32, 1.1, 0.95)
+  burst(ig, 0.35, 'lowpass', 1400, 80, 0.7, 0.5)
+  ;[55, 82.41, 110].forEach((f, i) => {
+    for (const det of [-9, 9]) {
       const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter()
-      o.type = 'sawtooth'; o.frequency.value = hz(m); o.detune.value = det
-      lp.type = 'lowpass'; lp.Q.value = 2
-      lp.frequency.setValueAtTime(400, at); lp.frequency.exponentialRampToValueAtTime(2600, at + 0.35); lp.frequency.exponentialRampToValueAtTime(500, at + 1.6)
-      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.03, at + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.7)
-      o.connect(lp).connect(g).connect(out); o.start(at); o.stop(at + 1.75)
+      o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det
+      lp.type = 'lowpass'; lp.Q.value = 3
+      lp.frequency.setValueAtTime(180, ig); lp.frequency.exponentialRampToValueAtTime(1100, ig + 0.25); lp.frequency.exponentialRampToValueAtTime(220, ig + 0.8)
+      g.gain.setValueAtTime(0.0001, ig); g.gain.exponentialRampToValueAtTime(0.09 / (i + 1), ig + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, ig + 0.8)
+      o.connect(lp).connect(g).connect(out); o.start(ig); o.stop(ig + 0.85)
     }
   })
+  // 6. Power down: a falling tone and a hiss that closes, then one last tick.
+  const off = t0 + 2.5
+  tone(off, 900, 40, 0.45, 0.12, 'sine', 0.01)
+  tone(off, 1800, 80, 0.45, 0.03, 'square', 0.01, 3000)
+  burst(off, 0.45, 'highpass', 6000, 800, 0.7, 0.07)
+  burst(off + 0.45, 0.015, 'highpass', 3000, 3000, 0.7, 0.2)
 }
 
-/** click: any click anywhere in the vault · vault: signing out. */
-export function sfx(kind: 'click' | 'vault') {
+/** click: any click anywhere in the vault · mech: signing out. */
+export function sfx(kind: 'click' | 'mech') {
   const a = audio()
   if (!a) return
   if (kind === 'click') click(a)
-  else vaultSound(a)
+  else mechSound(a)
 }
 
 /** Every click in the vault makes the click — installed once by ThemeSync. */
@@ -356,12 +367,12 @@ export function SignOutButton({ name }: { name?: string }) {
   const [down, setDown] = useState(false)
   async function go() {
     if (down) return
-    sfx('vault')
+    sfx('mech')
     setDown(true)
     document.querySelector('.vg')?.classList.add('vg-shutting')
     const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
-    // The door swings, the wheel spins, the bolts shoot, it locks — then black.
-    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 2650))])
+    // Plates, transform, eyes, power down — then leave.
+    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 3100))])
     // A full page load rather than a router push, so nothing from the
     // signed-in session survives in memory.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -369,93 +380,107 @@ export function SignOutButton({ name }: { name?: string }) {
   }
   return (
     <>
-      {/* A brushed-steel safe dial with a padlock whose shackle stands open
-          while you are signed in; it snaps shut when you lock the vault. */}
-      <button className="vg-lockbtn" data-locking={down} onClick={go} disabled={down} aria-label="Lock the vault and sign out" title="Lock & sign out">
-        <svg viewBox="0 0 24 24" className="vg-padlock" aria-hidden="true">
-          <path className="shackle" d="M8.2 11V8.1a3.8 3.8 0 0 1 7.6 0V11" />
-          <rect x="5.5" y="10.6" width="13" height="10" rx="2.6" />
-          <circle cx="12" cy="15.3" r="1.35" />
-          <path d="M12 16.3v1.6" />
-        </svg>
+      {/* An armoured hex core: two plates with a glowing visor slit between
+          them. Hover and the plates part to show the power core; click and
+          they slam shut. */}
+      <button className="vg-mechbtn" data-locking={down} onClick={go} disabled={down} aria-label="Power down and sign out" title="Power down & sign out">
+        <span className="hex">
+          <span className="core">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v7.5" /><path d="M7 6.6a7 7 0 1 0 10 0" /></svg>
+          </span>
+          <span className="plate top" />
+          <span className="plate bot" />
+        </span>
       </button>
-      {down && typeof document !== 'undefined' && createPortal(<VaultDoor name={name} />, document.body)}
+      {down && typeof document !== 'undefined' && createPortal(<Transform name={name} />, document.body)}
     </>
   )
 }
 
+// A robot helmet cut into pieces (a 200 × 210 drawing). Left-hand pieces are
+// mirrored for the right. Each piece flies in from its own direction.
+type Pt = [number, number]
+const mirror = (pts: Pt[]): Pt[] => pts.map(([x, y]) => [200 - x, y])
+const HELMET: { id: string; pts: Pt[]; from: [number, number, number]; tone?: 'lite' | 'dark' }[] = (() => {
+  const side: { id: string; pts: Pt[]; from: [number, number, number]; tone?: 'lite' | 'dark' }[] = [
+    { id: 'fin', pts: [[32, 72], [16, 52], [14, 100], [34, 106]], from: [-220, -60, -140] },
+    { id: 'temple', pts: [[44, 42], [62, 64], [58, 100], [38, 118], [32, 72]], from: [-180, 40, 120] },
+    { id: 'brow', pts: [[97, 8], [88, 26], [94, 58], [62, 64], [44, 42], [68, 20]], from: [-120, -200, -90], tone: 'lite' },
+    { id: 'cheek', pts: [[38, 118], [58, 100], [86, 108], [78, 148], [52, 158]], from: [-200, 140, 160] },
+    { id: 'jaw', pts: [[52, 158], [78, 148], [90, 156], [100, 164], [100, 200], [72, 186]], from: [-90, 220, -180], tone: 'lite' },
+  ]
+  const out: typeof side = []
+  for (const p of side) {
+    out.push({ ...p, id: `${p.id}-l` })
+    out.push({ ...p, id: `${p.id}-r`, pts: mirror(p.pts), from: [-p.from[0], p.from[1], -p.from[2]] })
+  }
+  out.splice(4, 0, { id: 'crest', pts: [[100, 4], [112, 26], [106, 58], [94, 58], [88, 26]], from: [0, -260, 180], tone: 'lite' })
+  out.push({ id: 'visor', pts: [[62, 64], [138, 64], [142, 100], [100, 106], [58, 100]], from: [0, -40, 0], tone: 'dark' })
+  out.push({ id: 'mouth', pts: [[86, 108], [100, 106], [114, 108], [110, 156], [100, 164], [90, 156]], from: [0, 260, 90] })
+  return out
+})()
+const EYE: Pt[] = [[66, 76], [94, 80], [92, 90], [68, 90]]
+const ptsAttr = (pts: Pt[]) => pts.map(p => p.join(',')).join(' ')
+
 /**
- * Signing out closes the vault: a heavy steel door swings shut over the
- * page, its wheel spins, four bolts shoot into the frame, a light runs
- * across the steel and the status ring turns to LOCKED. Then black.
+ * Signing out transforms the vault: twelve armour plates slam over the
+ * page, charge at the seams, break apart and fold inward, and the pieces
+ * reassemble as a robot helmet. Its eyes ignite, a HUD spins up — then the
+ * whole thing powers off like an old screen collapsing to a line.
  */
-function VaultDoor({ name }: { name?: string }) {
-  const rivets = Array.from({ length: 32 }, (_, i) => (i / 32) * Math.PI * 2)
-  const bolts = [0, 90, 180, 270]
+function Transform({ name }: { name?: string }) {
+  const plates = Array.from({ length: 12 }, (_, i) => {
+    const r = Math.floor(i / 4), c = i % 4
+    const style = {
+      '--i': i,
+      '--fx': c < 2 ? -1 : 1, '--fy': r - 1, '--fr': `${(c < 2 ? -1 : 1) * (r === 1 ? 8 : 18)}deg`,
+      '--tx': `${(1.5 - c) * 100}%`, '--ty': `${(1 - r) * 100}%`,
+      '--o': Math.abs(1.5 - c) + Math.abs(1 - r),
+    } as React.CSSProperties
+    return <div key={i} className={`vg-tf-plate${i % 5 === 0 ? ' hazard' : ''}`} style={style} data-label={`${'ABC'[r]}-0${c + 1}`} />
+  })
   return (
-    <div className="vg-vault" role="status" aria-live="polite">
-      <div className="vg-vault-shake">
-        <div className="vg-vault-frame">
-          <svg viewBox="0 0 400 400" className="vg-vault-svg" aria-hidden="true">
+    <div className="vg-tf" role="status" aria-live="polite">
+      <div className="vg-tf-plates" aria-hidden="true">{plates}</div>
+      <div className="vg-tf-stage">
+        <div className="vg-tf-head">
+          <svg viewBox="-40 -40 280 290" className="vg-tf-hud" aria-hidden="true">
+            <circle cx="100" cy="105" r="128" className="ring r1" />
+            <circle cx="100" cy="105" r="116" className="ring r2" />
+            <circle cx="100" cy="105" r="138" className="ring r3" />
+          </svg>
+          <svg viewBox="0 0 200 210" className="vg-tf-svg" aria-hidden="true">
             <defs>
-              <radialGradient id="vd-steel" cx="42%" cy="36%" r="75%">
-                <stop offset="0" stopColor="#f4f6f8" /><stop offset="0.45" stopColor="#b9c0c7" /><stop offset="0.8" stopColor="#7d858d" /><stop offset="1" stopColor="#4f555b" />
-              </radialGradient>
-              <radialGradient id="vd-hub" cx="40%" cy="35%" r="70%">
-                <stop offset="0" stopColor="#ffffff" /><stop offset="0.5" stopColor="#aeb5bc" /><stop offset="1" stopColor="#555b61" />
-              </radialGradient>
-              <linearGradient id="vd-frame" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#3a3f45" /><stop offset="0.5" stopColor="#1c1f23" /><stop offset="1" stopColor="#2c3035" />
+              <linearGradient id="tf-metal" x1="0" y1="0" x2="0.4" y2="1">
+                <stop offset="0" stopColor="#9aa6b4" /><stop offset="0.45" stopColor="#4a525d" /><stop offset="1" stopColor="#1d2127" />
               </linearGradient>
-              <linearGradient id="vd-bolt" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#e9edf1" /><stop offset="1" stopColor="#7b838b" />
+              <linearGradient id="tf-lite" x1="0" y1="0" x2="0.3" y2="1">
+                <stop offset="0" stopColor="#dfe6ee" /><stop offset="0.5" stopColor="#8e99a6" /><stop offset="1" stopColor="#3b424b" />
               </linearGradient>
-              <linearGradient id="vd-sheen" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="0.5" stopColor="#fff" stopOpacity="0.7" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
-              </linearGradient>
-              <clipPath id="vd-clip"><circle cx="200" cy="200" r="168" /></clipPath>
+              <filter id="tf-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+              <clipPath id="tf-clip">{HELMET.map(p => <polygon key={p.id} points={ptsAttr(p.pts)} />)}</clipPath>
             </defs>
-            {/* the shockwave when it locks */}
-            <circle className="vd-shock" cx="200" cy="200" r="196" fill="none" stroke="#30d158" strokeWidth="3" />
-            {/* the frame in the wall, and the bolts' sockets */}
-            <circle cx="200" cy="200" r="196" fill="url(#vd-frame)" />
-            <circle cx="200" cy="200" r="196" fill="none" stroke="#5c636a" strokeWidth="2" />
-            {/* the bolts sit behind the door until they shoot out into the frame */}
-            {bolts.map((deg, i) => (
-              <g key={deg} transform={`rotate(${deg} 200 200)`}>
-                <rect className="vd-bolt" x="184" y="6" width="32" height="52" rx="6" fill="url(#vd-bolt)" stroke="#4a5056" style={{ animationDelay: `${1.4 + i * 0.075}s` }} />
+            {HELMET.map((p, i) => (
+              <g key={p.id} className="tf-part" style={{ '--dx': `${p.from[0]}px`, '--dy': `${p.from[1]}px`, '--r': `${p.from[2]}deg`, '--i': i } as React.CSSProperties}>
+                <polygon points={ptsAttr(p.pts)} fill={p.tone === 'dark' ? '#07090c' : p.tone === 'lite' ? 'url(#tf-lite)' : 'url(#tf-metal)'} />
+                {p.id === 'mouth' && [120, 130, 140, 150].map(y => <line key={y} x1="92" x2="108" y1={y} y2={y} className="slat" />)}
               </g>
             ))}
-            <g className="vd-door">
-              <circle cx="200" cy="200" r="170" fill="url(#vd-steel)" stroke="#3f454b" strokeWidth="3" />
-              {/* brushed rings */}
-              {[150, 132, 118].map(r => <circle key={r} cx="200" cy="200" r={r} fill="none" stroke="#fff" strokeOpacity="0.22" strokeWidth="1" />)}
-              <circle cx="200" cy="200" r="128" fill="none" stroke="#5f666d" strokeWidth="6" />
-              <circle cx="200" cy="200" r="128" fill="none" stroke="#fff" strokeOpacity="0.45" strokeWidth="1.2" transform="translate(-1 -1.5)" />
-              {rivets.map((t, i) => <circle key={i} cx={200 + 156 * Math.cos(t)} cy={200 + 156 * Math.sin(t)} r="3.4" fill="url(#vd-hub)" stroke="#555b61" strokeWidth="0.8" />)}
-              {/* the status ring: amber while locking, green once locked */}
-              <circle className="vd-status" cx="200" cy="200" r="58" fill="none" strokeWidth="4" />
-              {/* the wheel */}
-              <g className="vd-wheel">
-                {[0, 120, 240].map(deg => (
-                  <g key={deg} transform={`rotate(${deg} 200 200)`}>
-                    <rect x="194" y="92" width="12" height="108" rx="6" fill="url(#vd-hub)" stroke="#50565c" />
-                    <circle cx="200" cy="92" r="13" fill="url(#vd-hub)" stroke="#50565c" strokeWidth="1.5" />
-                  </g>
-                ))}
-                <circle cx="200" cy="200" r="34" fill="url(#vd-hub)" stroke="#4a5056" strokeWidth="2" />
-                <circle cx="200" cy="200" r="12" fill="#2a2e33" />
-              </g>
-              {/* a light that runs across the steel once it locks */}
-              <g clipPath="url(#vd-clip)"><rect className="vd-sheen" x="-120" y="-40" width="110" height="480" fill="url(#vd-sheen)" transform="rotate(20 200 200)" /></g>
+            <g className="tf-eyes" filter="url(#tf-glow)">
+              <polygon points={ptsAttr(EYE)} />
+              <polygon points={ptsAttr(mirror(EYE))} />
             </g>
+            <g clipPath="url(#tf-clip)"><rect className="tf-scan" x="0" y="0" width="200" height="14" /></g>
           </svg>
         </div>
-        <div className="vg-vault-text">
-          <p className="vg-vault-state"><span className="vg-vault-led" /> <span className="vg-vault-words"><span className="t-locking">Locking</span><span className="t-locked">Locked</span></span></p>
-          <p className="vg-vault-sub">{name ? `See you soon, ${name}` : 'See you soon'}</p>
+        <div className="vg-tf-text">
+          <p className="vg-tf-state"><span className="vg-tf-led" /><span className="vg-tf-words"><span className="t1">Transforming</span><span className="t2">Secured</span></span></p>
+          <p className="vg-tf-sub">{name ? `See you soon, ${name}` : 'See you soon'}</p>
         </div>
       </div>
+      <div className="vg-tf-line" aria-hidden="true" />
     </div>
   )
 }
