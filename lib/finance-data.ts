@@ -1378,7 +1378,9 @@ export function simulatePrepay(it: Item, opts: { lump?: number; monthly?: number
   const baseInterest = base.remainingInterest
   return {
     months: n,
-    endsOn: n > 0 ? addMonths(from, n - 1) : from,
+    // The balance is what is left AFTER this month's instalment, so the n
+    // instalments still to pay start next month.
+    endsOn: n > 0 ? addMonths(from, n) : from,
     interest,
     baseMonths, baseInterest,
     monthsSaved: Math.max(0, baseMonths - n),

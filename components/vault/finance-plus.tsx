@@ -26,7 +26,7 @@ import {
 import {
   type FinanceDoc, type Account, type Goal, type Allowance, type AccessPerms, type AccessArea, type AccessOp,
   type Item, type Entity, type AllocRule,
-  ACCESS_AREAS, ACCESS_OPS, ACCESS_LABEL, INR, monthKey, monthLabel, addMonths, entName, entColor, monthView,
+  ACCESS_AREAS, ACCESS_OPS, ACCESS_LABEL, INR, monthKey, monthLabel, addMonths, monthsBetween, entName, entColor, monthView,
   shares, computeSettlement, can,
 } from '@/lib/finance-data'
 import {
@@ -46,7 +46,8 @@ const num = (v: string) => { const n = parseFloat(v.replace(/[^0-9.-]/g, '')); r
 const signed = (n: number) => `${n < 0 ? '−' : ''}${INR(Math.abs(n))}`
 const BASE_C = '#4b7bec', SCEN_C = '#c2410c'     // validated pair: current plan vs scenario
 
-/** Runs an action, and shows what the server said. */
+/** Runs an action and confirms success. Failures are shown once, by the
+ *  dashboard's own error toast, so they are never silent and never doubled. */
 function useRunner(action: Act) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,7 +57,7 @@ function useRunner(action: Act) {
     const d = await action(payload)
     setBusy(false)
     const ok = !!d && !d.error
-    const text = d?.error ?? (ok ? okText : 'That did not go through — check your connection.')
+    const text = ok ? okText : undefined
     if (text) {
       setMsg({ ok, text })
       if (timer.current) clearTimeout(timer.current)
@@ -120,6 +121,18 @@ const cardHead = (title: string, right?: React.ReactNode) => (
 )
 
 // ---------- acting-as banner & profile switcher -----------------
+
+/** The one place an action's failure is shown — for every tab, old and new. */
+export function ErrorToast({ text, onClose }: { text: string | null; onClose: () => void }) {
+  if (!text) return null
+  return (
+    <div role="alert" className="vg-card" style={{ position: 'fixed', bottom: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 71, padding: '0.6rem 0.5rem 0.6rem 0.9rem', background: '#4a1420', color: '#fff', fontSize: '0.86rem', maxWidth: 'min(540px, 92vw)', display: 'flex', gap: 10, alignItems: 'center', boxShadow: '0 16px 40px -14px rgba(0,0,0,0.5)' }}>
+      <TriangleAlert className="h-4 w-4" style={{ flex: '0 0 auto' }} />
+      <span style={{ flex: 1 }}>{text}</span>
+      <button onClick={onClose} aria-label="Dismiss" style={{ background: 'transparent', border: 0, color: '#fff', cursor: 'pointer', padding: 4 }}><X className="h-4 w-4" /></button>
+    </div>
+  )
+}
 
 export function ProfileSwitcher({ options, active, onSwitch }: { options: { id: string | null; label: string }[]; active: string | null; onSwitch: (id: string | null) => void }) {
   if (options.length < 2) return null
@@ -244,8 +257,14 @@ export function MoneyTab({ doc, viewer, action, goTo, perm = ALL, me }: {
   return (
     <>
       {flash}
+      {!canAcc && (
+        <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+          <p className="vg-sec">Balances</p>
+          <p className="vg-muted" style={{ margin: 0, fontSize: '0.88rem' }}>Bank-account access hasn’t been granted for this profile, so balances and Available Money aren’t shown.</p>
+        </div>
+      )}
       {/* ---- the one number ---- */}
-      <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
+      {canAcc && <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'grid', gap: '1.2rem', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'start' }}>
           <div>
             <p className="vg-sec" style={{ marginBottom: 4 }}>{viewer ? `${who}’s money` : 'Common account'} · today</p>
@@ -269,10 +288,11 @@ export function MoneyTab({ doc, viewer, action, goTo, perm = ALL, me }: {
           <div style={{ display: 'grid', gap: '0.85rem' }}>
             <div className="vg-kpi">
               <div className="k">Safe to spend</div>
-              <div className={`v ${sts.safe < 0 ? 'vg-neg' : 'vg-accent'}`}>{signed(sts.safe)}</div>
+              <div className={`v ${sts.safe < 0 ? 'vg-neg' : 'vg-accent'}`}>{am.hasAccounts ? signed(sts.safe) : '—'}</div>
               <div className="vg-muted" style={{ fontSize: '0.8rem', marginTop: 4 }}>
-                {sts.safe > 0 ? <>About <b>{INR(sts.perDay)}/day</b> for the {sts.daysLeft} day{sts.daysLeft === 1 ? '' : 's'} left in {monthLabel(k).split(' ')[0]}.</> : 'Nothing spare this month once bills and goals are covered.'}
-                {sts.goals > 0.5 && <> Goal money still to put aside this month ({INR(sts.goals)}) is kept out.</>}
+                {!am.hasAccounts ? 'Needs your accounts and their balances — add them below.' : sts.safe > 0 ? <>About <b>{INR(sts.perDay)}/day</b> for the {sts.daysLeft} day{sts.daysLeft === 1 ? '' : 's'} left in {monthLabel(k).split(' ')[0]}.</> : 'Nothing spare this month once bills and goals are covered.'}
+                {sts.earmarked > 0.5 && <> Money already in goal buckets ({INR(sts.earmarked)}) is kept out.</>}
+                {sts.goals > 0.5 && <> So is what your goals still need this month ({INR(sts.goals)}).</>}
               </div>
             </div>
             {!am.hasAccounts && canAcc && (
@@ -295,7 +315,7 @@ export function MoneyTab({ doc, viewer, action, goTo, perm = ALL, me }: {
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       <FinancialInbox doc={doc} viewer={viewer} me={me} goTo={goTo} />
 
@@ -424,7 +444,7 @@ function TransferEditor({ doc, viewer, onSave, onClose, busy }: { doc: FinanceDo
   const label = (a: Account) => `${a.name}${a.owner === 'common' && viewer ? ' (common)' : ''} · ${ACCOUNT_TYPE_LABEL[a.type]}`
   return (
     <Modal title="Move money between accounts" onClose={onClose}>
-      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 0 }}>A transfer is not spending: it leaves one account and lands in another. Paying a credit-card bill, withdrawing cash and topping up the common account are all transfers.</p>
+      <p className="vg-muted" style={{ fontSize: '0.82rem', marginTop: 0 }}>A transfer is not spending: it leaves one account and lands in another — paying a credit-card bill, withdrawing cash, moving money to savings. Settlement payments recorded on the Settlement tab are already counted, so don’t add those again.</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
         <Field label="From"><select className="vg-select" value={from} onChange={e => setFrom(e.target.value)}>{all.map(a => <option key={a.id} value={a.id}>{label(a)}</option>)}</select></Field>
         <Field label="To"><select className="vg-select" value={to} onChange={e => setTo(e.target.value)}>{all.map(a => <option key={a.id} value={a.id}>{label(a)}</option>)}</select></Field>
@@ -659,7 +679,7 @@ export function SplitPreview({ item, entities }: { item: Item; entities: Entity[
 const GOAL_KINDS: [NonNullable<Goal['kind']>, string][] = [['emergency', 'Emergency fund'], ['travel', 'Vacation'], ['vehicle', 'Vehicle'], ['education', 'Education'], ['gadget', 'Gadget'], ['home', 'Home'], ['other', 'Other']]
 const GOAL_COLORS = ['#6d4bd8', '#1f9d6b', '#4b7bec', '#c2410c', '#b0479a', '#0e7490', '#8b6d1d']
 
-export function GoalsTab({ doc, viewer, action, perm = ALL, me }: { doc: FinanceDoc; viewer: string | null; action: Act; perm?: Perm; me: { role: 'super' | 'member'; entityId: string | null } }) {
+export function GoalsTab({ doc, viewer, action, perm = ALL, me, acting = false }: { doc: FinanceDoc; viewer: string | null; action: Act; perm?: Perm; me: { role: 'super' | 'member'; entityId: string | null }; acting?: boolean }) {
   const { run, busy, flash } = useRunner(action)
   const [sub, setSub] = useState<'goals' | 'allowances'>('goals')
   const [edit, setEdit] = useState<Partial<Goal> | null>(null)
@@ -669,8 +689,10 @@ export function GoalsTab({ doc, viewer, action, perm = ALL, me }: { doc: Finance
   const goals = (doc.goals ?? []).filter(g => !g.archived && (g.owner === owner || (viewer && g.owner === 'household')))
   const canSee = perm('savings', 'view')
   const canEdit = perm('savings', 'edit')
-  const total = goals.filter(g => g.owner === owner).reduce((a, g) => a + (g.saved || 0), 0)
-  const showAllowances = me.role === 'super' || (doc.allowances ?? []).length > 0 || doc.entities.some(e => e.kind === 'person' && e.isLiability)
+  const own = goals.filter(g => g.owner === owner)
+  const total = own.reduce((a, g) => a + (g.saved || 0), 0)
+  // Allowances are a family decision — not something done on someone's behalf.
+  const showAllowances = !acting
 
   return (
     <>
@@ -680,12 +702,12 @@ export function GoalsTab({ doc, viewer, action, perm = ALL, me }: { doc: Finance
         <>
           <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
             {cardHead(viewer ? 'Goals' : 'Household goals', canEdit && perm('savings', 'add') ? <button className="vg-btn vg-btn-primary" onClick={() => setEdit({ kind: 'other', owner, color: GOAL_COLORS[goals.length % GOAL_COLORS.length] })}><Plus className="h-4 w-4" /> New goal</button> : undefined)}
-            {goals.length > 0 && <p className="vg-muted" style={{ marginTop: 0, fontSize: '0.84rem' }}>{INR(total)} set aside across {goals.filter(g => g.owner === owner).length} bucket{goals.length === 1 ? '' : 's'}{viewer && goals.some(g => g.owner === 'household') ? ', plus shared household goals' : ''}.</p>}
+            {goals.length > 0 && <p className="vg-muted" style={{ marginTop: 0, fontSize: '0.84rem' }}>{INR(total)} set aside across {own.length} bucket{own.length === 1 ? '' : 's'}{viewer && goals.some(g => g.owner === 'household') ? ', plus shared household goals' : ''}.</p>}
             {goals.length === 0 && <p className="vg-muted" style={{ fontSize: '0.88rem', margin: 0 }}>Instead of one savings number, give each rupee a job — Emergency Fund, Vacation, Car, Education. Each goal shows what it needs a month, and whether you’re on track.</p>}
             <div style={{ display: 'grid', gap: '0.9rem', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
               {goals.map(g => {
                 const st = goalStatus(g, k)
-                const mine = g.owner === owner || (!!viewer && g.owner === 'household' && !!me.entityId && viewer === me.entityId)
+                const mine = g.owner === owner || (!!viewer && g.owner === 'household' && !acting)
                 return (
                   <div key={g.id} className="vg-kpi" style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: `3px solid ${g.color ?? '#6d4bd8'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
@@ -720,7 +742,7 @@ export function GoalsTab({ doc, viewer, action, perm = ALL, me }: { doc: Finance
       )}
 
       {edit && (
-        <GoalEditor goal={edit} allowHousehold={!!viewer && viewer === me.entityId} busy={busy} onClose={() => setEdit(null)}
+        <GoalEditor goal={edit} allowHousehold={!!viewer && !acting} busy={busy} onClose={() => setEdit(null)}
           onRemove={edit.id ? async () => { if (await run({ action: 'removeGoal', id: edit.id }, 'Goal closed')) setEdit(null) } : undefined}
           onSave={async g => { if (await run({ action: 'saveGoal', goal: g, isNew: !g.id }, g.id ? 'Goal updated' : 'Goal created')) setEdit(null) }} />
       )}
@@ -942,6 +964,7 @@ export function PlanTab({ doc, viewer, action, perm = ALL }: { doc: FinanceDoc; 
     <>
       {flash}
       <Sub value={sub} onChange={setSub} options={[['timeline', 'Health timeline'], ['afford', 'Can I afford it?'], ['whatif', 'What if…'], ['memory', 'Financial memory']]} />
+      {sub !== 'memory' && <NoAccountsNote doc={doc} viewer={viewer} />}
       {sub === 'timeline' && <TimelinePanel doc={doc} viewer={viewer} />}
       {sub === 'afford' && <AffordPanel doc={doc} viewer={viewer} />}
       {sub === 'whatif' && <WhatIfPanel doc={doc} viewer={viewer} />}
@@ -1017,7 +1040,8 @@ function CashChart({ series, height = 220 }: { series: { name: string; color: st
         )}
       </svg>
       {hover != null && hk && (
-        <div className="vg-pop" style={{ position: 'absolute', top: 4, left: `${Math.min(70, (x(hover) / W) * 100)}%`, right: 'auto', width: 'max-content', pointerEvents: 'none' }}>
+        <div className="vg-pop" style={{ position: 'absolute', top: 4, width: 'max-content', maxWidth: '70%', pointerEvents: 'none',
+          ...(x(hover) > W / 2 ? { right: W - x(hover) + 10, left: 'auto' } : { left: x(hover) + 10, right: 'auto' }) }}>
           <b>{monthLabel(hk)}</b>
           {series.map(s => <div key={s.name} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ width: 10, height: 2, background: s.color, display: 'inline-block' }} />{s.name}: {signed(s.values[hover].v)}</div>)}
         </div>
@@ -1029,6 +1053,11 @@ function CashChart({ series, height = 220 }: { series: { name: string; color: st
       )}
     </div>
   )
+}
+
+function NoAccountsNote({ doc, viewer }: { doc: FinanceDoc; viewer: string | null }) {
+  if (accountsOf(doc, viewer).length) return null
+  return <p className="vg-card" style={{ padding: '0.6rem 0.85rem', fontSize: '0.85rem', marginBottom: '1rem' }}><TriangleAlert className="h-4 w-4" style={{ display: 'inline', color: SCEN_C, verticalAlign: '-3px' }} /> No accounts yet, so these start from ₹0 rather than your real balance. Add them on the Money tab.</p>
 }
 
 function TimelinePanel({ doc, viewer }: { doc: FinanceDoc; viewer: string | null }) {
@@ -1112,6 +1141,7 @@ function AffordPanel({ doc, viewer }: { doc: FinanceDoc; viewer: string | null }
             <AffRow l="Current balance" v={r.balance} />
             <AffRow l="Upcoming commitments" v={-r.upcoming} />
             {r.upcomingParts.map(p => <div key={p.label} className="vg-muted" style={{ fontSize: '0.74rem', paddingLeft: 10 }}>· {p.label}: {INR(p.amount)}</div>)}
+            {r.earmarked > 0.5 && <AffRow l="Already in goal buckets" v={-r.earmarked} />}
             <AffRow l="Monthly savings target" v={-r.savingsTarget} />
             <AffRow l={`${what || 'Purchase'}`} v={-r.price} />
             <AffRow l="After purchase: safe balance" v={r.cash.safeAfter} strong neg />
@@ -1130,7 +1160,7 @@ function AffordPanel({ doc, viewer }: { doc: FinanceDoc; viewer: string | null }
                 Surplus goes from {signed(r.emi.surplusBefore)} to {signed(r.emi.surplusAfter)} a month for {r.emi.months} months. EMIs would take {Math.round(r.emi.emiLoadAfter)}% of income (from {Math.round(r.emi.emiLoadBefore)}%){r.emi.emiLoadAfter > 45 ? ' — above the ~45% most lenders treat as a stretch' : ''}.
               </p>
               <p style={{ fontSize: '0.84rem', margin: '0.6rem 0 0', fontWeight: 600 }}>
-                Cash vs EMI: EMI keeps {INR(Math.max(0, r.cash.safeAfter < r.emi.safeAfter ? r.emi.safeAfter - r.cash.safeAfter : 0))} more in hand today and costs {INR(r.emi.interest)} extra overall.
+                Cash vs EMI: EMI keeps {INR(r.price - r.emi.down)} more in hand today, and costs {INR(r.emi.interest)} extra overall.
               </p>
             </div>
           )}
@@ -1244,7 +1274,7 @@ function MemoryPanel({ doc, viewer, onPlan, canPlan }: { doc: FinanceDoc; viewer
           <Lightbulb className="h-4 w-4" style={{ color: m.soon ? SCEN_C : 'var(--vg-accent)', marginTop: 2, flex: '0 0 auto' }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{m.text}</div>
-            {m.when && <div className="vg-muted" style={{ fontSize: '0.78rem' }}>{m.soon ? 'Coming up' : 'Next'}: {monthLabel(m.when)}{m.suggest ? ` · put aside ${INR(m.suggest.target / Math.max(1, (Number(m.when.slice(0, 4)) - Number(monthKey().slice(0, 4))) * 12 + Number(m.when.slice(5)) - Number(monthKey().slice(5)) + 1))}/month from now` : ''}</div>}
+            {m.when && <div className="vg-muted" style={{ fontSize: '0.78rem' }}>{m.soon ? 'Coming up' : 'Next'}: {monthLabel(m.when)}{m.suggest ? ` · put aside ${INR(m.suggest.target / Math.max(1, monthsBetween(monthKey(), m.when)))}/month from now` : ''}</div>}
           </div>
           {m.suggest && canPlan && (existing.has(m.suggest.name.toLowerCase())
             ? <span className="vg-chip"><Check className="h-3 w-3" /> planned</span>
@@ -1285,6 +1315,8 @@ export function AccessTab({ doc, me, action, onSwitch }: {
   const toDecide = list.filter(d => d.status === 'pending' && d.owner === my)
   const iGranted = list.filter(d => d.status === 'active' && d.owner === my)
   const iManage = list.filter(d => d.status === 'active' && d.grantee === my)
+  const today = new Date().toISOString().slice(0, 10)
+  const expired = (d: { expiresOn?: string | null }) => !!d.expiresOn && d.expiresOn < today
   const myPending = list.filter(d => d.status === 'pending' && d.grantee === my)
   const past = list.filter(d => !['pending', 'active'].includes(d.status)).sort((a, b) => (b.endedAt ?? b.decidedAt ?? b.requestedAt).localeCompare(a.endedAt ?? a.decidedAt ?? a.requestedAt)).slice(0, 8)
   const [req, setReq] = useState<{ owner: string; perms: AccessPerms; message: string; expiresOn: string } | null>(null)
@@ -1340,8 +1372,8 @@ export function AccessTab({ doc, me, action, onSwitch }: {
           {iManage.map(d => (
             <div key={d.id} style={{ padding: '0.6rem 0', borderBottom: '1px dashed var(--vg-line)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <b style={{ flex: 1 }}>{nm(d.owner)}’s Finance</b>
-                {onSwitch && <button className="vg-btn vg-btn-primary" onClick={() => onSwitch(d.owner)}><Eye className="h-4 w-4" /> Manage</button>}
+                <b style={{ flex: 1 }}>{nm(d.owner)}’s Finance{expired(d) && <span className="vg-chip" style={{ marginLeft: 6 }}>expired</span>}</b>
+                {onSwitch && !expired(d) && <button className="vg-btn vg-btn-primary" onClick={() => onSwitch(d.owner)}><Eye className="h-4 w-4" /> Manage</button>}
                 <button className="vg-btn" disabled={busy} onClick={() => run({ action: 'revokeAccess', id: d.id }, 'You no longer manage their finances')}>Stop managing</button>
               </div>
               <div className="vg-muted" style={{ fontSize: '0.8rem', marginTop: 4 }}>{permLines(d.perms).join(' · ')}{d.expiresOn ? ` · until ${d.expiresOn}` : ''}</div>
@@ -1359,7 +1391,7 @@ export function AccessTab({ doc, me, action, onSwitch }: {
           return (
             <div key={d.id} style={{ padding: '0.6rem 0', borderBottom: '1px dashed var(--vg-line)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-                <b style={{ flex: 1 }}>{nm(d.grantee)} <span className="vg-muted" style={{ fontWeight: 400, fontSize: '0.8rem' }}>since {new Date(d.decidedAt ?? d.requestedAt).toLocaleDateString('en-IN')}</span></b>
+                <b style={{ flex: 1 }}>{nm(d.grantee)}{expired(d) && <span className="vg-chip" style={{ marginLeft: 6 }}>expired {d.expiresOn}</span>} <span className="vg-muted" style={{ fontWeight: 400, fontSize: '0.8rem' }}>since {new Date(d.decidedAt ?? d.requestedAt).toLocaleDateString('en-IN')}</span></b>
                 {dirty && <button className="vg-btn vg-btn-primary" disabled={busy} onClick={async () => { if (await run({ action: 'updateAccess', id: d.id, perms: p }, 'Permissions updated')) setDraft(x => { const n = { ...x }; delete n[d.id]; return n }) }}><Check className="h-4 w-4" /> Save</button>}
                 <button className="vg-btn" style={{ color: 'var(--vg-neg)' }} disabled={busy} onClick={() => run({ action: 'revokeAccess', id: d.id }, `Revoked — ${nm(d.grantee)} lost access immediately`)}>Revoke access</button>
               </div>

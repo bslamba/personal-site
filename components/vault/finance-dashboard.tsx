@@ -34,8 +34,9 @@ import {
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
-import { MoneyTab, GoalsTab, PlanTab, AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, permFrom, type ActingInfo } from '@/components/vault/finance-plus'
+import { MoneyTab, GoalsTab, PlanTab, AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-plus'
 import { type Account } from '@/lib/finance-data'
+import { isLiquid } from '@/lib/finance-plan'
 import IdleLogout from '@/components/vault/idle-logout'
 
 const CAT_COLORS: Record<string, string> = {
@@ -489,13 +490,15 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   }, [])
 
   const addCategory = useCallback((name: string, color: string) => patchDoc(d => { if (!d.categories.find(c => c.name === name)) d.categories = [...d.categories, { name, color }]; return d }), [patchDoc])
+  const [actErr, setActErr] = useState<string | null>(null)
   const runAction = useCallback(async (payload: Record<string, unknown>) => {
     try {
       const r = await fetch('/api/vault/finance/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json().catch(() => ({}))
       if (d.doc) { fromServer.current = true; base.current = (d.doc as FinanceDoc).updatedAt; setDoc(d.doc as FinanceDoc) }
+      setActErr(d.error ? String(d.error) : !r.ok ? 'That did not go through. Please try again.' : null)
       return d
-    } catch { return null }
+    } catch { setActErr('Could not reach the server — check your connection.'); return null }
   }, [])
 
   if (!doc || !me) return <Shell role={initialRole}><p className="vg-empty"><Loader2 className="h-5 w-5 vg-spin" style={{ display: 'inline' }} /> Loading…</p></Shell>
@@ -553,6 +556,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
         </>
       )}
       {tab === 'profile' && <ProfileTab me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} />}
+      <ErrorToast text={actErr} onClose={() => setActErr(null)} />
 
       {editing && (
         <ExpenseEditor
@@ -2401,7 +2405,7 @@ function ApprovalsTab({ doc, onDecide, onRevoke, onRevert, me }: {
                 {log.slice(0, 60).map(a => (
                   <tr key={a.id}>
                     <td className="vg-muted" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{when(a.ts)}</td>
-                    <td style={{ fontSize: '0.82rem' }}>{a.actorName}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{a.actorName}{a.onBehalfName && <span className="vg-muted" style={{ display: 'block', fontSize: '0.72rem' }}>for {a.onBehalfName}</span>}</td>
                     <td><span className="vg-chip" style={{ background: (evColor[a.event] || '#8b81ad') + '22', color: evColor[a.event] || '#8b81ad', textTransform: 'capitalize' }}>{a.event}</span></td>
                     <td style={{ fontSize: '0.85rem' }}>
                       {a.what}
@@ -2724,22 +2728,23 @@ function MemberSavings({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: s
         </div>
         <div className="vg-tablewrap">
           <table className="vg-table" style={{ minWidth: 560 }}>
-            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th className="num">Balance</th><th>Note</th><th style={{ width: 36 }}></th></tr></thead>
+            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th className="num">Balance</th><th style={{ width: 92, textAlign: 'center' }} title="Counted in Available Money — money you could draw on this month">Can draw on</th><th>Note</th><th style={{ width: 36 }}></th></tr></thead>
             <tbody>
               {rows.map(s => (
                 <tr key={s.id}>
                   <td><input className="vg-input" value={s.label} onChange={e => upd(s.id, { label: e.target.value })} /></td>
                   <td><input className="vg-input" value={s.kind ?? ''} placeholder="FD / MF…" onChange={e => upd(s.id, { kind: e.target.value })} /></td>
                   <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(s.balance)} onChange={e => upd(s.id, { balance: num(e.target.value) })} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" style={{ width: 17, height: 17, accentColor: '#6d4bd8' }} checked={isLiquid(s)} onChange={e => upd(s.id, { liquid: e.target.checked })} aria-label={`${s.label} can be drawn on`} /></td>
                   <td><input className="vg-input" value={s.note ?? ''} onChange={e => upd(s.id, { note: e.target.value })} /></td>
                   <td><button className="vg-icobtn" onClick={() => del(s.id)}><Trash2 className="h-4 w-4" /></button></td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>This is private to your profile. No one else can see it — not other members, and not the family admin.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Private to your profile — not other members, and not the family admin — unless you grant someone savings access under Access. “Can draw on” pots count towards Available Money; locked ones (PPF, MF, gold…) don’t.</p>
       </div>
     </>
   )
@@ -3305,6 +3310,12 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
 }
 
 // ---------- Member dashboard ------------------------------------
+/** Grants this member can use right now: active and not past their end date. */
+function liveGrants(list: FinanceDoc['delegations'] = [], entityId: string) {
+  const today = new Date().toISOString().slice(0, 10)
+  return list.filter(d => d.status === 'active' && d.grantee === entityId && (!d.expiresOn || d.expiresOn >= today))
+}
+
 /**
  * A member's app: their own finance, plus any profile they have been granted
  * access to. Switching loads that person's finance through the server, which
@@ -3312,7 +3323,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor }: {
  */
 function MemberApp({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string } }) {
   const [view, setView] = useState<{ doc: FinanceDoc; acting: ActingInfo | null; n: number }>({ doc: initialDoc, acting: null, n: 0 })
-  const [grants, setGrants] = useState(() => (initialDoc.delegations ?? []).filter(d => d.status === 'active' && d.grantee === entityId))
+  const live = useCallback((list: FinanceDoc['delegations'] = []) => liveGrants(list, entityId), [entityId])
+  const [grants, setGrants] = useState(() => liveGrants(initialDoc.delegations, entityId))
   const [note, setNote] = useState<string | null>(null)
   const nameOf = (id: string) => entName(view.doc.entities, id)
 
@@ -3326,14 +3338,14 @@ function MemberApp({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; 
     }
     setNote(why ?? null)
     setView(v => ({ doc: d.doc as FinanceDoc, acting: (d.me?.acting as ActingInfo) ?? null, n: v.n + 1 }))
-    if (!owner) setGrants(((d.doc as FinanceDoc).delegations ?? []).filter(x => x.status === 'active' && x.grantee === entityId))
-  }, [entityId])
+    if (!owner) setGrants(live((d.doc as FinanceDoc).delegations))
+  }, [live])
 
   const options = [{ id: null, label: 'My Finance' }, ...grants.map(g => ({ id: g.owner, label: `${nameOf(g.owner)}’s Finance` }))]
   return (
     <MemberDashboard key={`${view.acting?.owner ?? 'me'}:${view.n}`}
       initialDoc={view.doc} entityId={view.acting?.owner ?? entityId} profile={profile} acting={view.acting}
-      onDoc={d => { if (!view.acting) setGrants((d.delegations ?? []).filter(x => x.status === 'active' && x.grantee === entityId)) }}
+      onDoc={d => { if (!view.acting) setGrants(live(d.delegations)) }}
       onSwitch={switchTo}
       header={
         <>
@@ -3359,6 +3371,7 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
   const [busy, setBusy] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [editing, setEditing] = useState<{ item: Item; onSave: (it: Item) => void } | null>(null)
   const [meState, setMeState] = useState<(MeLite & { email?: string }) | undefined>(profile)
+  const [actErr, setActErr] = useState<string | null>(null)
   const me = { role: 'member' as const, entityId }
   const perm = permFrom(acting)
 
@@ -3377,9 +3390,11 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
       const d = await r.json().catch(() => ({}))
       if (d.revoked && acting) { onSwitch?.(null, `${acting.ownerName} has revoked your access.`); return d }
       if (d.doc) setDoc(d.doc as FinanceDoc)
+      if (d.error || !r.ok) { setActErr(String(d.error ?? 'That did not go through. Please try again.')); setBusy('idle'); return d }
+      setActErr(null)
       setBusy('saved'); setTimeout(() => setBusy('idle'), 1400)
       return d
-    } catch { setBusy('idle'); return null }
+    } catch { setActErr('Could not reach the server — check your connection.'); setBusy('idle'); return null }
   }
 
   const pending = acting ? [] : (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
@@ -3408,7 +3423,7 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
     <Shell saveState={busy} me={shellMe} tabs={TABS} activeTab={tab} onTab={id => setTab(id as MemberTab)}>
       {header}
       {tab === 'money' && <MoneyTab doc={doc} viewer={entityId} me={me} action={action} goTo={goTo} perm={perm} />}
-      {tab === 'goals' && <GoalsTab doc={doc} viewer={entityId} me={me} action={action} perm={perm} />}
+      {tab === 'goals' && <GoalsTab doc={doc} viewer={entityId} me={me} action={action} perm={perm} acting={!!acting} />}
       {tab === 'plan' && <PlanTab doc={doc} viewer={entityId} action={action} perm={perm} />}
       {tab === 'access' && <AccessTab doc={doc} me={me} action={action} onSwitch={owner => onSwitch?.(owner)} />}
       {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} action={action} openEditor={setEditing} />}
@@ -3433,6 +3448,7 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} onRevert={(auditId, reason) => action({ action: 'revertChange', auditId, reason })} />}
       {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
+      <ErrorToast text={actErr} onClose={() => setActErr(null)} />
 
       {editing && (
         <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} accounts={doc.accounts ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}

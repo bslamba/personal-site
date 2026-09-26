@@ -59,27 +59,50 @@ const applyMonthEdit = (doc: FinanceDoc, mk: string, item: Item, op: 'update' | 
  * approvals, settling money, closing a month, or changing who has access are
  * the owner's own acts.
  */
-function permFor(body: Record<string, unknown>): { area: AccessArea; op: AccessOp } | null {
+function permFor(body: Record<string, unknown>, doc: FinanceDoc): { area: AccessArea; op: AccessOp } | null {
   const item = body.item as Item | undefined
-  const loanOr = (a: AccessArea) => (item?.kind === 'emi' ? 'loans' : a)
+  // Judge by what is actually stored, never by labels the browser sends: an
+  // item that IS a loan is a loan whatever `kind` says, and an id that
+  // already exists is an edit whatever `isNew` says.
+  const stored = item ? existingItem(doc, body.monthKey as string | undefined, item) : undefined
+  const isLoan = item?.kind === 'emi' || stored?.kind === 'emi' || body.section === 'emis'
+  const loanOr = (a: AccessArea) => (isLoan ? 'loans' : a)
+  const acc = body.account as { id?: string } | undefined
+  const goal = body.goal as { id?: string } | undefined
   switch (body.action) {
     case 'propose': return { area: loanOr('expenses'), op: 'add' }
     case 'proposeMonthEdit': return { area: loanOr('expenses'), op: body.op === 'delete' ? 'delete' : 'edit' }
-    case 'proposeTemplate': return { area: body.section === 'emis' ? 'loans' : 'expenses', op: body.op === 'delete' ? 'delete' : body.op === 'add' ? 'add' : 'edit' }
+    case 'proposeTemplate': return { area: loanOr('expenses'), op: body.op === 'delete' ? 'delete' : body.op === 'add' && !stored ? 'add' : 'edit' }
     case 'importRows': return { area: 'expenses', op: 'add' }
     case 'setMonthIncome': case 'setTemplateIncome': return { area: 'income', op: 'edit' }
     case 'setSavings': return { area: 'savings', op: 'edit' }          // refined below for investments
     case 'setBudget': return { area: 'budgets', op: 'edit' }
-    case 'saveAccount': return { area: 'accounts', op: body.isNew ? 'add' : 'edit' }
+    case 'saveAccount': return { area: 'accounts', op: acc?.id && (doc.accounts ?? []).some(a => a.id === acc.id) ? 'edit' : 'add' }
     case 'setCheckpoint': return { area: 'accounts', op: 'edit' }
     case 'removeAccount': return { area: 'accounts', op: 'delete' }
     case 'addTransfer': return { area: 'accounts', op: 'add' }
     case 'removeTransfer': return { area: 'accounts', op: 'delete' }
-    case 'saveGoal': return { area: 'savings', op: body.isNew ? 'add' : 'edit' }
+    case 'saveGoal': return { area: 'savings', op: goal?.id && (doc.goals ?? []).some(g => g.id === goal.id) ? 'edit' : 'add' }
     case 'contributeGoal': case 'setAllocRules': case 'applyAllocation': case 'undoAllocation': return { area: 'savings', op: 'edit' }
     case 'removeGoal': return { area: 'savings', op: 'delete' }
     default: return null
   }
+}
+
+/** The stored version of an item a request refers to, wherever it lives. */
+function existingItem(doc: FinanceDoc, mk: string | undefined, it: Item): Item | undefined {
+  const t = doc.template
+  const inTemplate = [...t.monthly, ...t.emis, ...t.annual]
+  // This month's own copy of a recurring item (it may carry the receipt).
+  const override = it.tmplId && mk ? doc.months[mk]?.items.find(x => x.src === 'template' && x.tmplId === it.tmplId) : undefined
+  if (override) return override
+  const byTmpl = it.tmplId ? inTemplate.find(x => x.id === it.tmplId) : undefined
+  if (byTmpl) return byTmpl
+  const direct = inTemplate.find(x => x.id === it.id)
+  if (direct) return direct
+  const months = mk && doc.months[mk] ? [doc.months[mk]] : Object.values(doc.months)
+  for (const m of months) { const x = m.items.find(y => y.id === it.id); if (x) return x }
+  return undefined
 }
 
 const cleanPerms = (p: unknown): AccessPerms => {
@@ -97,11 +120,14 @@ const cleanPerms = (p: unknown): AccessPerms => {
 const describePerms = (p: AccessPerms) => ACCESS_AREAS.filter(a => p[a]?.length)
   .map(a => `${ACCESS_LABEL[a]}: ${(p[a] ?? []).join(', ')}`).join('\n')
 
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 async function emailEntity(entityId: string, title: string, body: string) {
   try {
     const users = await getUsers()
     const u = users.find(x => x.entityId === entityId && x.email)
-    if (u?.email) await sendReminderEmail([u.email], { title, body, name: u.firstName || u.name })
+    // The note in a request is typed by another member — it goes into an HTML
+    // email, so it is escaped, and its line breaks kept.
+    if (u?.email) await sendReminderEmail([u.email], { title: esc(title), body: esc(body).replace(/\n/g, '<br>'), name: esc(u.firstName || u.name) })
   } catch { /* email is a courtesy — the request is in the app regardless */ }
 }
 
@@ -123,13 +149,21 @@ export async function POST(request: Request) {
     if (isSuper || !session.e) return NextResponse.json({ error: 'Only a family member can manage another member’s finances.' }, { status: 403 })
     grant = activeDelegation(doc, session.e, body.actingAs)
     if (!grant) return NextResponse.json({ error: 'Your access to that profile has been revoked or has expired.', revoked: true }, { status: 403 })
-    const need = permFor(body as unknown as Record<string, unknown>)
+    const need = permFor(body as unknown as Record<string, unknown>, doc)
     if (!need) return NextResponse.json({ error: 'That can only be done by the owner themselves.' }, { status: 403 })
-    if (!can(grant.perms, need.area, need.op)) {
+    // Savings pots are split by kind: either grant lets you save the list, and
+    // the rows you may not touch are carried over untouched below.
+    const savingsOk = body.action === 'setSavings' && (can(grant.perms, 'savings', 'edit') || can(grant.perms, 'investments', 'edit'))
+    if (!savingsOk && !can(grant.perms, need.area, need.op)) {
       return NextResponse.json({ error: `${entName(doc, grant.owner)} has not given you permission to ${need.op} ${ACCESS_LABEL[need.area].toLowerCase()}.` }, { status: 403 })
     }
-    // Receipts ride along on expenses — drop them if documents are not granted.
-    if (body.item && body.item.receiptKey && !can(grant.perms, 'documents', 'add')) body.item.receiptKey = null
+    // Receipts ride along on expenses. Without document access a delegate can
+    // neither attach one nor — since they never saw it — remove one: whatever
+    // is stored stays.
+    if (body.item && !can(grant.perms, 'documents', 'add')) {
+      const was = existingItem(doc, body.monthKey, body.item)
+      body.item.receiptKey = was?.receiptKey ?? null
+    }
   }
   const actor = grant ? grant.owner : session.e   // whose data this acts on; null for super
   const realActor = session.e                      // who is actually at the keyboard
@@ -846,6 +880,7 @@ export async function POST(request: Request) {
         const ok = isSuper ? g.owner === 'household' : g.owner === actor || (g.owner === 'household' && !grant)
         if (!ok) return NextResponse.json({ error: 'That goal is not yours.' }, { status: 403 })
         const mk = /^\d{4}-\d{2}$/.test(String(bt.month ?? '')) ? String(bt.month) : monthKey()
+        if (amount < 0 && -amount > (g.saved || 0) + 0.5) return NextResponse.json({ error: `Only ${INR(g.saved || 0)} is in ${g.name}.` }, { status: 400 })
         g.saved = Math.max(0, (g.saved || 0) + amount)
         g.contributions = [...(g.contributions ?? []), { id: uid('gc'), amount, at: new Date().toISOString(), by: actorName, month: mk, note: String(bt.note ?? '').slice(0, 120) || undefined }].slice(-200)
         audit('apply', `${amount > 0 ? 'Added to' : 'Took from'} goal · ${g.name} · ${INR(Math.abs(amount))}`, { monthKey: mk, personal: g.owner !== 'household', parties: !isSuper && actor ? [actor] : undefined })

@@ -62,6 +62,34 @@ export function isPending(it: Item, k: string, now: string = monthKey(), day: st
   return !!it.date && it.date > day
 }
 
+/**
+ * Money the sheet already knows moved between people, without anyone having
+ * to record it twice as a transfer:
+ *   · settlement payments ("Mehak paid Gurneet ₹4,000") — in the month paid
+ *   · the common account's surplus paid out to the earners
+ * Each lands in the payer's and payee's main accounts.
+ */
+export function implicitFlows(doc: FinanceDoc): { month: string; from: string; to: string; amount: number }[] {
+  const out: { month: string; from: string; to: string; amount: number }[] = []
+  for (const [mk, st] of Object.entries(doc.settlements ?? {})) {
+    for (const [key, pays] of Object.entries(st.payments ?? {})) {
+      let from = '', to = ''
+      if (key.startsWith('common:')) { from = key.slice(7); to = 'common' }
+      else if (key.startsWith('peer:')) { [from, to] = key.slice(5).split('>') }
+      else if (key.startsWith('carry:')) { const c = (st.carry ?? []).find(x => x.id === key.slice(6)); if (c) { from = c.from; to = c.to } }
+      if (!from || !to) continue
+      for (const p of pays) if (p.amount > 0) out.push({ month: (p.at || mk).slice(0, 7) || mk, from, to, amount: p.amount })
+    }
+  }
+  for (const [mk, m] of Object.entries(doc.months)) {
+    for (const inc of m.income) {
+      // The payout is already the earner's income; the common side is the outflow.
+      if (inc.ref?.startsWith('csurplus:') && inc.amount > 0) out.push({ month: mk, from: 'common', to: '', amount: inc.amount })
+    }
+  }
+  return out
+}
+
 export interface AccountMonth {
   key: string
   opening: number
@@ -87,6 +115,10 @@ export function accountLedgers(doc: FinanceDoc, accounts: Account[], upto: strin
   const ids = new Set(accounts.map(a => a.id))
   const bal: Record<string, number> = {}
   const now = monthKey()
+  // Entity → main account, for money that moved between people.
+  const mainOf = new Map<string, string | undefined>()
+  const main = (e: string) => { if (!mainOf.has(e)) mainOf.set(e, primaryAccount(doc, e)?.id); return mainOf.get(e) }
+  const implicit = implicitFlows(doc)
   for (let k = start; k <= upto; k = addMonths(k, 1)) {
     const m = monthView(doc, k)
     const flow: Record<string, { inc: number; exp: number; tin: number; tout: number; pend: number }> = {}
@@ -105,6 +137,12 @@ export function accountLedgers(doc: FinanceDoc, accounts: Account[], upto: strin
       if (t.month !== k) continue
       if (ids.has(t.from)) f(t.from).tout += t.amount || 0
       if (ids.has(t.to)) f(t.to).tin += t.amount || 0
+    }
+    for (const t of implicit) {
+      if (t.month !== k) continue
+      const a = main(t.from), b = t.to ? main(t.to) : undefined
+      if (a && ids.has(a)) f(a).tout += t.amount
+      if (b && ids.has(b)) f(b).tin += t.amount
     }
     for (const a of accounts) {
       if (k < a.openingMonth) continue
@@ -195,7 +233,11 @@ export function availableMoney(doc: FinanceDoc, viewer: string | null, k: string
   // What is still owed in the settlement — this month and anything carried in.
   let owedOut = 0, owedIn = 0
   if (viewer) {
-    for (const tr of computeSettlement(doc, k).transfers) {
+    // Last month counts too until it is closed — closing is what carries its
+    // dues into this month, so they are never counted twice.
+    const prev = addMonths(k, -1)
+    const months = doc.settlements?.[prev]?.closed ? [k] : [prev, k]
+    for (const key of months) for (const tr of computeSettlement(doc, key).transfers) {
       if (tr.from === viewer) owedOut += tr.due
       if (tr.to === viewer) owedIn += tr.due
     }
@@ -259,14 +301,16 @@ export function goalsDueThisMonth(doc: FinanceDoc, viewer: string | null, k: str
 
 // ----- Safe to spend --------------------------------------------
 
-export interface SafeToSpend { available: number; goals: number; safe: number; daysLeft: number; perDay: number }
+export interface SafeToSpend { available: number; goals: number; earmarked: number; safe: number; daysLeft: number; perDay: number }
 export function safeToSpend(doc: FinanceDoc, viewer: string | null, k: string = monthKey()): SafeToSpend {
   const am = availableMoney(doc, viewer, k)
   const goals = goalsDueThisMonth(doc, viewer, k)
-  const safe = am.available - goals
+  // Money already in goal buckets sits in these same accounts, but it has a job.
+  const earmarked = am.goalsEarmarked
+  const safe = am.available - earmarked - goals
   const d = new Date()
   const daysLeft = Math.max(1, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() - d.getDate() + 1)
-  return { available: am.available, goals, safe, daysLeft, perDay: Math.max(0, safe) / daysLeft }
+  return { available: am.available, goals, earmarked, safe, daysLeft, perDay: Math.max(0, safe) / daysLeft }
 }
 
 // ----- the month-by-month projection ----------------------------
@@ -382,6 +426,7 @@ export interface AffordResult {
   upcoming: number         // this month's unpaid bills, dues, and yearly bills within 60 days
   upcomingParts: { label: string; amount: number }[]
   savingsTarget: number    // goal money due this month
+  earmarked: number        // already in goal buckets
   safeBefore: number
   cash: { safeAfter: number; monthEndBefore: number; monthEndAfter: number; verdict: 'yes' | 'tight' | 'no' }
   emi?: {
@@ -409,13 +454,14 @@ export function affordCheck(doc: FinanceDoc, viewer: string | null, price: numbe
   ]
   const upcoming = upcomingParts.reduce((a, x) => a + x.amount, 0)
   const savingsTarget = goalsDueThisMonth(doc, viewer, k)
-  const safeBefore = balance - upcoming - savingsTarget
+  const earmarked = am.goalsEarmarked
+  const safeBefore = balance - upcoming - earmarked - savingsTarget
   const thisMonth = projectMonth(doc, viewer, k)
   const verdict = (after: number, before: number): 'yes' | 'tight' | 'no' =>
     after < 0 ? 'no' : after < Math.max(5000, before * 0.1) ? 'tight' : 'yes'
   const safeAfter = safeBefore - price
   const res: AffordResult = {
-    price, balance, upcoming, upcomingParts, savingsTarget, safeBefore,
+    price, balance, upcoming, upcomingParts, savingsTarget, earmarked, safeBefore,
     cash: { safeAfter, monthEndBefore: thisMonth.surplus, monthEndAfter: thisMonth.surplus - price, verdict: verdict(safeAfter, safeBefore) },
   }
   if (opts?.months && opts.months > 0) {
@@ -637,7 +683,7 @@ export function detectAnomalies(doc: FinanceDoc, viewer: string | null, k: strin
     const past = byName.get(n)
     if (!past || past.length < 3) continue
     const avg = past.reduce((a, b) => a + b, 0) / past.length
-    if (avg > 0 && amt > avg * 1.25 && amt - avg >= 300 && past.some(v => Math.abs(v - past[0]) > 0.5)) {
+    if (avg > 0 && amt > avg * 1.25 && amt - avg >= 300) {
       out.push({ id: `spike:${n}`, kind: 'spike', severity: amt > avg * 1.5 ? 'high' : 'medium', amount: amt - avg,
         text: `${name} is ${Math.round(((amt - avg) / avg) * 100)}% higher than its ${past.length}-month average.`,
         detail: `${INR(amt)} this month against ${INR(avg)} on average.` })
@@ -733,8 +779,10 @@ export function financialMemory(doc: FinanceDoc, viewer: string | null, k: strin
       }
     }
   }
+  const annualNames = doc.template.annual.map(a => (a.name || '').toLowerCase())
   for (const e of events.values()) {
     if (e.total < 5000) continue
+    if (annualNames.some(n => n.includes(e.label.toLowerCase()))) continue   // covered as a yearly bill below
     const first = [...e.months].sort()[0]
     const when = nextOf(Number(first.slice(5, 7)))
     out.push({ id: `event:${e.label}`, amount: e.total, when, soon: soon(when),
