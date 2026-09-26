@@ -13,6 +13,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1108.0",
     "@upstash/redis": "^1.38.4",
     "date-fns": "^4.4.0",
+    "exceljs": "^4.4.0",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.11.1",
     "lucide-react": "^1.30.0",

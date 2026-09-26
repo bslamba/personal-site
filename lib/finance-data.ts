@@ -91,6 +91,10 @@ export interface MonthData {
   commonCarryIn?: number   // common-account surplus carried forward from the previous month
   commonDisposition?: 'transfer' | 'carry'   // what was decided about this month's common surplus
   deletedTemplate?: string[]   // template item keys (kind|name) removed for this month only
+  // Set when the month is closed: exactly what it held at that moment. A
+  // closed month is read from here, so a later change to the recurring
+  // template can never rewrite it. Removed again if the month is reopened.
+  frozen?: { items: Item[]; income: IncomeItem[]; at: string; by: string }
 }
 
 export interface Template {
@@ -494,6 +498,13 @@ export function migrate(raw: unknown): FinanceDoc {
     if (!Array.isArray(doc.allocations)) doc.allocations = []
     if (!Array.isArray(doc.allowances)) doc.allowances = []
     if (!Array.isArray(doc.delegations)) doc.delegations = []
+    // Months closed before closing froze them: freeze them as they stand, so
+    // from here on nothing can rewrite them.
+    for (const [k, st] of Object.entries(doc.settlements ?? {})) {
+      if (!st.closed || doc.months[k]?.frozen) continue
+      const v = monthView(doc, k)
+      doc.months[k] = { ...(doc.months[k] ?? { items: [], income: [] }), frozen: { items: v.items, income: v.income, at: st.closedAt ?? new Date().toISOString(), by: st.closedBy ?? 'earlier close' } }
+    }
     return doc
   }
   // Anything that is not a v2 document starts fresh rather than being guessed
@@ -529,8 +540,9 @@ export function materialise(template: Template, key: string): MonthData {
 }
 
 export function monthView(doc: FinanceDoc, key: string): MonthData {
-  const fresh = materialise(doc.template, key)
   const stored = doc.months[key]
+  if (stored?.frozen) return { items: stored.frozen.items, income: stored.frozen.income, note: stored.note, commonCarryIn: stored.commonCarryIn, frozen: stored.frozen }
+  const fresh = materialise(doc.template, key)
   if (!stored) return fresh
   // Recurring items come from the current Setup/Budget template (single source
   // of truth), BUT a month may override any recurring item just for itself
@@ -792,7 +804,9 @@ export function filterDocForMember(doc: FinanceDoc, e: string): FinanceDoc {
   const keep = (it: Item) => isCommon(it, doc.entities) || involves(it, e)
   const months: Record<string, MonthData> = {}
   for (const [k, m] of Object.entries(doc.months)) {
-    months[k] = { items: m.items.filter(keep), income: m.income.filter(i => i.entity === e || i.entity === 'common'), note: m.note, commonCarryIn: m.commonCarryIn, commonDisposition: m.commonDisposition, deletedTemplate: m.deletedTemplate }
+    const incomeOk = (i: IncomeItem) => i.entity === e || i.entity === 'common'
+    months[k] = { items: m.items.filter(keep), income: m.income.filter(incomeOk), note: m.note, commonCarryIn: m.commonCarryIn, commonDisposition: m.commonDisposition, deletedTemplate: m.deletedTemplate,
+      frozen: m.frozen ? { ...m.frozen, items: m.frozen.items.filter(keep), income: m.frozen.income.filter(incomeOk) } : undefined }
   }
   const template: Template = {
     monthly: doc.template.monthly.filter(keep),
@@ -1452,6 +1466,8 @@ export function restoreMerge(backup: FinanceDoc, current: FinanceDoc): FinanceDo
   // Private income lives in the same month rows as common income. Take the
   // common side from the backup and each person's own side from today.
   for (const [k, cur] of Object.entries(current.months)) {
+    // A closed month is a settled fact: its frozen copy is never rolled back.
+    if (cur.frozen) { merged.months[k] = cur; continue }
     const from = merged.months[k]
     const personal = cur.income.filter(i => i.entity !== 'common')
     if (!from) {

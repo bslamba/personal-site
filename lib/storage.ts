@@ -46,6 +46,22 @@ export function sanitiseKey(raw: string): string {
   return key.replace(/\/{2,}/g, '/')
 }
 
+/**
+ * The app's own records live beside the user's files but are never theirs
+ * to overwrite or remove through the Files app: the finance sheet and its
+ * daily backups, every saved month-end spreadsheet, and the logins. Saved
+ * sheets are kept for good, so nothing may delete under these prefixes.
+ */
+const PROTECTED = ['_finance/', '_auth/']
+/** A single key is protected if it sits under a protected prefix. */
+export const isProtectedKey = (key: string) => PROTECTED.some(p => sanitiseKey(key).startsWith(p))
+/** A folder is protected if it is, contains, or lies inside a protected prefix. */
+const isProtectedPrefix = (prefix: string) => {
+  const clean = sanitiseKey(prefix).replace(/\/?$/, '/')
+  return PROTECTED.some(p => clean.startsWith(p) || p.startsWith(clean) || clean === '/')
+}
+const refuse = (what: string) => { throw new Error(`${what} is part of the vault's own records and cannot be changed from here.`) }
+
 /** List one level of the bucket, folders first. */
 export async function listPrefix(prefix: string): Promise<VaultEntry[]> {
   const clean = prefix ? sanitiseKey(prefix).replace(/\/?$/, '/') : ''
@@ -102,6 +118,7 @@ export async function totalUsage(): Promise<{ bytes: number; objects: number }> 
 
 /** Presigned PUT so the browser can upload straight to the provider. */
 export async function presignUpload(key: string, contentType: string) {
+  if (isProtectedKey(key)) refuse(key)
   const cmd = new PutObjectCommand({
     Bucket: BUCKET,
     Key: sanitiseKey(key),
@@ -125,11 +142,13 @@ export async function presignDownload(key: string, download = true) {
 }
 
 export async function deleteKey(key: string) {
+  if (isProtectedKey(key)) refuse(key)
   return s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: sanitiseKey(key) }))
 }
 
 /** Delete a folder by removing every object beneath it. */
 export async function deleteFolder(prefix: string) {
+  if (isProtectedPrefix(prefix)) refuse(prefix || 'The whole vault')
   const clean = sanitiseKey(prefix).replace(/\/?$/, '/')
   let token: string | undefined
   let removed = 0
@@ -153,6 +172,7 @@ export async function deleteFolder(prefix: string) {
 
 /** Folders in object storage are a convention: a zero-byte object ending in "/". */
 export async function createFolder(prefix: string) {
+  if (isProtectedKey(prefix)) refuse(prefix)
   const clean = sanitiseKey(prefix).replace(/\/?$/, '/')
   return s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: clean, Body: '' }))
 }

@@ -29,8 +29,9 @@ import { migrate, approversFor, isPersonalTo, commitProposalItem, applyTemplateO
          setCommonIncome, computeSettlement, putMonthOverride, deleteMonthTemplate, monthView,
          type FinanceDoc, type Item, type IncomeItem, type Proposal, type SavingItem, type EntityBudget } from '@/lib/finance-data'
 import { readRaw, writeDoc as saveDoc, viewFor, viewForGrant } from '../route'
+import { keepFinalSheets } from '../sheets'
 import { activeDelegation, can, isLiquid, ACCESS_AREAS, ACCESS_OPS, ACCESS_LABEL,
-         type Delegation, type AccessArea, type AccessOp, type AccessPerms, INR } from '@/lib/finance-data'
+         type Delegation, type AccessArea, type AccessOp, type AccessPerms, INR, monthLabel } from '@/lib/finance-data'
 import { getUsers } from '@/lib/users'
 import { sendReminderEmail } from '@/lib/mailer'
 
@@ -186,6 +187,9 @@ export async function POST(request: Request) {
   const respond = (extra: Record<string, unknown> = {}) => NextResponse.json({
     ok: true, ...extra, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor },
   })
+  // A closed month is final: nothing in it changes until it is reopened.
+  const isClosed = (mk?: string | null) => !!(mk && doc.settlements?.[mk]?.closed)
+  const closedErr = (mk: string) => NextResponse.json({ error: `${monthLabel(mk)} is closed, so it can no longer be changed. Reopen it on the Settlement tab first.` }, { status: 409 })
   const byName = grant ? `${entName(doc, grant.owner)} (via ${entName(doc, grant.grantee)})` : entName(doc, actor)
   const partiesOf = (pr: Proposal) => [pr.proposedBy, ...pr.approvers].filter(x => x && x !== 'super')
   // An existing pending proposal that TARGETS a specific item (an edit or a
@@ -211,6 +215,7 @@ export async function POST(request: Request) {
       case 'propose': {
         const item = body.item, monthKey = body.monthKey
         if (!item || !monthKey) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
+        if (isClosed(monthKey)) return closedErr(monthKey)
         item.id = item.id || uid('one')
         const addLabel = `Add · ${shortName(item)} · ${INR(item.amount || 0)}`
         // Super, or an expense that is purely the caller's own, is added straight away.
@@ -254,6 +259,8 @@ export async function POST(request: Request) {
         } else {
           if (actor && !pr.approved.includes(actor)) pr.approved.push(actor)
           const done = isSuper || pr.mode === 'any' || pr.approvers.every(a => pr.approved.includes(a))
+          const target = pr.incomeEdit?.monthKey ?? (pr.template ? null : pr.monthKey)
+          if (done && isClosed(target)) return closedErr(target!)
           let ch: AuditChange | undefined
           if (done) {
             // Capture what accepting is about to do, so it can be undone too.
@@ -295,6 +302,7 @@ export async function POST(request: Request) {
         // everyone else's rows are left untouched.
         if (isSuper || !actor) return NextResponse.json({ error: 'Members only' }, { status: 403 })
         const mk = (body as unknown as { monthKey?: string }).monthKey || monthKey()
+        if (isClosed(mk)) return closedErr(mk)
         const incoming = ((body as unknown as { income?: { id?: string; source?: string; amount?: number }[] }).income ?? [])
           .map(r => ({ id: r.id || uid('inc'), source: r.source || 'Income', amount: Number(r.amount) || 0, entity: actor, src: 'manual' as const }))
         const m = doc.months[mk] ?? materialise(doc.template, mk)
@@ -326,6 +334,7 @@ export async function POST(request: Request) {
         if (!entry?.change) return NextResponse.json({ error: 'There is nothing recorded for that entry to undo.' }, { status: 404 })
         if (entry.revertedAt) return NextResponse.json({ error: 'That change has already been undone.' }, { status: 400 })
         const c = entry.change
+        if (c.scope === 'month' && isClosed(c.monthKey)) return closedErr(c.monthKey!)
         const target = c.before ?? c.after
         const mine = !!(actor && target && isPersonalTo(target, actor, doc.entities))
         if (!isSuper && !mine) {
@@ -394,6 +403,7 @@ export async function POST(request: Request) {
           if (!r || !r.date || !(r.amount > 0)) continue
           if (r.ref && seen.has(r.ref)) { skipped++; continue }
           const mk = r.date.slice(0, 7)
+          if (isClosed(mk)) { skipped++; continue }       // closed months take no new rows
           const tags = Array.isArray(r.tags) ? r.tags.map(t => String(t).trim()).filter(Boolean) : undefined
 
           if (r.type === 'credit') {
@@ -450,6 +460,7 @@ export async function POST(request: Request) {
         const item = bt.item, monthKey2 = bt.monthKey, op = bt.op
         const reason = (bt.reason || '').trim()
         if (!item || !monthKey2 || !op) return NextResponse.json({ error: 'Missing item' }, { status: 400 })
+        if (isClosed(monthKey2)) return closedErr(monthKey2)
         const personal = actor ? isPersonalTo(item, actor, doc.entities) : false
         const applyNow = isSuper || personal
         const label = `${op === 'delete' ? 'Remove' : 'Change'} · ${shortName(item)}`
@@ -536,6 +547,7 @@ export async function POST(request: Request) {
         // needs approval by a chosen person (super applies directly).
         const bt = body as unknown as { monthKey?: string; amount?: number; approver?: string; reason?: string }
         const mk = bt.monthKey || monthKey()
+        if (isClosed(mk)) return closedErr(mk)
         const amount = Math.max(0, Number(bt.amount) || 0)
         if (isSuper) {
           setCommonIncome(doc, mk, amount)
@@ -568,6 +580,7 @@ export async function POST(request: Request) {
         if (!isSuper) return NextResponse.json({ error: 'Only the family admin can settle the common account.' }, { status: 403 })
         const bt = body as unknown as { monthKey?: string; mode?: 'transfer' | 'carry' | 'none' }
         const mk = bt.monthKey || monthKey()
+        if (isClosed(mk)) return closedErr(mk)
         const mode = bt.mode ?? 'none'
         const mv = monthView(doc, mk)
         const commonIncome = mv.income.filter(i => i.entity === 'common').reduce((s, i) => s + (i.amount || 0), 0) + (doc.months[mk]?.commonCarryIn ?? 0)
@@ -660,6 +673,9 @@ export async function POST(request: Request) {
         }))
         const st = doc.settlements?.[mk] ?? {}
         st.closed = true; st.closedAt = new Date().toISOString(); st.closedBy = actorName
+        // Freeze exactly what the month holds now; from here it is read-only.
+        const snap = monthView(doc, mk)
+        doc.months[mk] = { ...(doc.months[mk] ?? { items: [], income: [] }), frozen: { items: snap.items, income: snap.income, at: st.closedAt, by: actorName } }
         doc.settlements = { ...(doc.settlements ?? {}), [mk]: st }
         // Closing is idempotent: drop anything a previous close of THIS month
         // already pushed forward, so a reopen-and-close never stacks the same
@@ -672,7 +688,12 @@ export async function POST(request: Request) {
         }
         audit('apply', `Closed settlement · ${mk}${carry.length ? ` · ${carry.length} carried forward` : ''}`, { monthKey: mk })
         await writeDoc(doc)
-        return NextResponse.json({ ok: true, carried: carry.length, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
+        // The closing copy of the month's sheet, kept for every profile. The
+        // month is already closed and saved; a storage hiccup here must not
+        // undo that, so it is reported rather than thrown.
+        let sheets = 0, sheetError: string | undefined
+        try { sheets = await keepFinalSheets(doc, mk, actorName) } catch (e) { sheetError = e instanceof Error ? e.message : 'Could not keep the final sheets' }
+        return NextResponse.json({ ok: true, carried: carry.length, sheets, sheetError, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
       case 'saveReminder': {
@@ -729,6 +750,21 @@ export async function POST(request: Request) {
         if (!mk) return NextResponse.json({ error: 'Missing month' }, { status: 400 })
         const st = doc.settlements?.[mk]
         if (st) { st.closed = false; st.closedAt = undefined; doc.settlements = { ...(doc.settlements ?? {}), [mk]: st } }
+        // Editable again, starting from exactly what it held when closed — so
+        // a recurring bill changed in the meantime does not quietly alter it.
+        // Its final sheet stays kept; closing again keeps a new one.
+        const fz = doc.months[mk]?.frozen
+        if (fz) {
+          const live = new Set([...doc.template.monthly, ...doc.template.emis, ...doc.template.annual].map(t => t.id))
+          const items = fz.items.map(it => (it.src === 'template' && it.tmplId && live.has(it.tmplId)
+            ? { ...it, override: true }
+            : { ...it, src: 'manual' as const, tmplId: undefined, override: undefined }))
+          const kept = new Set(fz.items.map(i => i.tmplId).filter(Boolean))
+          const dropped = materialise(doc.template, mk).items.map(i => i.tmplId!).filter(id => id && !kept.has(id))
+          const m = { ...doc.months[mk], items, deletedTemplate: [...new Set([...(doc.months[mk].deletedTemplate ?? []), ...dropped])] }
+          delete m.frozen
+          doc.months[mk] = m
+        }
         // Take back whatever closing this month pushed into the next one —
         // otherwise the debt lives in both places at once.
         const [ry, rmo] = mk.split('-').map(Number)

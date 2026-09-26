@@ -95,7 +95,10 @@ export async function writeDoc(doc: FinanceDoc): Promise<void> {
 // view; PUT re-merges the stored copies so they are never lost.
 function stripPrivate(doc: FinanceDoc): FinanceDoc {
   const months: FinanceDoc['months'] = {}
-  for (const [k, m] of Object.entries(doc.months)) months[k] = { ...m, income: m.income.filter(i => i.entity === 'common') }
+  for (const [k, m] of Object.entries(doc.months)) months[k] = {
+    ...m, income: m.income.filter(i => i.entity === 'common'),
+    frozen: m.frozen ? { ...m.frozen, income: m.frozen.income.filter(i => i.entity === 'common') } : undefined,
+  }
   return {
     ...doc,
     savings: [],
@@ -130,6 +133,11 @@ export function viewForGrant(doc: FinanceDoc, g: Delegation): FinanceDoc {
   for (const m of Object.values(v.months)) {
     m.items = m.items.filter(it => keepItem(it.kind)).map(scrub)
     if (!seeInc) m.income = m.income.filter(i => i.entity === 'common')
+    if (m.frozen) m.frozen = {
+      ...m.frozen,
+      items: m.frozen.items.filter(it => keepItem(it.kind)).map(scrub),
+      income: seeInc ? m.frozen.income : m.frozen.income.filter(i => i.entity === 'common'),
+    }
   }
   v.template = {
     monthly: seeExp ? v.template.monthly.map(scrub) : [],
@@ -252,6 +260,11 @@ export async function PUT(request: Request) {
         ...body.doc.template.income.filter(i => i.entity === 'common'),
         ...stored.template.income.filter(i => i.entity !== 'common'),
       ]
+      // A closed month is read-only: whatever this write carries for it, the
+      // stored month (with its frozen copy) stands until someone reopens it.
+      for (const [k, m] of Object.entries(stored.months)) {
+        if (m.frozen || stored.settlements?.[k]?.closed) body.doc.months[k] = m
+      }
     }
     await writeDoc(body.doc)            // stamps updatedAt — the next write's version token
     return NextResponse.json({ ok: true, updatedAt: body.doc.updatedAt })
