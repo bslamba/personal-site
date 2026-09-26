@@ -489,7 +489,7 @@ function FloatingControls({ status, children }: { status?: 'idle' | 'saving' | '
   const onDown = (e: React.PointerEvent) => {
     const r = ref.current!.getBoundingClientRect()
     drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* keep dragging without capture */ }
     ref.current!.dataset.dragging = 'true'
   }
   const onMove = (e: React.PointerEvent) => {

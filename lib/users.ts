@@ -39,6 +39,43 @@ export interface User {
   firstName?: string
   lastName?: string
   avatar?: string           // data URL of the profile picture (small)
+  details?: UserDetails     // the person's own details — theirs only, never in admin listings
+}
+
+/** Personal details a person keeps on their own profile. */
+export interface UserDetails {
+  nickname?: string
+  phone?: string
+  dob?: string              // YYYY-MM-DD
+  bloodGroup?: string
+  city?: string
+  occupation?: string
+  employer?: string
+  bio?: string
+  emergencyName?: string
+  emergencyRelation?: string
+  emergencyPhone?: string
+  relations?: Record<string, string>   // family entity id -> how they are related to this person
+}
+
+const DETAIL_FIELDS: (keyof Omit<UserDetails, 'relations'>)[] = ['nickname', 'phone', 'dob', 'bloodGroup', 'city', 'occupation', 'employer', 'bio', 'emergencyName', 'emergencyRelation', 'emergencyPhone']
+
+/** Tidy details from the browser: known fields only, trimmed, sensibly short. */
+export function cleanDetails(raw: unknown): UserDetails {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const out: UserDetails = {}
+  for (const k of DETAIL_FIELDS) {
+    const v = typeof r[k] === 'string' ? (r[k] as string).trim().slice(0, k === 'bio' ? 400 : 80) : ''
+    if (v) out[k] = v
+  }
+  if (out.dob && !/^\d{4}-\d{2}-\d{2}$/.test(out.dob)) delete out.dob
+  const rel = r.relations as Record<string, unknown> | undefined
+  if (rel && typeof rel === 'object') {
+    const clean: Record<string, string> = {}
+    for (const [id, v] of Object.entries(rel)) if (typeof v === 'string' && v.trim() && id.length < 60) clean[id] = v.trim().slice(0, 40)
+    if (Object.keys(clean).length) out.relations = clean
+  }
+  return out
 }
 
 // Public shape (no secrets) for admin listings.
@@ -131,7 +168,7 @@ export async function getUsers(): Promise<User[]> {
 }
 
 /** Update a user's own profile fields (name split, email, avatar). */
-export async function updateProfile(username: string, patch: { firstName?: string; lastName?: string; email?: string; avatar?: string }): Promise<boolean> {
+export async function updateProfile(username: string, patch: { firstName?: string; lastName?: string; email?: string; avatar?: string; details?: unknown }): Promise<boolean> {
   const users = await getUsers()
   const u = users.find(x => x.username.toLowerCase() === username.trim().toLowerCase())
   if (!u) return false
@@ -139,6 +176,7 @@ export async function updateProfile(username: string, patch: { firstName?: strin
   if (patch.lastName !== undefined) u.lastName = patch.lastName.trim()
   if (patch.email !== undefined && patch.email.trim()) u.email = patch.email.trim()
   if (patch.avatar !== undefined) u.avatar = patch.avatar || undefined
+  if (patch.details !== undefined) u.details = cleanDetails(patch.details)
   const fn = (u.firstName || '').trim(); const ln = (u.lastName || '').trim()
   if (fn || ln) u.name = [fn, ln].filter(Boolean).join(' ')
   await writeUsers(users)

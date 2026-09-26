@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
-  type SavingItem, type Alloc, type Bucket, type Template, type Category,
+  type Alloc, type Bucket, type Template, type Category,
   type EntityBudget, type PlannedItem, type Proposal,
   seedDoc, uid, monthKey, monthView, totals, byCategory, shares,
   putMonthOverride, deleteMonthTemplate, setMonthPaid,
@@ -36,6 +36,7 @@ import { VaultTopBar, Hello, CountUp, type DockItem } from '@/components/vault/v
 import { SheetButton, ClosedBanner } from '@/components/vault/finance-sheets'
 import { PushDialog, FetchButton } from '@/components/vault/finance-budget-push'
 import { SavingsTab } from '@/components/vault/finance-savings'
+import { ProfilePage } from '@/components/vault/finance-profile'
 import { diffTemplate, pushBudget, describeRange, type PushRange } from '@/lib/finance-data'
 import { AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-access'
 import IdleLogout from '@/components/vault/idle-logout'
@@ -550,7 +551,8 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
               : <BudgetTab doc={doc} me={{ role: 'super', entityId: null }} onSaveBudget={(who, b) => patchDoc(d => { if (who === 'family') d.budgets.family = b; else d.budgets.byEntity[who] = b; return d })} />}
         </>
       )}
-      {tab === 'profile' && <ProfileTab me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} />}
+      {tab === 'profile' && <ProfilePage me={me} onSaved={p => setMe(m => (m ? { ...m, ...p } : m))} doc={doc}
+        passwordModal={close => me.username ? <ChangePasswordModal username={me.username} onClose={close} /> : null} />}
       <ErrorToast text={actErr} onClose={() => setActErr(null)} />
       {pushOpen && <PushDialog what="You’ve changed the Budget." onClose={() => setPushOpen(false)} onConfirm={pushSetup} />}
 
@@ -568,19 +570,6 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 }
 
 type MeLite = { role: 'super' | 'member'; username?: string; firstName?: string; lastName?: string; name?: string; avatar?: string }
-
-function Avatar({ me, size = 30 }: { me?: MeLite; size?: number }) {
-  const label = (me?.firstName || me?.name || me?.username || '').trim()
-  const initials = label.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
-  return (
-    <span className="vg-avatar" style={{ width: size + 4, height: size + 4, cursor: 'default' }}>
-      <span className="vg-avatar-in" style={{ width: size, height: size, fontSize: size * 0.38, borderWidth: Math.max(2, size / 16) }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- a small data-URL avatar, nothing to optimise */}
-        {me?.avatar ? <img src={me.avatar} alt="" /> : initials}
-      </span>
-    </span>
-  )
-}
 
 interface ShellTab { id: string; label: string; icon: typeof Wallet }
 function Shell({ children, saveState, me, tabs, activeTab, onTab, role }: {
@@ -663,7 +652,7 @@ function ChangePasswordModal({ username, onClose }: { username: string; onClose:
             </p>
             {notice && <p className="vg-pos" style={{ fontSize: '0.82rem', marginBottom: '0.7rem' }}>{notice}</p>}
             {step === 'request' ? (
-              <button className="vg-btn-primary" onClick={sendCode} disabled={busy}>
+              <button className="vg-btn vg-btn-primary" onClick={sendCode} disabled={busy}>
                 {busy ? <Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> : null} Email me a code
               </button>
             ) : (
@@ -679,8 +668,8 @@ function ChangePasswordModal({ username, onClose }: { username: string; onClose:
                     onChange={e => setNewPass(e.target.value)} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button className="vg-btn-ghost" onClick={sendCode} disabled={busy}>Resend code</button>
-                  <button className="vg-btn-primary" onClick={save} disabled={busy || otp.length < 6 || newPass.length < 6}>
+                  <button className="vg-btn vg-btn-ghost" onClick={sendCode} disabled={busy}>Resend code</button>
+                  <button className="vg-btn vg-btn-primary" onClick={save} disabled={busy || otp.length < 6 || newPass.length < 6}>
                     {busy ? <Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> : null} Set new password
                   </button>
                 </div>
@@ -711,96 +700,6 @@ function ReasonModal({ title, hint, onConfirm, onClose }: { title: string; hint?
           <button className="vg-btn vg-btn-primary" disabled={reason.trim().length < 3} onClick={() => onConfirm(reason.trim())}><Check className="h-4 w-4" /> Send for approval</button>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ---------- Profile tab -----------------------------------------
-async function fileToAvatar(file: File): Promise<string> {
-  const dataUrl: string = await new Promise((res, rej) => {
-    const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(file)
-  })
-  const img = document.createElement('img')
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl })
-  const size = 256
-  const c = document.createElement('canvas'); c.width = size; c.height = size
-  const ctx = c.getContext('2d')!
-  const scale = Math.max(size / img.width, size / img.height)
-  const w = img.width * scale, h = img.height * scale
-  ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h)
-  return c.toDataURL('image/jpeg', 0.82)
-}
-
-function ProfileTab({ me, onSaved }: { me?: MeLite & { email?: string }; onSaved: (patch: Partial<MeLite & { email?: string }>) => void }) {
-  const [firstName, setFirstName] = useState(me?.firstName ?? '')
-  const [lastName, setLastName] = useState(me?.lastName ?? '')
-  const [email, setEmail] = useState(me?.email ?? '')
-  const [avatar, setAvatar] = useState<string | undefined>(me?.avatar)
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-  const [showPw, setShowPw] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  async function pickImage(f?: File) {
-    if (!f) return
-    setErr(null)
-    try {
-      const a = await fileToAvatar(f)
-      if (a.length > 300_000) { setErr('That image is too detailed — try a smaller one.'); return }
-      setAvatar(a)
-    } catch { setErr('Could not read that image.') }
-  }
-
-  async function save() {
-    setErr(null); setMsg(null)
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
-    setBusy(true)
-    try {
-      const r = await fetch('/api/vault/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, lastName, email, avatar: avatar ?? '' }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { setErr(d.error ?? 'Could not save') }
-      else {
-        setMsg('Profile saved.')
-        const name = [firstName, lastName].filter(Boolean).join(' ')
-        onSaved({ firstName, lastName, email, avatar, name })
-      }
-    } catch { setErr('Could not save') }
-    setBusy(false)
-  }
-
-  return (
-    <div className="vg-card vg-pad" style={{ maxWidth: 560 }}>
-      <p className="vg-sec"><Users className="h-4 w-4" style={{ display: 'inline', color: 'var(--vg-accent)', verticalAlign: '-3px' }} /> Your profile</p>
-      <p className="vg-muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>Your name and picture show in the top bar. Your email is where password-reset codes are sent.</p>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1rem 0' }}>
-        <Avatar me={{ role: 'member', firstName, name: firstName, avatar }} size={64} />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => pickImage(e.target.files?.[0])} />
-          <button className="vg-btn" onClick={() => fileRef.current?.click()}><Camera className="h-4 w-4" /> {avatar ? 'Change photo' : 'Add photo'}</button>
-          {avatar && <button className="vg-btn-ghost" onClick={() => setAvatar(undefined)}>Remove</button>}
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: '1fr 1fr' }}>
-        <div><label className="vg-lbl">First name</label><input className="vg-input" value={firstName} onChange={e => setFirstName(e.target.value)} /></div>
-        <div><label className="vg-lbl">Last name</label><input className="vg-input" value={lastName} onChange={e => setLastName(e.target.value)} /></div>
-      </div>
-      <div style={{ marginTop: '0.7rem' }}>
-        <label className="vg-lbl">Email</label>
-        <input className="vg-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com" />
-      </div>
-
-      {err && <p className="vg-neg" style={{ fontSize: '0.85rem', marginTop: '0.7rem' }}>{err}</p>}
-      {msg && <p className="vg-pos" style={{ fontSize: '0.85rem', marginTop: '0.7rem' }}><Check className="h-4 w-4" style={{ display: 'inline', verticalAlign: '-2px' }} /> {msg}</p>}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.1rem', flexWrap: 'wrap', gap: 8 }}>
-        <button className="vg-btn-ghost" onClick={() => setShowPw(true)}><KeyRound className="h-4 w-4" /> Change password</button>
-        <button className="vg-btn-primary" onClick={save} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 vg-spin" style={{ display: 'inline' }} /> : null} Save profile</button>
-      </div>
-
-      {showPw && me?.username && <ChangePasswordModal username={me.username} onClose={() => setShowPw(false)} />}
     </div>
   )
 }
@@ -2922,7 +2821,7 @@ function IncomeImpactCard({ doc, entityId, k, envs, onPickMonth }: {
                 {imp.groups.map(g => (
                   <tr key={g.id}>
                     <td>
-                      <button className="vg-btn-ghost" style={{ padding: 0, fontWeight: 600 }} onClick={() => setSel(g.id)}>
+                      <button className="vg-btn vg-btn-ghost" style={{ padding: 0, fontWeight: 600 }} onClick={() => setSel(g.id)}>
                         <span className="vg-dot" style={{ background: g.color, marginRight: 6 }} />{g.name}
                       </button>
                     </td>
@@ -3355,7 +3254,9 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
       )}
       {tab === 'import' && <ImportTab doc={doc} me={me} onImport={(rows, owner) => action({ action: 'importRows', rows, owner })} />}
       {tab === 'approvals' && <ApprovalsTab doc={doc} me={me} onDecide={(id, kind) => action({ action: kind, id })} onRevoke={id => action({ action: 'revoke', id })} onRevert={(auditId, reason) => action({ action: 'revertChange', auditId, reason })} />}
-      {tab === 'profile' && <ProfileTab me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))} />}
+      {tab === 'profile' && <ProfilePage me={meState} onSaved={p => setMeState(m => ({ ...(m ?? { role: 'member' }), ...p }))}
+        doc={doc} entityId={acting ? null : entityId} action={acting ? undefined : action} onGo={t => setTab(t as MemberTab)}
+        passwordModal={close => meState?.username ? <ChangePasswordModal username={meState.username} onClose={close} /> : null} />}
       <ErrorToast text={actErr} onClose={() => setActErr(null)} />
       {ask && <PushDialog what={ask.what} onClose={() => setAsk(null)} onConfirm={range => { ask.run(range); setAsk(null) }} />}
 

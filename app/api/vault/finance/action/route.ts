@@ -405,6 +405,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, doc: grant ? viewForGrant(doc, grant) : viewFor(session, doc), me: { role: session.r, entityId: actor } })
       }
 
+      case 'setAlerts': {
+        // Whether this person is emailed about their own budget and spending.
+        if (isSuper || !actor || grant) return NextResponse.json({ error: 'Only you can change your own alerts.' }, { status: 403 })
+        const on = !!(body as unknown as { on?: boolean }).on
+        doc.entities = doc.entities.map(e => (e.id === actor ? { ...e, alerts: on } : e))
+        audit('apply', on ? 'Email alerts turned on' : 'Email alerts turned off', { personal: true, parties: [actor] })
+        await writeDoc(doc)
+        return respond()
+      }
+
       case 'setBudget': {
         if (!body.budget) return NextResponse.json({ error: 'No budget' }, { status: 400 })
         const who = actor ?? 'su'
