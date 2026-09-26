@@ -51,6 +51,7 @@ export function applyTheme(id: string) {
 /** Re-applies the chosen theme and motion setting on pages reached by client
  *  navigation, where the boot script in the layout does not run again. */
 export function ThemeSync() {
+  useClickSound()
   useEffect(() => {
     const t = read(THEME_KEY)
     if (t) document.documentElement.setAttribute('data-vg-theme', t)
@@ -70,34 +71,124 @@ function audio(): AudioContext | null {
     return ctx
   } catch { return null }
 }
-function tone(a: AudioContext, type: OscillatorType, f0: number, f1: number, dur: number, vol: number, at = 0) {
-  const t = a.currentTime + at
-  const o = a.createOscillator(), g = a.createGain()
-  o.type = type
-  o.frequency.setValueAtTime(f0, t)
-  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur)
-  g.gain.setValueAtTime(0.0001, t)
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.012)
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
-  o.connect(g).connect(a.destination)
-  o.start(t); o.stop(t + dur + 0.02)
+/** A short burst of noise, shaped — the raw material of a mechanical click. */
+function noise(a: AudioContext, dur: number): AudioBuffer {
+  const len = Math.max(1, Math.floor(a.sampleRate * dur)), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  return buf
 }
-/** tick: a Dock click · pop: a theme change · power: signing out. */
-export function sfx(kind: 'tick' | 'pop' | 'power') {
+
+/**
+ * The click: in the spirit of the iPhone's lock click — a hard, very short
+ * tick (bright filtered noise) with a tiny wooden body under it, and a second,
+ * softer latch a few milliseconds later. Synthesised, not a recording.
+ */
+function click(a: AudioContext) {
+  const t = a.currentTime
+  const out = a.createGain(); out.gain.value = 0.55; out.connect(a.destination)
+  const tick = (at: number, hp: number, body: number, vol: number) => {
+    const n = a.createBufferSource(); n.buffer = noise(a, 0.012)
+    const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp
+    const g = a.createGain()
+    g.gain.setValueAtTime(vol, t + at); g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.011)
+    n.connect(f).connect(g).connect(out); n.start(t + at)
+    // The body: a resonant knock that dies almost at once.
+    const o = a.createOscillator(), og = a.createGain()
+    o.type = 'sine'; o.frequency.setValueAtTime(body, t + at); o.frequency.exponentialRampToValueAtTime(body * 0.6, t + at + 0.03)
+    og.gain.setValueAtTime(vol * 0.5, t + at); og.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.03)
+    o.connect(og).connect(out); o.start(t + at); o.stop(t + at + 0.04)
+  }
+  tick(0, 3200, 1500, 0.6)
+  tick(0.018, 2400, 1100, 0.22)
+}
+
+/** A concert-hall tail, made from decaying noise — no audio files involved. */
+function hall(a: AudioContext, seconds = 3.6): ConvolverNode {
+  const len = Math.floor(a.sampleRate * seconds), ir = a.createBuffer(2, len, a.sampleRate)
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch)
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6)
+  }
+  const c = a.createConvolver(); c.buffer = ir
+  return c
+}
+
+/**
+ * Signing out: a harp sweeps up a D-major-9 arpeggio and lands on a warm,
+ * golden bell chord over a soft low gong, with a few glints of light in the
+ * air — all in a long, expensive-sounding hall.
+ */
+function royal(a: AudioContext) {
+  const t0 = a.currentTime + 0.02
+  // A gentle limiter at the end, so the chord blooms without ever clipping.
+  const limit = a.createDynamicsCompressor()
+  limit.threshold.value = -12; limit.knee.value = 8; limit.ratio.value = 10; limit.attack.value = 0.004; limit.release.value = 0.25
+  limit.connect(a.destination)
+  const master = a.createGain(); master.gain.value = 0.42; master.connect(limit)
+  const wet = a.createGain(); wet.gain.value = 0.55
+  const verb = hall(a); verb.connect(wet).connect(master)
+  const bus = a.createGain(); bus.connect(master); bus.connect(verb)
+  const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12)
+
+  // 1. The harp: plucked strings, each ringing into the next.
+  const harp = [62, 66, 69, 73, 76, 78, 81, 85, 86]            // D4 F#4 A4 C#5 E5 F#5 A5 C#6 D6
+  harp.forEach((m, i) => {
+    const at = t0 + i * 0.055
+    for (const [type, mult, vol] of [['triangle', 1, 0.16], ['sine', 2, 0.05]] as const) {
+      const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter()
+      o.type = type; o.frequency.value = hz(m) * mult
+      lp.type = 'lowpass'; lp.frequency.setValueAtTime(5200, at); lp.frequency.exponentialRampToValueAtTime(900, at + 1.2)
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, at + 1.4)
+      o.connect(lp).connect(g).connect(bus); o.start(at); o.stop(at + 1.5)
+    }
+  })
+
+  // 2. The bells: FM chimes on D major 9 — warm, round, and long.
+  const land = t0 + harp.length * 0.055 + 0.04
+  ;[74, 78, 81, 85, 88].forEach((m, i) => {
+    const at = land + i * 0.018
+    const car = a.createOscillator(), mod = a.createOscillator(), mg = a.createGain(), g = a.createGain()
+    car.frequency.value = hz(m); mod.frequency.value = hz(m) * 3.5
+    mg.gain.setValueAtTime(hz(m) * 2.2, at); mg.gain.exponentialRampToValueAtTime(hz(m) * 0.05, at + 2.2)
+    mod.connect(mg).connect(car.frequency)
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.1, at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, at + 3.4)
+    car.connect(g).connect(bus)
+    car.start(at); mod.start(at); car.stop(at + 3.5); mod.stop(at + 3.5)
+  })
+
+  // 3. A soft low gong beneath it, settling a touch as it sounds.
+  for (const [mult, vol] of [[1, 0.22], [2.76, 0.05], [5.4, 0.02]]) {
+    const o = a.createOscillator(), g = a.createGain()
+    o.frequency.setValueAtTime(hz(38) * mult * 1.01, land); o.frequency.exponentialRampToValueAtTime(hz(38) * mult, land + 1.5)
+    g.gain.setValueAtTime(0.0001, land); g.gain.exponentialRampToValueAtTime(vol, land + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, land + 3)
+    o.connect(g).connect(bus); o.start(land); o.stop(land + 3.1)
+  }
+
+  // 4. Glints: a few high, bright sparkles as the chord blooms.
+  for (let i = 0; i < 7; i++) {
+    const at = land + 0.12 + i * 0.09 + Math.random() * 0.05
+    const o = a.createOscillator(), g = a.createGain()
+    o.frequency.value = hz(93 + [0, 4, 7, 11, 12, 16, 19][i])
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.025, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5)
+    o.connect(g).connect(bus); o.start(at); o.stop(at + 0.55)
+  }
+}
+
+/** click: any click anywhere in the vault · royal: signing out. */
+export function sfx(kind: 'click' | 'royal') {
   const a = audio()
   if (!a) return
-  if (kind === 'tick') tone(a, 'triangle', 1400, 850, 0.06, 0.05)
-  else if (kind === 'pop') { tone(a, 'sine', 520, 880, 0.09, 0.07); tone(a, 'sine', 880, 1320, 0.08, 0.04, 0.06) }
-  else {
-    // A soft thunk, then the vault powering down.
-    const len = Math.floor(a.sampleRate * 0.14), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0)
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3)
-    const n = a.createBufferSource(), lp = a.createBiquadFilter(), g = a.createGain()
-    n.buffer = buf; lp.type = 'lowpass'; lp.frequency.value = 420; g.gain.value = 0.35
-    n.connect(lp).connect(g).connect(a.destination); n.start()
-    tone(a, 'sine', 520, 48, 1.05, 0.16, 0.04)
-    tone(a, 'triangle', 780, 70, 0.9, 0.05, 0.04)
-  }
+  if (kind === 'click') click(a)
+  else royal(a)
+}
+
+/** Every click in the vault makes the click — installed once by ThemeSync. */
+function useClickSound() {
+  useEffect(() => {
+    const on = (e: PointerEvent) => { if (e.button === 0 && e.isPrimary) sfx('click') }
+    document.addEventListener('pointerdown', on, { capture: true, passive: true })
+    return () => document.removeEventListener('pointerdown', on, { capture: true })
+  }, [])
 }
 
 // ---------- Logo -------------------------------------------------
@@ -141,7 +232,6 @@ function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; o
     })
   }
   const pick = (id: string) => {
-    sfx('tick')
     if (!motionOff()) { setBounce(id); setTimeout(() => setBounce(b => (b === id ? null : b)), 700) }
     onPick?.(id)
   }
@@ -163,7 +253,7 @@ function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; o
           <span key={it.id} style={{ display: 'contents' }}>
             {it.sep && <span className="vg-dock-sep" aria-hidden="true" />}
             {it.href
-              ? <Link href={it.href} {...common} onClick={() => sfx('tick')}>{inner}</Link>
+              ? <Link href={it.href} {...common}>{inner}</Link>
               : <button type="button" {...common} onClick={() => pick(it.id)}>{inner}</button>}
           </span>
         )
@@ -205,7 +295,7 @@ function ControlCentre() {
   const swatches = (list: typeof VAULT_THEMES) => (
     <div className="vg-swatches">
       {list.map(t => (
-        <button key={t.id} className="vg-swatch" data-on={theme === t.id} onClick={() => { applyTheme(t.id); sfx('pop') }} aria-pressed={theme === t.id}>
+        <button key={t.id} className="vg-swatch" data-on={theme === t.id} onClick={() => applyTheme(t.id)} aria-pressed={theme === t.id}>
           <span className="vg-swatch-win" style={{ background: `radial-gradient(60% 70% at 20% 10%, ${t.blobs[0]}, transparent), radial-gradient(60% 70% at 90% 20%, ${t.blobs[1]}, transparent), linear-gradient(180deg, ${t.bg[0]}, ${t.bg[1]})` }}>
             <span className="vg-swatch-card" style={{ background: t.glass2, boxShadow: `inset 0 0 0 1px ${t.line}` }}>
               <span style={{ position: 'absolute', left: 6, top: 5, width: 24, height: 4, borderRadius: 3, background: t.ink, opacity: 0.8 }} />
@@ -232,7 +322,7 @@ function ControlCentre() {
           {swatches(dark)}
           <div className="vg-cc-row">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Volume2 className="h-4 w-4" /> Sounds</span>
-            <button className="vg-switch" role="switch" aria-checked={sound} aria-label="Sounds" onClick={() => { write(SOUND_KEY, sound ? 'off' : 'on'); notify(); if (!sound) setTimeout(() => sfx('pop'), 0) }} />
+            <button className="vg-switch" role="switch" aria-checked={sound} aria-label="Sounds" onClick={() => { write(SOUND_KEY, sound ? 'off' : 'on'); notify(); if (!sound) setTimeout(() => sfx('click'), 0) }} />
           </div>
           <div className="vg-cc-row" style={{ borderTop: 0, marginTop: 0 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Sparkles className="h-4 w-4" /> Animations</span>
@@ -259,7 +349,7 @@ function AvatarButton({ me, onClick, on }: { me: BarUser; onClick?: () => void; 
     </span>
   )
   return onClick
-    ? <button className="vg-avatar" onClick={() => { sfx('tick'); onClick() }} data-on={on} aria-label={label ? `${label} — your profile` : 'Your profile'} title={label || 'Your profile'}>{body}</button>
+    ? <button className="vg-avatar" onClick={onClick} data-on={on} aria-label={label ? `${label} — your profile` : 'Your profile'} title={label || 'Your profile'}>{body}</button>
     : <span className="vg-avatar" title={label}>{body}</span>
 }
 
@@ -268,11 +358,13 @@ export function SignOutButton({ name }: { name?: string }) {
   const [down, setDown] = useState(false)
   async function go() {
     if (down) return
-    sfx('power')
+    sfx('royal')
     setDown(true)
     document.querySelector('.vg')?.classList.add('vg-shutting')
     const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
-    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 1250))])
+    // Long enough for the chord to bloom and the crest to seal; the last
+    // part of it is the fade to black.
+    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 2600))])
     // A full page load rather than a router push, so nothing from the
     // signed-in session survives in memory.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -284,15 +376,48 @@ export function SignOutButton({ name }: { name?: string }) {
         {down ? <Loader2 className="vg-spin" /> : <Power strokeWidth={2.6} />}
         <span className="vg-power-lbl">Sign out</span>
       </button>
-      {down && typeof document !== 'undefined' && createPortal(
-        <div className="vg-shutdown" role="status" aria-live="polite">
-          <div className="vg-shutdown-in">
-            <svg className="ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" /><line x1="50" y1="20" x2="50" y2="46" /></svg>
-            <p>See you soon{name ? `, ${name}` : ''}</p>
-            <small>Vault locked</small>
-          </div>
-        </div>, document.body)}
+      {down && typeof document !== 'undefined' && createPortal(<Farewell name={name} />, document.body)}
     </>
+  )
+}
+
+/**
+ * The farewell: the vault dims to a deep velvet dark, a gold seal draws
+ * itself — two rings and the family's L — gold dust drifts out from it, and
+ * the name is signed beneath before everything fades to black.
+ */
+function Farewell({ name }: { name?: string }) {
+  // Gold dust: the same scatter every time, so nothing random runs in render.
+  const dust = Array.from({ length: 26 }, (_, i) => {
+    const angle = (i / 26) * 360 + (i % 3) * 7
+    const dist = 90 + ((i * 37) % 70)
+    return { angle, dist, delay: 0.55 + (i % 7) * 0.06, size: 2 + (i % 3) }
+  })
+  return (
+    <div className="vg-farewell" role="status" aria-live="polite">
+      <div className="vg-farewell-in">
+        <div className="vg-seal">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="vg-gold" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#fff4c2" /><stop offset="0.35" stopColor="#e9c46a" />
+                <stop offset="0.65" stopColor="#b8892b" /><stop offset="1" stopColor="#f5dc8a" />
+              </linearGradient>
+            </defs>
+            <circle className="r1" cx="60" cy="60" r="54" />
+            <circle className="r2" cx="60" cy="60" r="46" />
+            {Array.from({ length: 24 }, (_, i) => <circle key={i} className="bead" cx={60 + 50 * Math.cos((i / 24) * Math.PI * 2)} cy={60 + 50 * Math.sin((i / 24) * Math.PI * 2)} r="1.1" style={{ animationDelay: `${0.5 + i * 0.012}s` }} />)}
+          </svg>
+          <span className={`vg-seal-l ${signature.className}`}>L</span>
+          {dust.map((d, i) => (
+            <span key={i} className="vg-dust" style={{ '--a': `${d.angle}deg`, '--d': `${d.dist}px`, '--s': `${d.size}px`, animationDelay: `${d.delay}s` } as React.CSSProperties} />
+          ))}
+        </div>
+        <p className={`vg-farewell-kicker ${roman.className}`}>Until next time</p>
+        {name && <p className={`vg-farewell-name ${signature.className}`}>{name}</p>}
+        <p className={`vg-farewell-foot ${roman.className}`}>The vault is sealed</p>
+      </div>
+    </div>
   )
 }
 
@@ -345,6 +470,11 @@ function FloatingControls({ status, children }: { status?: 'idle' | 'saving' | '
   const drag = useRef<{ dx: number; dy: number } | null>(null)
   const [fx, fy] = pos ? pos.split(',').map(Number) : [NaN, NaN]
   const placed = Number.isFinite(fx) && Number.isFinite(fy)
+  // While it sits in its home on the left, the page keeps a lane clear for it.
+  useEffect(() => {
+    document.documentElement.dataset.vgStrip = placed ? 'free' : 'left'
+    return () => { delete document.documentElement.dataset.vgStrip }
+  }, [placed])
   const style: React.CSSProperties = placed
     ? { left: `calc((100vw - var(--vg-fc-w)) * ${fx})`, top: `calc((100dvh - var(--vg-fc-h)) * ${fy})` }
     : { left: 12, top: 'calc(50dvh - var(--vg-fc-h) / 2)' }

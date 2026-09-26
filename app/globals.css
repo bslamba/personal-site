@@ -2163,6 +2163,7 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 }
 
 /* ---------- The floating control strip ---------- */
+@media (min-width: 761px) and (max-width: 1340px) { html[data-vg-strip="left"] .vg-root { padding-left: 76px; } }
 .vg { --vg-fc-w: 50px; --vg-fc-h: 190px; }
 .vg-fc {
   position: fixed; z-index: 55; width: var(--vg-fc-w); height: var(--vg-fc-h);
@@ -2264,21 +2265,48 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-power:focus-visible { outline: 3px solid color-mix(in srgb, #ff453a 60%, transparent); outline-offset: 2px; }
 @media (max-width: 520px) { .vg-power:hover { gap: 0; padding: 0 8px; } .vg-power:hover .vg-power-lbl { max-width: 0; opacity: 0; } }
 
-/* The power-down: the vault shrinks into a glowing ring, then goes dark. */
-.vg-shutdown { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(20,10,30,0.55), rgba(0,0,0,0.92)); animation: vg-fade-in 0.35s ease both; color: #fff; }
-.vg-shutdown-in { text-align: center; animation: vg-power-in 0.5s cubic-bezier(.2,.8,.2,1) both; }
-.vg-shutdown svg.ring { width: 96px; height: 96px; filter: drop-shadow(0 0 18px rgba(255,69,58,0.8)); }
-.vg-shutdown .ring circle { fill: none; stroke: #ff453a; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 250; stroke-dashoffset: 250; animation: vg-ring 0.9s cubic-bezier(.4,0,.2,1) 0.1s forwards; transform: rotate(-90deg); transform-origin: 50% 50%; }
-.vg-shutdown .ring line { stroke: #fff; stroke-width: 5; stroke-linecap: round; animation: vg-flicker 0.9s ease 0.2s both; }
-.vg-shutdown p { margin: 14px 0 0; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.01em; opacity: 0; animation: vg-fade-in 0.4s ease 0.35s forwards; }
-.vg-shutdown small { display: block; margin-top: 4px; opacity: 0.65; font-size: 0.78rem; }
-.vg-shutting .vg-wrap { transition: transform 0.7s cubic-bezier(.6,0,.4,1), filter 0.7s, opacity 0.7s; transform: scale(0.94); filter: blur(6px) saturate(0.4); opacity: 0.35; }
-/* The Dock and the strip are positioned with transforms, so they only fade. */
-.vg-shutting .vg-dock, .vg-shutting .vg-fc { transition: filter 0.7s, opacity 0.7s; filter: blur(6px) saturate(0.4); opacity: 0.3; }
+/* The farewell: velvet dark, a gold seal drawing itself, gold dust, the
+   name signed beneath — then black. */
+.vg-farewell {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; color: #f5e6b8;
+  background: radial-gradient(circle at 50% 44%, rgba(58,36,20,0.72) 0%, rgba(18,10,20,0.94) 55%, #050307 100%);
+  animation: vg-fade-in 0.5s ease both, vg-to-black 0.45s ease 2.15s forwards;
+}
+.vg-farewell-in { text-align: center; }
+.vg-seal { position: relative; width: 132px; height: 132px; margin: 0 auto; filter: drop-shadow(0 0 22px rgba(233,196,106,0.45)); animation: vg-seal-in 0.9s cubic-bezier(.2,.8,.2,1) both; }
+.vg-seal svg { width: 100%; height: 100%; overflow: visible; }
+.vg-seal circle.r1, .vg-seal circle.r2 { fill: none; stroke: url(#vg-gold); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 60px 60px; }
+.vg-seal circle.r1 { stroke-width: 2.4; stroke-dasharray: 340; stroke-dashoffset: 340; animation: vg-draw 1s cubic-bezier(.6,0,.2,1) 0.1s forwards; }
+.vg-seal circle.r2 { stroke-width: 0.9; stroke-dasharray: 290; stroke-dashoffset: 290; animation: vg-draw 1s cubic-bezier(.6,0,.2,1) 0.3s forwards; opacity: 0.85; }
+.vg-seal circle.bead { fill: #e9c46a; opacity: 0; animation: vg-fade-in 0.3s ease forwards; }
+.vg-seal-l {
+  position: absolute; inset: 0; display: grid; place-items: center; font-size: 74px; line-height: 1; padding-top: 6px;
+  background: linear-gradient(135deg, #fff4c2 0%, #e9c46a 35%, #a47a24 65%, #f5dc8a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  opacity: 0; transform: scale(0.7); animation: vg-l-in 0.8s cubic-bezier(.2,.8,.2,1) 0.55s forwards;
+}
+.vg-dust {
+  position: absolute; left: 50%; top: 50%; width: var(--s); height: var(--s); margin: calc(var(--s) / -2); border-radius: 50%;
+  background: radial-gradient(circle, #fff6d0, #e9c46a 60%, transparent 70%); box-shadow: 0 0 6px #e9c46a;
+  opacity: 0; animation: vg-dust 1.5s cubic-bezier(.15,.7,.3,1) forwards;
+}
+.vg-farewell-kicker { margin: 22px 0 0; font-size: 0.72rem; letter-spacing: 0.5em; text-transform: uppercase; color: #d9bd77; padding-left: 0.5em; opacity: 0; animation: vg-rise-in 0.7s ease 0.85s forwards; }
+.vg-farewell-name {
+  margin: 4px 0 0; font-size: 3rem; line-height: 1.2; padding: 0 0.3em;
+  background: linear-gradient(100deg, #fff4c2, #e9c46a 40%, #b8892b 70%, #f5dc8a); -webkit-background-clip: text; background-clip: text; color: transparent;
+  opacity: 0; animation: vg-rise-in 0.8s ease 1.05s forwards;
+}
+.vg-farewell-foot { margin: 10px 0 0; font-size: 0.62rem; letter-spacing: 0.42em; text-transform: uppercase; color: rgba(245,230,184,0.6); padding-left: 0.42em; opacity: 0; animation: vg-rise-in 0.7s ease 1.35s forwards; }
+.vg-shutting .vg-wrap { transition: transform 0.9s cubic-bezier(.6,0,.4,1), filter 0.9s, opacity 0.9s; transform: scale(0.96); filter: blur(8px) saturate(0.3); opacity: 0.25; }
 @keyframes vg-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes vg-power-in { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
-@keyframes vg-ring { to { stroke-dashoffset: 40; } }
-@keyframes vg-flicker { 0%, 20%, 40% { opacity: 0.2; } 30%, 60%, 100% { opacity: 1; } }
+@keyframes vg-to-black { to { background: #000; opacity: 1; } }
+@keyframes vg-seal-in { from { opacity: 0; transform: scale(0.86); } to { opacity: 1; transform: none; } }
+@keyframes vg-draw { to { stroke-dashoffset: 0; } }
+@keyframes vg-l-in { to { opacity: 1; transform: none; } }
+@keyframes vg-rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes vg-dust { 0% { opacity: 0; transform: rotate(var(--a)) translateY(0); } 25% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--d) * -1)); } }
+.vg-farewell-in > * { will-change: opacity, transform; }
+@media (prefers-reduced-motion: reduce) { .vg-farewell, .vg-farewell * { animation-duration: 0.01s !important; animation-delay: 0s !important; } }
 
 /* ---------- Buttons ---------- */
 .vg-btn { display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 10px; border: 1px solid var(--vg-line); background: color-mix(in srgb, var(--vg-solid) 75%, transparent); color: var(--vg-ink); font: inherit; font-weight: 600; font-size: 0.84rem; padding: 0.42rem 0.8rem; cursor: pointer; transition: transform 0.15s, box-shadow 0.2s, background 0.2s; }
@@ -2394,6 +2422,28 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg .vg-emi-bar { height: 7px; border-radius: 999px; background: color-mix(in srgb, var(--vg-ink) 12%, transparent); overflow: hidden; margin: 0.4rem 0 0.35rem; }
 .vg .vg-emi-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--vg-accent-2), var(--vg-accent)); border-radius: 999px; }
 .vg .vg-emi-meta { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.76rem; color: var(--vg-ink-soft); font-variant-numeric: tabular-nums; }
+
+/* Savings donut — Apple-style: round-capped segments with clean gaps. */
+.vg-donut-wrap { display: grid; grid-template-columns: minmax(180px, 230px) 1fr; gap: clamp(1rem, 3vw, 2rem); align-items: center; }
+@media (max-width: 620px) { .vg-donut-wrap { grid-template-columns: 1fr; justify-items: center; } }
+.vg-donut { position: relative; width: 100%; max-width: 230px; aspect-ratio: 1; }
+.vg-donut svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.vg-donut-seg { cursor: pointer; transition: opacity 0.2s, stroke-width 0.2s; animation: vg-seg-in 0.9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes vg-seg-in { from { stroke-dasharray: 0 1000; } }
+.vg-donut-centre { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
+.vg-donut-k { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--vg-ink-faint); font-weight: 650; max-width: 70%; }
+.vg-donut-v { font-size: clamp(1.15rem, 2.4vw, 1.45rem); font-weight: 780; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.vg-donut-s { font-size: 0.74rem; color: var(--vg-ink-soft); margin-top: 1px; }
+.vg-donut-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
+.vg-donut-legend button { width: 100%; display: grid; grid-template-columns: 12px 1fr auto 44px; align-items: center; gap: 10px; padding: 7px 10px; border: 0; border-radius: 12px; background: transparent; color: var(--vg-ink); font: inherit; text-align: left; cursor: pointer; transition: background 0.15s; }
+.vg-donut-legend button:hover, .vg-donut-legend button[data-on="true"], .vg-donut-legend button:focus-visible { background: color-mix(in srgb, var(--vg-ink) 6%, transparent); outline: none; }
+.vg-donut-legend .dot { width: 12px; height: 12px; border-radius: 4px; }
+.vg-donut-legend .lbl { font-weight: 650; font-size: 0.88rem; }
+.vg-donut-legend .lbl small { display: block; font-weight: 500; font-size: 0.72rem; color: var(--vg-ink-faint); }
+.vg-donut-legend .val { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.vg-donut-legend .pct { font-variant-numeric: tabular-nums; font-size: 0.82rem; color: var(--vg-ink-soft); text-align: right; }
+.vg-donut-legend .bar { display: block; height: 4px; margin: 0 10px 2px 32px; border-radius: 999px; background: color-mix(in srgb, var(--vg-ink) 7%, transparent); overflow: hidden; }
+.vg-donut-legend .bar i { display: block; height: 100%; border-radius: 999px; }
 
 /* Greeting */
 .vg-hello { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin: 0 0 0.9rem; }

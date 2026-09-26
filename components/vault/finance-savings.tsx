@@ -45,6 +45,86 @@ function figures(s: SavingItem) {
   return { invested: s.balance || 0, current: s.balance || 0, maturity: null as number | null, matures: '', rate: null as number | null, extra: s.kind || '', matured: false }
 }
 
+// ---------- the donut ----------------------------------------------
+interface Slice { key: string; label: string; value: number; count: number; color: string }
+
+/** Savings grouped by type — RD and FD first, then other kinds by size —
+ *  in the fixed chart colour order. More than six groups fold into Other. */
+function slicesOf(rows: SavingItem[]): Slice[] {
+  const groups = new Map<string, { label: string; value: number; count: number }>()
+  for (const s of rows) {
+    const k = kindOf(s)
+    const label = k === 'Other' ? (s.kind?.trim() || 'Other') : k === 'RD' ? 'Recurring deposits' : 'Fixed deposits'
+    const key = k === 'Other' ? label.toLowerCase() : k
+    const g = groups.get(key) ?? { label, value: 0, count: 0 }
+    g.value += figures(s).current; g.count++
+    groups.set(key, g)
+  }
+  const fixed = ['RD', 'FD'].filter(k => groups.has(k))
+  const rest = [...groups.keys()].filter(k => k !== 'RD' && k !== 'FD').sort((a, b) => groups.get(b)!.value - groups.get(a)!.value)
+  let order = [...fixed, ...rest]
+  if (order.length > 6) {
+    const keep = order.slice(0, 5), fold = order.slice(5)
+    const other = fold.reduce((acc, k) => ({ label: 'Everything else', value: acc.value + groups.get(k)!.value, count: acc.count + groups.get(k)!.count }), { label: 'Everything else', value: 0, count: 0 })
+    groups.set('__rest', other); order = [...keep, '__rest']
+  }
+  return order.map((k, i) => ({ key: k, ...groups.get(k)!, color: `var(--vg-pie-${i + 1})` })).filter(x => x.value > 0)
+}
+
+function SavingsDonut({ rows }: { rows: SavingItem[] }) {
+  const slices = useMemo(() => slicesOf(rows), [rows])
+  const [on, setOn] = useState<string | null>(null)
+  const total = slices.reduce((a, x) => a + x.value, 0)
+  if (!total) return null
+  const R = 74, W = 20, C = 2 * Math.PI * R
+  // Round ends need room: each slice gives up a little arc on either side,
+  // which is what leaves the clean gap between neighbours.
+  const gap = slices.length > 1 ? W + 4 : 0
+  const arcs = slices.map((x, i) => {
+    const len = (x.value / total) * C
+    const off = slices.slice(0, i).reduce((acc, y) => acc + (y.value / total) * C, 0)
+    return { ...x, off, len: Math.max(0.5, len - gap), pct: (x.value / total) * 100, round: len - gap > W }
+  })
+  const focus = arcs.find(a => a.key === on)
+  return (
+    <div className="vg-card vg-pad vg-donut-card" style={{ marginBottom: '1rem' }}>
+      <p className="vg-sec" style={{ marginTop: 0 }}>Where your savings sit</p>
+      <div className="vg-donut-wrap">
+        <div className="vg-donut" onMouseLeave={() => setOn(null)}>
+          <svg viewBox="0 0 200 200" role="img" aria-label={`Savings by type: ${arcs.map(a => `${a.label} ${Math.round(a.pct)}%`).join(', ')}`}>
+            <circle cx="100" cy="100" r={R} fill="none" stroke="color-mix(in srgb, var(--vg-ink) 7%, transparent)" strokeWidth={W} />
+            {arcs.map((a, i) => (
+              <circle key={a.key} cx="100" cy="100" r={R} fill="none" stroke={a.color} strokeWidth={on === a.key ? W + 5 : W}
+                strokeLinecap={a.round ? 'round' : 'butt'} strokeDasharray={`${a.len} ${C}`} strokeDashoffset={-(a.off + gap / 2)}
+                transform="rotate(-90 100 100)" className="vg-donut-seg"
+                style={{ opacity: on && on !== a.key ? 0.35 : 1, animationDelay: `${i * 90}ms`, '--len': a.len } as React.CSSProperties}
+                onMouseEnter={() => setOn(a.key)} onClick={() => setOn(o => (o === a.key ? null : a.key))} />
+            ))}
+          </svg>
+          <div className="vg-donut-centre" aria-hidden="true">
+            <span className="vg-donut-k">{focus ? focus.label : 'Worth today'}</span>
+            <span className="vg-donut-v">{INR(focus ? focus.value : total)}</span>
+            <span className="vg-donut-s">{focus ? `${Math.round(focus.pct)}% · ${focus.count} ${focus.count === 1 ? 'pot' : 'pots'}` : `${rows.length} ${rows.length === 1 ? 'pot' : 'pots'}`}</span>
+          </div>
+        </div>
+        <ul className="vg-donut-legend">
+          {arcs.map(a => (
+            <li key={a.key}>
+              <button data-on={on === a.key} onMouseEnter={() => setOn(a.key)} onMouseLeave={() => setOn(null)} onFocus={() => setOn(a.key)} onBlur={() => setOn(null)}>
+                <span className="dot" style={{ background: a.color }} />
+                <span className="lbl">{a.label}<small>{a.count} {a.count === 1 ? 'pot' : 'pots'}</small></span>
+                <span className="val">{INR(a.value)}</span>
+                <span className="pct">{Math.round(a.pct)}%</span>
+              </button>
+              <span className="bar"><i style={{ width: `${a.pct}%`, background: a.color }} /></span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 export function SavingsTab({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: string; onSave: (rows: SavingItem[]) => void }) {
   const rows = doc.savings.filter(s => s.entity === entityId)
   const [edit, setEdit] = useState<SavingItem | null>(null)
@@ -68,6 +148,8 @@ export function SavingsTab({ doc, entityId, onSave }: { doc: FinanceDoc; entityI
         <div className="vg-kpi"><div className="k">RD from salary</div><div className="v">{INR(monthlyRd)}<span className="vg-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>/mo</span></div></div>
         <div className="vg-kpi"><div className="k">Pots</div><div className="v">{rows.length}</div></div>
       </div>
+
+      <SavingsDonut rows={rows} />
 
       <div className="vg-card vg-pad">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', gap: 8, flexWrap: 'wrap' }}>

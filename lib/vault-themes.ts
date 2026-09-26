@@ -118,6 +118,9 @@ const vars = (t: VaultTheme) => [
   `--vg-accent:${t.accent}`, `--vg-accent-2:${t.accent2}`, `--vg-on-accent:${t.onAccent}`,
   `--vg-pos:${t.pos}`, `--vg-neg:${t.neg}`, `--vg-warn:${t.warn}`,
   `--vg-pop:${t.pop}`, `--vg-pop-ink:${t.popInk}`, `--vg-b:${t.b}`, `--vg-g:${t.g}`, `--vg-shadow:${t.shadow}`,
+  // Chart series colours: the validated categorical set (dataviz palette),
+  // stepped for light or dark surfaces, always in this fixed order.
+  ...(t.dark ? ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'] : ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300']).map((c, i) => `--vg-pie-${i + 1}:${c}`),
   `color-scheme:${t.dark ? 'dark' : 'light'}`,
 ].join(';')
 
