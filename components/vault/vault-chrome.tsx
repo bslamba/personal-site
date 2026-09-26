@@ -8,8 +8,8 @@
 //                   icons that magnify under the cursor (it moves to the
 //                   bottom on a phone), Control Centre, avatar, sign-out
 //   · ControlCentre the theme picker (lib/vault-themes.ts), sounds, motion
-//   · SignOutButton an armoured mech core; signing out transforms the page
-//                   itself into a robot (transform-out.ts, transform-sound.ts)
+//   · SignOutButton an armoured mech core; signing out zooms the whole page
+//                   down into a single dot in the middle
 //   · CountUp, Hello, ThemeSync — small touches used around the app
 //
 // Sounds are synthesised with Web Audio, so there are no audio files, and
@@ -20,7 +20,6 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Great_Vibes, Cinzel } from 'next/font/google'
 import { AppIcon } from '@/components/vault/dock-icons'
-import { transformOut } from '@/components/vault/transform-out'
 import { Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
 import { VAULT_THEMES, DEFAULT_THEME, THEME_KEY } from '@/lib/vault-themes'
 
@@ -281,19 +280,35 @@ function AvatarButton({ me, onClick, on }: { me: BarUser; onClick?: () => void; 
 }
 
 // ---------- Sign out ---------------------------------------------
-export function SignOutButton({ name }: { name?: string }) {
+/**
+ * Signing out: the whole page shrinks into one dot in the middle of the
+ * screen, on black, and the dot winks out. The transform is on <html>, so
+ * fixed elements (the Dock, the control strip) shrink with everything else.
+ */
+function zoomToDot(): Promise<void> {
+  const html = document.documentElement, body = document.body
+  const y = window.scrollY + window.innerHeight / 2
+  const origin = `50vw ${y}px`
+  html.style.background = '#000'
+  html.style.overflow = 'hidden'
+  const opts = { duration: 620, easing: 'cubic-bezier(.65,0,.8,.2)', fill: 'forwards' as const }
+  // The page shrinks toward the middle of the screen…
+  const zoom = html.animate([{ transform: 'scale(1)', transformOrigin: origin }, { transform: 'scale(0.012)', transformOrigin: origin }], opts)
+  // …and rounds off as it goes, so what's left is a dot.
+  body.animate([{ clipPath: `circle(150vmax at 50vw ${y - body.offsetTop}px)` }, { clipPath: `circle(28vmin at 50vw ${y - body.offsetTop}px)` }], opts)
+  return zoom.finished
+    .then(() => body.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, delay: 60, fill: 'forwards' }).finished)
+    .then(() => undefined, () => undefined)
+}
+
+export function SignOutButton() {
   const [down, setDown] = useState(false)
-  async function go(e: React.MouseEvent<HTMLButtonElement>) {
+  async function go() {
     if (down) return
     setDown(true)
-    const b = e.currentTarget.getBoundingClientRect()
     const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
-    // The page itself transforms (transform-out.ts), then we leave.
-    let wait = 150
-    if (!motionOff()) {
-      try { wait = transformOut({ name, origin: { x: b.left + b.width / 2, y: b.top + b.height / 2 }, audio: audio() }) } catch { wait = 150 }
-    }
-    await Promise.all([req, new Promise(r => setTimeout(r, wait))])
+    // The click sound comes from the vault's global click handler.
+    await Promise.all([req, motionOff() ? Promise.resolve() : zoomToDot()])
     // A full page load rather than a router push, so nothing from the
     // signed-in session survives in memory.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -302,7 +317,7 @@ export function SignOutButton({ name }: { name?: string }) {
   return (
     // An armoured hex core: two plates with a glowing visor slit between
     // them. Hover and the plates part to show the power core; click and
-    // they slam shut — and the whole page transforms.
+    // they slam shut, and the page zooms away into a dot.
     <button className="vg-mechbtn" data-locking={down} onClick={go} disabled={down} aria-label="Power down and sign out" title="Power down & sign out">
       <span className="hex">
         <span className="core">
@@ -339,14 +354,13 @@ export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, s
     return () => { document.removeEventListener('pointermove', onMove); cancelAnimationFrame(raf) }
   }, [])
 
-  const first = (me?.firstName || me?.name || me?.username || '').split(' ')[0]
   return (
     <>
       <Dock items={items} active={active} onPick={onPick} />
       <FloatingControls status={status}>
         <ControlCentre />
         {me && <AvatarButton me={me} onClick={onProfile} on={profileOn} />}
-        <SignOutButton name={first} />
+        <SignOutButton />
       </FloatingControls>
     </>
   )
