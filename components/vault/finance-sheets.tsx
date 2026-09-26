@@ -34,7 +34,7 @@ export function SheetButton({ k, actingAs, compact }: { k: string; actingAs?: st
   return (
     <>
       <button className="vg-btn" onClick={() => setOpen(true)} title="Download this month as a spreadsheet">
-        <FileSpreadsheet className="h-4 w-4" /> {compact ? 'Sheet' : 'Download sheet'}
+        <FileSpreadsheet className="h-4 w-4" /> {compact ? 'Sheet' : <><span className="vg-lg">Download sheet</span><span className="vg-sm">Sheet</span></>}
       </button>
       {open && <SheetDialog initial={k} actingAs={actingAs} onClose={() => setOpen(false)} />}
     </>

@@ -35,11 +35,11 @@ export function InstallHint() {
     setClosed(true)
   }
   return (
-    <div className="vg-install" role="dialog" aria-label="Install the Vault app">
+    <div className="vg-install" role="dialog" aria-label="Install the Lamba Family app">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/vault-app/icon-192.png" alt="" width={44} height={44} />
       <div className="vg-install-txt">
-        <b>Install Vault on your iPhone</b>
+        <b>Install Lamba Family on your iPhone</b>
         <span>
           Tap{' '}
           <svg viewBox="0 0 24 24" aria-label="Share" role="img"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" /><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v7A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H16" /></svg>

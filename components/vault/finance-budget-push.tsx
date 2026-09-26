@@ -89,7 +89,7 @@ export function FetchButton({ k, isSuper, onFetch }: { k: string; isSuper: boole
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button className="vg-btn" onClick={() => setOpen(true)} title="Bring this month back in line with the Budget"><RefreshCw className="h-4 w-4" /> Fetch from Budget</button>
+      <button className="vg-btn" onClick={() => setOpen(true)} title="Bring this month back in line with the Budget"><RefreshCw className="h-4 w-4" /> <span className="vg-lg">Fetch from Budget</span><span className="vg-sm">Fetch</span></button>
       {open && <FetchDialog k={k} isSuper={isSuper} onClose={() => setOpen(false)} onConfirm={(s, o) => { onFetch(s, o); setOpen(false) }} />}
     </>
   )

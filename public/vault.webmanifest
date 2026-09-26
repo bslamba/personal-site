@@ -1,17 +1,32 @@
 {
   "id": "/vault",
-  "name": "Lamba Vault",
-  "short_name": "Vault",
+  "name": "Lamba Family",
+  "short_name": "Lamba Family",
   "description": "The Lamba family vault: finance, photos and files.",
   "start_url": "/vault",
   "scope": "/vault",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b0c0f",
-  "theme_color": "#0b0c0f",
+  "background_color": "#f7f3ea",
+  "theme_color": "#f7f3ea",
   "icons": [
-    { "src": "/vault-app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/vault-app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/vault-app/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/vault-app/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/vault-app/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/vault-app/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

@@ -7,7 +7,7 @@
 // it back after a client-side navigation, where that script does not rerun.
 //
 // It also makes the vault an iPhone web app: Safari → Share → Add to Home
-// Screen installs "Vault" with its own icon and launch screen, opening full
+// Screen installs "Lamba Family" with its own icon and launch screen, opening full
 // screen at /vault. The manifest and images live outside /vault (in
 // public/) so the sign-in guard in proxy.ts never blocks them.
 // ============================================================
@@ -25,16 +25,16 @@ const splash = (w: number, h: number, file: string) => ({
 
 export const metadata: Metadata = {
   manifest: '/vault.webmanifest',
-  applicationName: 'Vault',
+  applicationName: 'Lamba Family',
   icons: { apple: [{ url: '/vault-app/apple-touch-icon.png', sizes: '180x180' }] },
   appleWebApp: {
     capable: true,
-    title: 'Vault',
+    title: 'Lamba Family',
     statusBarStyle: 'black-translucent',
     startupImage: [
-      splash(393, 852, 'splash-1179x2556.png'),   // iPhone 15, 15 Pro, 14 Pro
-      splash(430, 932, 'splash-1290x2796.png'),   // iPhone 15 Plus, 15 Pro Max
-      splash(390, 844, 'splash-1170x2532.png'),   // iPhone 12–14
+      splash(393, 852, 'splash-1179x2556.jpg'),   // iPhone 15, 15 Pro, 14 Pro
+      splash(430, 932, 'splash-1290x2796.jpg'),   // iPhone 15 Plus, 15 Pro Max
+      splash(390, 844, 'splash-1170x2532.jpg'),   // iPhone 12–14
     ],
   },
   formatDetection: { telephone: false },

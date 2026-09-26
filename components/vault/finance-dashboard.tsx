@@ -718,7 +718,7 @@ function EnvelopeSelect({ envelopes, value, onChange, includeDash = true }: {
   // except for the viewer's own, which "My Dashboard" IS (see includeDash).
   const ordered = [...envelopes].sort((a, b) => (a.system ? 0 : 1) - (b.system ? 0 : 1))
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <div className="vg-envsel" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <WalletCards className="h-4 w-4" style={{ color: 'var(--vg-accent)' }} />
       <select className="vg-select" value={value} onChange={e => onChange(e.target.value)} style={{ maxWidth: 240, fontWeight: 600 }} aria-label="View">
         {includeDash && <option value={DASH}>My Dashboard</option>}
@@ -984,8 +984,8 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div className="vg-mhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+        <div className="vg-mhead-l" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <div className="vg-nav">
             <button className="vg-icobtn" onClick={() => step(-1)} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
             <span className="lbl">{monthLabel(k)}</span>
@@ -993,10 +993,10 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
           </div>
           <EnvelopeSelect envelopes={envs} value={env} onChange={setEnv} includeDash={false} />
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="vg-mhead-r" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {!closed && <FetchButton k={k} isSuper onFetch={(scope, includeOneOffs) => action({ action: 'resetMonth', monthKey: k, scope, includeOneOffs })} />}
           <SheetButton k={k} />
-          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
+          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> <span className="vg-lg">This month</span><span className="vg-sm">Today</span></button>
         </div>
       </div>
 
@@ -1019,7 +1019,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
       {!isHousehold && curEnv && !curEnv.personalOf && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+        <div className="vg-cardhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
           {isHousehold ? (
             <div className="vg-subtabs">
               <button className="vg-subtab" data-on={bucket === 'common'} onClick={() => setBucket('common')}>Common<span className="vg-count">{counts.common}</span></button>
@@ -1029,7 +1029,7 @@ function MonthTab({ doc, k, setKey, patchMonth, openEditor, action }: {
             <p className="vg-sec" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}><TagIcon className="h-4 w-4" /> {curEnv?.name} · {envItems.length} item{envItems.length === 1 ? '' : 's'}</p>
           )}
           {!closed && <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
+            <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} <span className="vg-lg">Receipt</span></button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
             <button className="vg-btn vg-btn-primary" onClick={() => openNew(isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
           </div>}
@@ -1101,7 +1101,7 @@ function YearTab({ doc, year, setYear, openMonth }: {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+      <div className="vg-mhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
         <div className="vg-nav">
           <button className="vg-icobtn" onClick={() => setYear(year - 1)}><ChevronLeft className="h-4 w-4" /></button>
           <span className="lbl">{year}</span>
@@ -2053,7 +2053,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+      <div className="vg-mhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
         <div className="vg-nav">
           <button className="vg-icobtn" onClick={() => step(-1)}><ChevronLeft className="h-4 w-4" /></button>
           <span className="lbl">{monthLabel(k)}</span>
@@ -2061,7 +2061,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {s.closed ? <span className="vg-chip" style={{ background: 'rgba(31,157,107,0.14)', color: 'var(--vg-pos)' }}><Check className="h-3.5 w-3.5" /> Closed</span> : null}
-          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
+          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> <span className="vg-lg">This month</span><span className="vg-sm">Today</span></button>
         </div>
       </div>
 
@@ -2116,7 +2116,7 @@ function SettlementTab({ doc, me, k, setKey, action }: {
                         {!done && (s.closed
                           ? <span className="vg-neg" style={{ fontSize: '0.82rem' }}>unpaid → carried</span>
                           : (
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <div className="vg-mhead-r" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {link && <a className="vg-btn" href={link} title={`Opens your UPI app to pay ${payee?.upi}`}><IndianRupee className="h-4 w-4" /> Pay {INR(tr.due)}</a>}
                               <button className="vg-btn" disabled={busyKey === tr.key} onClick={() => setPaying(tr)}>
                                 {busyKey === tr.key ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Record payment
@@ -2433,7 +2433,7 @@ function BudgetTab({ doc, me, onSaveBudget }: {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div className="vg-mhead-l" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <div className="vg-nav">
             <button className="vg-icobtn" onClick={() => step(-1)} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
             <span className="lbl">{monthLabel(k)}</span>
@@ -3038,8 +3038,8 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor, actingAs }:
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div className="vg-mhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+        <div className="vg-mhead-l" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <div className="vg-nav">
             <button className="vg-icobtn" onClick={() => step(-1)}><ChevronLeft className="h-4 w-4" /></button>
             <span className="lbl">{monthLabel(k)}</span>
@@ -3047,10 +3047,10 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor, actingAs }:
           </div>
           <EnvelopeSelect envelopes={envs.filter(e => e.personalOf !== entityId)} value={env} onChange={setEnv} />
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="vg-mhead-r" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {!closed && <FetchButton k={k} isSuper={false} onFetch={(scope, includeOneOffs) => action({ action: 'resetMonth', monthKey: k, scope, includeOneOffs })} />}
           <SheetButton k={k} actingAs={actingAs} />
-          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> This month</button>
+          <button className="vg-btn" onClick={() => setKey(monthKey())}><CalendarDays className="h-4 w-4" /> <span className="vg-lg">This month</span><span className="vg-sm">Today</span></button>
         </div>
       </div>
 
@@ -3067,7 +3067,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor, actingAs }:
       {!isDash && !isHousehold && curEnv && <EnvelopeImpact items={envItems} entities={entities} env={curEnv} viewer={entityId} />}
 
       <div className="vg-card vg-pad" style={{ marginBottom: '1.1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+        <div className="vg-cardhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
           {isDash ? (
             <div className="vg-subtabs">
               <button className="vg-subtab" data-on={pbucket === 'regular'} onClick={() => setPbucket('regular')}>Regular expense<span className="vg-count">{pCounts.regular}</span></button>
@@ -3082,7 +3082,7 @@ function MemberMonth({ doc, entityId, k, setKey, action, openEditor, actingAs }:
             <p className="vg-sec" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}><TagIcon className="h-4 w-4" /> {curEnv?.name} · {envItems.length} item{envItems.length === 1 ? '' : 's'}</p>
           )}
           {!closed && <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} Receipt</button>
+            <button className="vg-btn" onClick={() => fileRef.current?.click()} disabled={reading}>{reading ? <Loader2 className="h-4 w-4 vg-spin" /> : <Camera className="h-4 w-4" />} <span className="vg-lg">Receipt</span></button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => onReceipt(e.target.files)} />
             <button className="vg-btn vg-btn-primary" onClick={() => openAdd(isDash ? (pbucket === 'emi' ? 'emi' : 'personal') : isHousehold ? bucket : 'common')}><Plus className="h-4 w-4" /> Add</button>
           </div>}

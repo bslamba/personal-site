@@ -17,6 +17,7 @@
 // ============================================================
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Great_Vibes, Cinzel } from 'next/font/google'
 import { AppIcon } from '@/components/vault/dock-icons'
@@ -148,6 +149,9 @@ function labelTable(t: HTMLTableElement) {
         // Long or multi-part values (several chips, a sentence) get the card's full width.
         const wide = (td.textContent || '').trim().length > 20 || td.querySelectorAll('.vg-chip, input:not([type="checkbox"]), select').length > 1
         if (td.hasAttribute('data-wide') !== wide) td.toggleAttribute('data-wide', wide)
+        // An unlabelled cell of buttons (edit, delete) joins the card's title line.
+        const act = c > 0 && !l && !!td.querySelector('button') && !(td.textContent || '').trim()
+        if (td.hasAttribute('data-act') !== act) td.toggleAttribute('data-act', act)
         c += td.colSpan
       }
     }
@@ -363,12 +367,21 @@ function zoomToDot(): Promise<void> {
 }
 
 export function SignOutButton() {
+  const [ask, setAsk] = useState(false)
   const [down, setDown] = useState(false)
+  const confirmBtn = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    if (!ask) return
+    confirmBtn.current?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAsk(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [ask])
   async function go() {
     if (down) return
     setDown(true)
+    setAsk(false)
     const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
-    // The click sound comes from the vault's global click handler.
     await Promise.all([req, motionOff() ? Promise.resolve() : zoomToDot()])
     // A full page load rather than a router push, so nothing from the
     // signed-in session survives in memory.
@@ -376,18 +389,35 @@ export function SignOutButton() {
     window.location.assign('/vault/login')
   }
   return (
-    // An armoured hex core: two plates with a glowing visor slit between
-    // them. Hover and the plates part to show the power core; click and
-    // they slam shut, and the page zooms away into a dot.
-    <button className="vg-mechbtn" data-locking={down} onClick={go} disabled={down} aria-label="Power down and sign out" title="Power down & sign out">
-      <span className="hex">
-        <span className="core">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v7.5" /><path d="M7 6.6a7 7 0 1 0 10 0" /></svg>
-        </span>
-        <span className="plate top" />
-        <span className="plate bot" />
-      </span>
-    </button>
+    <>
+      {/* iOS style: a round glass button with a red "leave" glyph. It asks
+          first — an action sheet on a phone, an alert on a desktop. */}
+      <button className="vg-signout" onClick={() => setAsk(true)} disabled={down} aria-label="Sign out" title="Sign out" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 4H6.8A2.8 2.8 0 0 0 4 6.8v10.4A2.8 2.8 0 0 0 6.8 20H10" />
+          <path d="M14.5 8l4 4-4 4" /><path d="M18.5 12H9.5" />
+        </svg>
+      </button>
+      {ask && typeof document !== 'undefined' && createPortal(
+        <div className="vg-sheet-scrim" onClick={e => { if (e.target === e.currentTarget) setAsk(false) }}>
+          <div className="vg-sheet" role="alertdialog" aria-modal="true" aria-labelledby="vg-so-t" aria-describedby="vg-so-d">
+            <div className="vg-sheet-group">
+              <div className="vg-sheet-head">
+                <b id="vg-so-t">Sign out?</b>
+                <span id="vg-so-d">You&rsquo;ll need your password to open the vault again.</span>
+              </div>
+              <div className="vg-sheet-actions">
+                <button className="vg-sheet-btn in-cancel" onClick={() => setAsk(false)}>Cancel</button>
+                <button ref={confirmBtn} className="vg-sheet-btn danger" onClick={go}>Sign Out</button>
+              </div>
+            </div>
+            <button className="vg-sheet-btn cancel" onClick={() => setAsk(false)}>Cancel</button>
+          </div>
+        </div>,
+        // Inside the vault's own root, so the sheet picks up the theme.
+        document.querySelector('.vg') ?? document.body,
+      )}
+    </>
   )
 }
 

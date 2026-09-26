@@ -2170,9 +2170,10 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-fc-grip:active { cursor: grabbing; }
 .vg-fc-grip:focus-visible { outline: 2px solid var(--vg-accent); outline-offset: 1px; }
 .vg-fc .vg-cc-btn { width: 34px; height: 34px; border-radius: 50%; }
-.vg-fc .vg-mechbtn { width: 36px; height: 36px; margin: 2px 0; }
+.vg-fc .vg-signout { margin: 2px 0; }
 .vg-fc-title { display: none; }
 .vg-phone-bars { display: none; }
+.vg-sm { display: none; }
 .vg-cc-motion { border-top: 0; margin-top: 0; }
 .vg-fc-status { display: grid; place-items: center; min-height: 14px; color: var(--vg-ink-faint); font-size: 12px; }
 
@@ -2229,25 +2230,48 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-switch[aria-checked="true"] { background: #34c759; }
 .vg-switch[aria-checked="true"]::after { transform: translateX(17px); }
 
-/* Sign out: an armoured hex core. Two plates with a cyan visor slit
-   between them; hover parts them to show the power core, click slams them. */
-.vg-mechbtn { position: relative; width: 40px; height: 40px; border: 0; padding: 0; background: none; cursor: pointer; filter: drop-shadow(0 0 0.6px #0b0d10) drop-shadow(0 0 0.6px #0b0d10) drop-shadow(0 6px 10px rgba(0,0,0,0.45)); transition: transform 0.3s cubic-bezier(.3,1.6,.4,1), filter 0.3s; }
-.vg-mechbtn .hex { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%); background: radial-gradient(circle, #0b2a33, #05090c 70%); }
-.vg-mechbtn .core { width: 60%; height: 60%; display: grid; place-items: center; border-radius: 50%; color: #6ff3ff; background: radial-gradient(circle, rgba(63,240,255,0.35), rgba(63,240,255,0) 70%); transition: color 0.2s, background 0.2s; }
-.vg-mechbtn .core svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 3px #3ff0ff); }
-.vg-mechbtn .plate { position: absolute; left: 0; right: 0; height: 50%; background: linear-gradient(180deg, #b7c1cc, #5d6672 55%, #353b43); transition: transform 0.28s cubic-bezier(.3,1.4,.4,1); }
-.vg-mechbtn .plate::after { content: ''; position: absolute; left: 22%; right: 22%; height: 2px; border-radius: 2px; background: rgba(255,255,255,0.35); }
-.vg-mechbtn .plate.top { top: 0; transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -2px 0 rgba(0,0,0,0.35); }
-.vg-mechbtn .plate.top::after { top: 22%; }
-.vg-mechbtn .plate.bot { bottom: 0; transform: translateY(2px); background: linear-gradient(0deg, #9aa5b1, #555d68 55%, #343a42); box-shadow: inset 0 -1px 0 rgba(255,255,255,0.4), inset 0 2px 0 rgba(0,0,0,0.35); }
-.vg-mechbtn .plate.bot::after { bottom: 22%; }
-.vg-mechbtn:hover { transform: scale(1.08); filter: drop-shadow(0 0 0.6px #0b0d10) drop-shadow(0 0 0.6px #0b0d10) drop-shadow(0 0 10px rgba(63,240,255,0.6)); }
-.vg-mechbtn:hover .plate.top { transform: translateY(-68%); }
-.vg-mechbtn:hover .plate.bot { transform: translateY(68%); }
-.vg-mechbtn:active { transform: scale(0.94); }
-.vg-mechbtn[data-locking="true"] .plate { transform: none; transition-duration: 0.09s; }
-.vg-mechbtn[data-locking="true"] .core { color: #ff453a; }
-.vg-mechbtn:focus-visible { outline: 3px solid color-mix(in srgb, #3ff0ff 60%, transparent); outline-offset: 3px; border-radius: 10px; }
+/* Sign out: an iOS-style round glass button with a red "leave" glyph,
+   and the confirmation it opens — an action sheet on a phone, an alert on
+   a desktop. */
+.vg-signout {
+  flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 1px solid color-mix(in srgb, #ff3b30 22%, var(--vg-line)); color: #ff3b30;
+  background: color-mix(in srgb, #ff3b30 10%, color-mix(in srgb, var(--vg-solid) 80%, transparent));
+  box-shadow: 0 2px 8px -4px rgba(255,59,48,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+  transition: transform 0.15s cubic-bezier(.2,.8,.2,1), background 0.2s, box-shadow 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.vg-signout svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; transform: translateX(1px); transition: transform 0.2s; }
+.vg-signout:hover { background: color-mix(in srgb, #ff3b30 16%, var(--vg-solid)); box-shadow: 0 4px 14px -6px rgba(255,59,48,0.6), inset 0 1px 0 rgba(255,255,255,0.35); }
+.vg-signout:hover svg { transform: translateX(2.5px); }
+.vg-signout:active { transform: scale(0.9); }
+.vg-signout:focus-visible { outline: 3px solid color-mix(in srgb, #ff3b30 45%, transparent); outline-offset: 2px; }
+.vg-signout:disabled { opacity: 0.6; }
+.vg-sheet-scrim {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px;
+  background: rgba(0,0,0,0.32); animation: vg-fade-in 0.2s ease both;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+/* Desktop: the iOS alert, with the two answers side by side. */
+.vg-sheet { width: 270px; display: grid; animation: vg-alert-in 0.24s cubic-bezier(.2,.9,.3,1.1) both; }
+.vg-sheet-group, .vg-sheet > .vg-sheet-btn.cancel {
+  background: color-mix(in srgb, var(--vg-solid) 90%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 24px 60px -20px rgba(0,0,0,0.5);
+}
+.vg-sheet-group { border-radius: 14px; overflow: hidden; }
+.vg-sheet-head { display: grid; gap: 3px; padding: 18px 16px 16px; text-align: center; color: var(--vg-ink); }
+.vg-sheet-head b { font-size: 17px; font-weight: 600; }
+.vg-sheet-head span { font-size: 13px; color: var(--vg-ink-soft); line-height: 1.35; }
+.vg-sheet-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 0.5px solid var(--vg-line); }
+.vg-sheet-actions .vg-sheet-btn + .vg-sheet-btn { border-left: 0.5px solid var(--vg-line); }
+.vg-sheet-btn { border: 0; font: inherit; font-size: 17px; height: 44px; cursor: pointer; background: transparent; color: var(--vg-accent); -webkit-tap-highlight-color: transparent; }
+.vg-sheet-btn:hover { background: color-mix(in srgb, var(--vg-ink) 5%, transparent); }
+.vg-sheet-btn:active { background: color-mix(in srgb, var(--vg-ink) 12%, transparent); }
+.vg-sheet-btn.danger { color: #ff3b30; font-weight: 600; }
+.vg-sheet > .vg-sheet-btn.cancel { display: none; }
+@keyframes vg-alert-in { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
+@keyframes vg-sheet-up { from { transform: translateY(110%); } to { transform: none; } }
 
 
 /* ---------- Buttons ---------- */
@@ -3077,7 +3101,7 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
   .vg-fc-status { order: 0; min-width: 14px; }
   .vg-fc .vg-cc-btn { width: 34px; height: 34px; border-radius: 50%; }
   .vg-fc .vg-avatar { width: 34px; height: 34px; }
-  .vg-fc .vg-mechbtn { width: 34px; height: 34px; margin: 0; }
+  .vg-fc .vg-signout { margin: 0; }
   /* Appearance opens as a panel under the bar. */
   .vg-cc {
     position: fixed; left: 8px !important; right: 8px !important; top: calc(var(--m-top) + 8px) !important; width: auto;
@@ -3086,6 +3110,18 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
   }
   .vg-cc-sound { display: none !important; }
   .vg-cc-motion { border-top: 1px solid var(--vg-line); margin-top: 10px; }
+
+  /* Sign out asks with an iOS action sheet from the bottom. */
+  .vg-sheet-scrim { align-items: end; padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
+  .vg-sheet { width: 100%; max-width: 440px; gap: 8px; animation: vg-sheet-up 0.32s cubic-bezier(.2,.9,.3,1) both; }
+  .vg-sheet-group { border-radius: 14px; }
+  .vg-sheet-head { padding: 14px 16px 12px; }
+  .vg-sheet-head b { font-size: 13px; font-weight: 600; color: var(--vg-ink-soft); }
+  .vg-sheet-head span { font-size: 13px; }
+  .vg-sheet-actions { grid-template-columns: 1fr; }
+  .vg-sheet-btn { height: 57px; font-size: 20px; }
+  .vg-sheet-btn.in-cancel { display: none; }
+  .vg-sheet > .vg-sheet-btn.cancel { display: block; border-radius: 14px; font-weight: 600; }
 
   /* ---- The tab bar ---- */
   .vg-dock {
@@ -3115,9 +3151,9 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
   .vg-dock-badge { top: -2px; right: 10px; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }
 
   /* ---- Type and surfaces ---- */
-  .vg-hello { margin: 0 0 0.7rem; gap: 0.2rem; }
-  .vg-hello h2 { font-size: 1.4rem; }
-  .vg-hello time { font-size: 0.72rem; }
+  .vg-hello { margin: 0 0 0.7rem; gap: 0.1rem 0.5rem; align-items: baseline; }
+  .vg-hello h2 { font-size: 1.3rem; }
+  .vg-hello time { font-size: 0.7rem; }
   .vg-top { margin-bottom: 1rem; }
   .vg-h1 { font-size: 1.65rem; }
   .vg-sub { font-size: 0.85rem; }
@@ -3125,9 +3161,33 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
   .vg-pad { padding: 0.85rem; }
   .vg h2, .vg h3 { overflow-wrap: anywhere; }
   .vg-btn { font-size: 0.8rem; padding: 0.42rem 0.7rem; }
-  .vg-input, .vg-select { font-size: 16px; } /* 16px stops iOS zooming into a field */
+  .vg-input, .vg-select { font-size: 15px; } /* the app disables zoom, so iOS won't zoom into a field */
   .vg-card, .vg-kpi, .vg-tile { animation-duration: 0.3s; }
   .vg-card:hover, .vg-kpi:hover, .vg-tile:hover { transform: none; }
+
+  /* ---- Page headers: month switcher and view picker on one line, the
+     actions on the next, each with a short label. ---- */
+  .vg-lg { display: none; }
+  .vg-sm { display: inline; }
+  .vg-mhead { display: grid !important; gap: 8px !important; margin-bottom: 0.8rem !important; }
+  .vg-mhead-l { flex-wrap: nowrap !important; gap: 8px !important; min-width: 0; }
+  /* No view picker: the month and the buttons share one line. */
+  .vg-mhead:not(:has(.vg-envsel)) { grid-template-columns: auto 1fr; align-items: center; }
+  .vg-mhead:not(:has(.vg-envsel)) .vg-mhead-r { justify-self: end; grid-auto-columns: auto; }
+  .vg-mhead-l .vg-nav { flex: 0 0 auto; gap: 4px; }
+  .vg-nav .lbl { min-width: 0; font-size: 0.95rem; padding: 0 2px; white-space: nowrap; }
+  .vg-nav .vg-icobtn { width: 30px; height: 30px; border-radius: 50%; }
+  .vg-envsel { flex: 1 1 auto; min-width: 0; }
+  .vg-envsel .vg-select { max-width: none !important; width: 100%; min-width: 0; font-size: 15px; padding: 0.4rem 0.55rem; }
+  .vg-mhead-r { display: grid !important; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px !important; }
+  .vg-mhead-r > *, .vg-mhead-r .vg-btn { width: 100%; justify-content: center; }
+  .vg-mhead-r .vg-btn { padding: 0.45rem 0.4rem; font-size: 0.8rem; white-space: nowrap; }
+  /* A card's header: segmented control, then Receipt (icon) and Add. */
+  .vg-cardhead { flex-wrap: nowrap !important; gap: 8px !important; }
+  .vg-cardhead > :first-child { min-width: 0; }
+  .vg-cardhead .vg-subtabs { flex-wrap: nowrap; }
+  .vg-cardhead .vg-btn { padding: 0.45rem 0.6rem; }
+  .vg-cardhead > div:last-child { flex: 0 0 auto; }
 
   /* Rows of controls wrap instead of running off the side. */
   .vg-tabs, .vg .vg-subtabs { display: flex; flex-wrap: wrap; border-radius: 14px; }
@@ -3145,44 +3205,61 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
   .vg-kpi { padding: 0.65rem 0.75rem; border-radius: 14px; min-width: 0; container-type: inline-size; }
   .vg-kpi .k { font-size: 0.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .vg-kpi .v { font-size: min(1.3rem, 13cqi); white-space: nowrap; }
+  .vg-kpis > .vg-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .vg-kpis > .vg-kpi:last-child:nth-child(odd) .v { font-size: min(1.3rem, 6.5cqi); }
 
-  /* ---- Tables → cards ---- */
+  /* ---- Tables → cards ----
+     Each row is a card. Its first cell is the title, with any edit/delete
+     buttons beside it on the same line. Every other value is a small tile —
+     its column name in small capitals above, the value beneath — three to a
+     line, so a label can never be mistaken for the value next to it. */
   .vg-tablewrap { overflow: visible; border-radius: 0; }
-  .vg-table { display: block; width: 100%; min-width: 0 !important; font-size: 0.82rem; }
+  .vg-table { display: block; width: 100%; min-width: 0 !important; font-size: 0.86rem; }
   .vg-table thead { display: none; }
-  .vg-table tbody, .vg-table tfoot { display: block; }
+  .vg-table tbody, .vg-table tfoot { display: grid; gap: 8px; }
+  .vg-table tfoot { margin-top: 8px; }
   .vg-table tr {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; padding: 0.6rem 0.2rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--vg-line) 70%, transparent) !important;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row dense; gap: 8px 10px; align-items: start;
+    padding: 10px 12px 11px; border-radius: 13px; border: 0 !important;
+    background: color-mix(in srgb, var(--vg-ink) 4.5%, transparent);
   }
-  .vg-table tbody tr:last-child { border-bottom: 0 !important; }
-  .vg-table tbody tr:hover { background: none; }
-  /* Two labelled values to a line. */
+  .vg-table tbody tr:hover { background: color-mix(in srgb, var(--vg-ink) 4.5%, transparent); }
+  .vg-table tfoot tr { background: color-mix(in srgb, var(--vg-accent) 9%, transparent); }
   .vg-table td {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    flex: 1 1 calc(50% - 10px); min-width: 0; padding: 0.14rem 0 !important; border: 0 !important;
-    text-align: right !important; width: auto !important;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0;
+    padding: 0 !important; border: 0 !important; text-align: left !important; width: auto !important;
+    font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
   }
-  .vg-table td[data-blank] { display: none; }
-  .vg-table td[data-wide] { flex-basis: 100%; }
-  .vg-table td::before { flex-shrink: 0; }
-  .vg-table td > :last-child { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
-  .vg-table td::before { content: attr(data-label); flex: 0 1 auto; min-width: 0; text-align: left; font-size: 0.7rem; font-weight: 600; color: var(--vg-ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vg-table td::before {
+    content: attr(data-label); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--vg-ink-faint);
+  }
   .vg-table td[data-label=""]::before, .vg-table td:not([data-label])::before { display: none; }
-  /* The first cell is the card's title. */
-  .vg-table td:first-child { flex-basis: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 4px 6px; text-align: left !important; font-size: 0.92rem; font-weight: 600; padding-bottom: 0.3rem !important; }
+  .vg-table td[data-blank], .vg-table td:empty { display: none; }
+  .vg-table td[data-wide] { grid-column: 1 / -1; }
+  .vg-table td > * { max-width: 100%; }
+  /* The title: the whole first line, or all of it but the buttons. */
+  .vg-table td:first-child { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 0.95rem; font-weight: 650; line-height: 1.25; }
   .vg-table td:first-child::before { display: none; }
-  /* Unlabelled cells (edit/delete buttons) sit together at the end of the card. */
-  .vg-table td[data-label=""]:not(:first-child) { flex: 0 0 auto; margin-left: auto; justify-content: flex-end; padding-top: 0.3rem !important; }
-  .vg-table td:empty { display: none; }
-  .vg-table td > * { min-width: 0; max-width: 100%; }
-  .vg-table td .vg-input, .vg-table td .vg-select { width: min(60%, 220px) !important; font-size: 16px; padding: 0.35rem 0.5rem; }
-  .vg-table .vg-icobtn { width: 32px; height: 32px; }
-  .vg-table .vg-icobtn svg { width: 16px; height: 16px; }
-  .vg-table tfoot tr { border-top: 2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent) !important; margin-top: 0.2rem; }
-  .vg-table tfoot td { font-weight: 700; }
+  .vg-table tr:has(> td[data-act]) > td:first-child { grid-column: 1 / 3; }
+  .vg-table td[data-act] { grid-column: 3; grid-row: 1; flex-direction: row; justify-content: flex-end; align-items: center; align-self: start; justify-self: end; }
+  .vg-table td[data-act] > div { gap: 6px !important; }
   /* A cell spanning the whole row (an empty-list message) stays centred. */
-  .vg-table td[colspan]:only-child { justify-content: center; text-align: center !important; font-weight: 500; font-size: 0.85rem; }
+  .vg-table td[colspan]:only-child { grid-column: 1 / -1; align-items: center; text-align: center !important; font-weight: 500; font-size: 0.85rem; color: var(--vg-ink-soft); }
+  .vg-table tr:has(> td[colspan]:only-child) { background: none; }
+  /* Values: readable weight; money stays on one line. */
+  .vg-table td:not(:first-child) { font-size: 0.86rem; font-weight: 600; }
+  .vg-table td.vg-muted, .vg-table td .vg-muted { font-weight: 500; }
+  .vg-table td .vg-chip { font-size: 0.72rem; }
+  .vg-table td .vg-input, .vg-table td .vg-select { width: 100% !important; max-width: none !important; flex: 1 1 auto; font-size: 15px; padding: 0.38rem 0.5rem; }
+  /* A field needs room: two tiles' worth at least. */
+  .vg-table td:not(:first-child):has(.vg-input:not([type="checkbox"]), .vg-select) { grid-column: span 2; }
+  .vg-table td input[type="checkbox"] { width: 20px; height: 20px; margin: 2px 0 0; }
+  .vg-table .vg-icobtn { width: 32px; height: 32px; border-radius: 50%; }
+  .vg-table .vg-icobtn svg { width: 15px; height: 15px; }
+  /* Progress bars inside a tile take its full width. */
+  .vg-table td > div[style*="flex"] { width: 100%; }
+  .vg-table td:not(:first-child):has(> div[style*="flex"] > span[style*="flex: 1"]) { grid-column: span 2; }
 
   /* Anything laid out as a fixed grid of columns falls back to one column. */
   .vg-row { grid-template-columns: 1fr; gap: 0.3rem; padding: 0.6rem 0.8rem; }
@@ -3194,9 +3271,29 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
   .vg-files-page { --m-top: calc(52px + env(safe-area-inset-top)); }
   .vg-files-page > a[href="/vault"] { display: none; }
 
+  /* Envelope picker tiles: two to a row, full width. */
+  .vg div:has(> .vg-envtab) { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px !important; margin: 0.7rem 0 1rem !important; }
+  .vg .vg-envtab { min-width: 0; padding: 0.55rem 0.7rem; }
+  .vg .vg-envtab .t { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .vg .vg-envtab .t .vg-dot { vertical-align: 1px; margin-right: 4px; }
+  .vg .vg-envtab:hover { transform: none; }
+  .vg-sec { font-size: 0.7rem; letter-spacing: 0.1em; }
+
+  /* The savings donut sits beside its legend, like the Wallet app. */
+  .vg-donut-wrap { grid-template-columns: 132px minmax(0, 1fr) !important; justify-items: stretch !important; gap: 14px !important; }
+  .vg-donut { max-width: 132px; }
+  .vg-donut-v { font-size: 0.95rem; }
+  .vg-donut-k { font-size: 0.52rem; }
+  .vg-donut-s { font-size: 0.64rem; }
+  .vg-donut-legend button { grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; padding: 6px 4px; font-size: 0.82rem; }
+  .vg-donut-legend .pct { display: none; }
+  .vg-card { font-size: 0.93rem; }
+  .vg-card p { line-height: 1.45; }
+
   /* Charts: centred, and the donut's total follows the theme's ink. */
-  .vg-card > div[style*="flex-wrap"]:has(> svg) { justify-content: center; }
-  .vg-card > div[style*="flex-wrap"]:has(> svg) > :not(svg) { flex: 1 1 100%; }
+  .vg-card > div[style*="flex-wrap"]:has(> svg:not(.lucide)) { justify-content: center; }
+  .vg-card > div[style*="flex-wrap"]:has(> svg:not(.lucide)) > :not(svg) { flex: 1 1 100%; }
+  .vg-card > div[style*="flex-wrap"]:has(> svg:not(.lucide)) > svg { width: 150px; height: auto; }
   .vg-donut-total { fill: var(--vg-ink); }
   .vg-donut-sub { fill: var(--vg-ink-faint); }
 }
