@@ -68,8 +68,8 @@ function Donut({ data, size = 168 }: { data: { name: string; value: number; colo
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img">
       <circle cx={cx} cy={cy} r={rad} fill="none" stroke="color-mix(in srgb, var(--vg-ink-faint) 12%, transparent)" strokeWidth={stroke} />
       {arcs.map((arc, i) => arc.frac > 0 ? <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={stroke} strokeLinecap="round" /> : null)}
-      <text x={cx} y={cy - 2} textAnchor="middle" fontSize={size * 0.1} fontWeight={800} fill="#241b40">{INR(total)}</text>
-      <text x={cx} y={cy + size * 0.11} textAnchor="middle" fontSize={size * 0.07} fill="#8b81ad">total</text>
+      <text className="vg-donut-total" x={cx} y={cy - 2} textAnchor="middle" fontSize={size * 0.1} fontWeight={800} fill="#241b40">{INR(total)}</text>
+      <text className="vg-donut-sub" x={cx} y={cy + size * 0.11} textAnchor="middle" fontSize={size * 0.07} fill="#8b81ad">total</text>
     </svg>
   )
 }

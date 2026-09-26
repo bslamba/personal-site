@@ -2149,20 +2149,6 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-dock-lbl { display: none; }
 .vg-root { padding-top: calc(86px + env(safe-area-inset-top)); }
 
-/* Phones: the Dock scrolls sideways and names its icons, like a home screen. */
-@media (max-width: 760px) {
-  .vg-dock { gap: 4px; padding: 7px 8px 6px; overflow-x: auto; scrollbar-width: none; border-radius: 24px; background: color-mix(in srgb, var(--vg-solid) 80%, transparent); }
-  .vg-dock::-webkit-scrollbar { display: none; }
-  .vg-dock-item { width: 54px; height: auto; margin: 0 !important; transform: none !important; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-  .vg-dock-item .vg-app { width: 44px; height: 44px; }
-  .vg-dock-tip { display: none; }
-  .vg-dock-lbl { display: block; font-size: 9.5px; font-weight: 600; color: var(--vg-ink-soft); max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .vg-dock-item[data-on="true"] .vg-dock-lbl { color: var(--vg-ink); }
-  .vg-dock-item[data-on="true"]::after { display: none; }
-  .vg-dock-sep { height: 36px; }
-  .vg-root { padding-top: calc(96px + env(safe-area-inset-top)); }
-}
-
 /* ---------- The floating control strip ---------- */
 @media (min-width: 761px) and (max-width: 1340px) { html[data-vg-strip="left"] .vg-root { padding-left: 76px; } }
 .vg { --vg-fc-w: 50px; --vg-fc-h: 190px; }
@@ -2185,8 +2171,10 @@ body:has(.vg-scope) .wa-float { display: none !important; }
 .vg-fc-grip:focus-visible { outline: 2px solid var(--vg-accent); outline-offset: 1px; }
 .vg-fc .vg-cc-btn { width: 34px; height: 34px; border-radius: 50%; }
 .vg-fc .vg-mechbtn { width: 36px; height: 36px; margin: 2px 0; }
+.vg-fc-title { display: none; }
+.vg-phone-bars { display: none; }
+.vg-cc-motion { border-top: 0; margin-top: 0; }
 .vg-fc-status { display: grid; place-items: center; min-height: 14px; color: var(--vg-ink-faint); font-size: 12px; }
-@media (max-width: 520px) { .vg-cc { left: 10px !important; right: 10px !important; width: auto; } }
 
 /* ---------- Logo: a signature, with FAMILY engraved beneath ---------- */
 .vg-logo { position: relative; display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; line-height: 1; user-select: none; padding: 0 6px; }
@@ -3050,3 +3038,165 @@ html[data-vg-motion="off"] .vg::before, html[data-vg-motion="off"] .vg-card, htm
 .vg-install-txt span b { color: #f5f5f7; font-weight: 600; }
 .vg-install-txt svg { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; fill: none; stroke: #0a84ff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .vg-install button { flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%; cursor: pointer; font-size: 1.2rem; line-height: 1; color: rgba(245,245,247,0.8); background: rgba(255,255,255,0.12); }
+
+
+/* ============================================================
+   MOBILE APP VIEW — phones, and the vault installed on the iPhone Home
+   Screen. Nothing here reaches a desktop. The layout:
+     · a translucent bar fixed across the top: the section title, then
+       appearance, profile and sign-out (the floating strip, pinned)
+     · a translucent tab bar fixed across the bottom (the Dock)
+     · tighter type and spacing, sized for an iPhone 15 (393pt wide)
+     · no sideways scrolling anywhere: every table becomes a stack of cards,
+       one per row, each value on its own "label … value" line (the labels
+       are written onto the cells by useTableLabels in vault-chrome.tsx)
+   ============================================================ */
+@media (max-width: 760px) {
+  html:has(.vg-scope) { font-size: 14.5px; -webkit-text-size-adjust: 100%; }
+  .vg {
+    --m-top: calc(52px + env(safe-area-inset-top));
+    --m-bot: calc(60px + env(safe-area-inset-bottom));
+    padding: 0 12px calc(var(--m-bot) + 20px);
+    overflow-x: clip;
+  }
+  .vg-root { padding-top: calc(var(--m-top) + 12px); padding-left: 12px; padding-right: 12px; }
+  .vg-wrap { max-width: none; min-width: 0; }
+
+  /* ---- The top bar ---- */
+  .vg-fc {
+    left: 0 !important; right: 0 !important; top: 0 !important; width: auto; height: var(--m-top);
+    padding: env(safe-area-inset-top) 12px 0 16px;
+    flex-direction: row; align-items: center; justify-content: flex-end; gap: 10px;
+    border-radius: 0; border: 0; border-bottom: 0.5px solid color-mix(in srgb, var(--vg-ink) 14%, transparent);
+    background: color-mix(in srgb, var(--vg-solid) 62%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: none; transform: none !important; touch-action: auto; z-index: 60;
+  }
+  .vg-fc-grip { display: none; }
+  .vg-fc-title { display: block; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; color: var(--vg-ink); }
+  .vg-fc-status { order: 0; min-width: 14px; }
+  .vg-fc .vg-cc-btn { width: 34px; height: 34px; border-radius: 50%; }
+  .vg-fc .vg-avatar { width: 34px; height: 34px; }
+  .vg-fc .vg-mechbtn { width: 34px; height: 34px; margin: 0; }
+  /* Appearance opens as a panel under the bar. */
+  .vg-cc {
+    position: fixed; left: 8px !important; right: 8px !important; top: calc(var(--m-top) + 8px) !important; width: auto;
+    max-height: calc(100dvh - var(--m-top) - var(--m-bot) - 24px) !important; overflow-y: auto; z-index: 70;
+    background: color-mix(in srgb, var(--vg-solid) 94%, transparent);
+  }
+  .vg-cc-sound { display: none !important; }
+  .vg-cc-motion { border-top: 1px solid var(--vg-line); margin-top: 10px; }
+
+  /* ---- The tab bar ---- */
+  .vg-dock {
+    top: auto; bottom: 0; left: 0; right: 0; transform: none; width: 100%; max-width: none;
+    display: flex; align-items: flex-start; gap: 0; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+    padding: 6px 4px calc(4px + env(safe-area-inset-bottom));
+    border-radius: 0; border: 0; border-top: 0.5px solid color-mix(in srgb, var(--vg-ink) 14%, transparent);
+    background: color-mix(in srgb, var(--vg-solid) 62%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: none; z-index: 60;
+  }
+  .vg-dock::-webkit-scrollbar { display: none; }
+  /* Centred when the tabs fit; scrolls from the first tab when they don't. */
+  .vg-dock::before, .vg-dock::after { content: ''; flex: 0 0 0; margin: auto; }
+  .vg-dock-item {
+    flex: 0 0 64px; width: 64px; height: auto; margin: 0 !important; transform: none !important;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 2px 0;
+  }
+  .vg-dock-item .vg-app { width: 30px; height: 30px; transition: transform 0.15s, opacity 0.15s; }
+  .vg-dock-item[data-on="false"] .vg-app { opacity: 0.72; }
+  .vg-dock-item:active .vg-app { transform: scale(0.9); }
+  .vg-dock-tip { display: none; }
+  .vg-dock-lbl { display: block; max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 600; color: var(--vg-ink-faint); }
+  .vg-dock-item[data-on="true"] .vg-dock-lbl { color: var(--vg-accent); }
+  .vg-dock-item[data-on="true"]::after { display: none; }
+  .vg-dock-sep { align-self: center; height: 30px; margin: 0 2px; }
+  .vg-dock-badge { top: -2px; right: 10px; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }
+
+  /* ---- Type and surfaces ---- */
+  .vg-hello { margin: 0 0 0.7rem; gap: 0.2rem; }
+  .vg-hello h2 { font-size: 1.4rem; }
+  .vg-hello time { font-size: 0.72rem; }
+  .vg-top { margin-bottom: 1rem; }
+  .vg-h1 { font-size: 1.65rem; }
+  .vg-sub { font-size: 0.85rem; }
+  .vg-card { border-radius: 16px; box-shadow: 0 10px 28px -22px var(--vg-shadow); }
+  .vg-pad { padding: 0.85rem; }
+  .vg h2, .vg h3 { overflow-wrap: anywhere; }
+  .vg-btn { font-size: 0.8rem; padding: 0.42rem 0.7rem; }
+  .vg-input, .vg-select { font-size: 16px; } /* 16px stops iOS zooming into a field */
+  .vg-card, .vg-kpi, .vg-tile { animation-duration: 0.3s; }
+  .vg-card:hover, .vg-kpi:hover, .vg-tile:hover { transform: none; }
+
+  /* Rows of controls wrap instead of running off the side. */
+  .vg-tabs, .vg .vg-subtabs { display: flex; flex-wrap: wrap; border-radius: 14px; }
+  .vg-tab { padding: 0.36rem 0.7rem; font-size: 0.78rem; }
+  .vg .vg-subtab { padding: 0.32rem 0.6rem; font-size: 0.76rem; }
+
+  /* ---- Tiles and totals: two to a row, figures shrink to fit one line ---- */
+  .vg-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .vg-tile { min-height: 0; padding: 0.95rem 0.9rem 1rem; border-radius: 18px; }
+  .vg-tile-ic { width: 40px; height: 40px; border-radius: 12px; margin-bottom: 0.7rem; }
+  .vg-tile h3 { font-size: 1rem; }
+  .vg-tile p { font-size: 0.74rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .vg-tile-go { top: 0.9rem; right: 0.9rem; }
+  .vg-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .vg-kpi { padding: 0.65rem 0.75rem; border-radius: 14px; min-width: 0; container-type: inline-size; }
+  .vg-kpi .k { font-size: 0.6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vg-kpi .v { font-size: min(1.3rem, 13cqi); white-space: nowrap; }
+
+  /* ---- Tables → cards ---- */
+  .vg-tablewrap { overflow: visible; border-radius: 0; }
+  .vg-table { display: block; width: 100%; min-width: 0 !important; font-size: 0.82rem; }
+  .vg-table thead { display: none; }
+  .vg-table tbody, .vg-table tfoot { display: block; }
+  .vg-table tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; padding: 0.6rem 0.2rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--vg-line) 70%, transparent) !important;
+  }
+  .vg-table tbody tr:last-child { border-bottom: 0 !important; }
+  .vg-table tbody tr:hover { background: none; }
+  /* Two labelled values to a line. */
+  .vg-table td {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    flex: 1 1 calc(50% - 10px); min-width: 0; padding: 0.14rem 0 !important; border: 0 !important;
+    text-align: right !important; width: auto !important;
+  }
+  .vg-table td[data-blank] { display: none; }
+  .vg-table td[data-wide] { flex-basis: 100%; }
+  .vg-table td::before { flex-shrink: 0; }
+  .vg-table td > :last-child { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .vg-table td::before { content: attr(data-label); flex: 0 1 auto; min-width: 0; text-align: left; font-size: 0.7rem; font-weight: 600; color: var(--vg-ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vg-table td[data-label=""]::before, .vg-table td:not([data-label])::before { display: none; }
+  /* The first cell is the card's title. */
+  .vg-table td:first-child { flex-basis: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 4px 6px; text-align: left !important; font-size: 0.92rem; font-weight: 600; padding-bottom: 0.3rem !important; }
+  .vg-table td:first-child::before { display: none; }
+  /* Unlabelled cells (edit/delete buttons) sit together at the end of the card. */
+  .vg-table td[data-label=""]:not(:first-child) { flex: 0 0 auto; margin-left: auto; justify-content: flex-end; padding-top: 0.3rem !important; }
+  .vg-table td:empty { display: none; }
+  .vg-table td > * { min-width: 0; max-width: 100%; }
+  .vg-table td .vg-input, .vg-table td .vg-select { width: min(60%, 220px) !important; font-size: 16px; padding: 0.35rem 0.5rem; }
+  .vg-table .vg-icobtn { width: 32px; height: 32px; }
+  .vg-table .vg-icobtn svg { width: 16px; height: 16px; }
+  .vg-table tfoot tr { border-top: 2px solid color-mix(in srgb, var(--vg-accent) 25%, transparent) !important; margin-top: 0.2rem; }
+  .vg-table tfoot td { font-weight: 700; }
+  /* A cell spanning the whole row (an empty-list message) stays centred. */
+  .vg-table td[colspan]:only-child { justify-content: center; text-align: center !important; font-weight: 500; font-size: 0.85rem; }
+
+  /* Anything laid out as a fixed grid of columns falls back to one column. */
+  .vg-row { grid-template-columns: 1fr; gap: 0.3rem; padding: 0.6rem 0.8rem; }
+  .vg-install { bottom: calc(var(--m-bot) + 10px); }
+
+  /* Files (still in the site's own style): the app's bars, and room for them. */
+  .vg.vg-phone-bars { display: contents; }
+  .vg-files-page { padding-top: calc(var(--m-top, 52px) + 16px) !important; padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important; }
+  .vg-files-page { --m-top: calc(52px + env(safe-area-inset-top)); }
+  .vg-files-page > a[href="/vault"] { display: none; }
+
+  /* Charts: centred, and the donut's total follows the theme's ink. */
+  .vg-card > div[style*="flex-wrap"]:has(> svg) { justify-content: center; }
+  .vg-card > div[style*="flex-wrap"]:has(> svg) > :not(svg) { flex: 1 1 100%; }
+  .vg-donut-total { fill: var(--vg-ink); }
+  .vg-donut-sub { fill: var(--vg-ink-faint); }
+}

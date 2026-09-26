@@ -39,6 +39,8 @@ const notify = () => window.dispatchEvent(new Event(PREF_EVENT))
 function usePref(key: string, fallback: string): string {
   return useSyncExternalStore(subscribePrefs, () => read(key) ?? fallback, () => fallback)
 }
+/** The phone view: a phone-sized screen, or the installed Home Screen app. */
+export const isPhone = () => typeof window !== 'undefined' && (matchMedia('(max-width: 760px)').matches || matchMedia('(display-mode: standalone)').matches)
 const motionOff = () => read(MOTION_KEY) === 'off' || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
 export function applyTheme(id: string) {
@@ -51,6 +53,7 @@ export function applyTheme(id: string) {
  *  navigation, where the boot script in the layout does not run again. */
 export function ThemeSync() {
   useClickSound()
+  useTableLabels()
   useEffect(() => {
     const t = read(THEME_KEY)
     if (t) document.documentElement.setAttribute('data-vg-theme', t)
@@ -62,7 +65,8 @@ export function ThemeSync() {
 // ---------- sound ------------------------------------------------
 let ctx: AudioContext | null = null
 function audio(): AudioContext | null {
-  if (typeof window === 'undefined' || read(SOUND_KEY) === 'off') return null
+  // The phone app is silent: no clicks, ever.
+  if (typeof window === 'undefined' || read(SOUND_KEY) === 'off' || isPhone()) return null
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     ctx ??= new AC()
@@ -109,6 +113,57 @@ export function sfx(kind: 'click') {
 }
 
 /** Every click in the vault makes the click — installed once by ThemeSync. */
+/**
+ * On a phone every table is shown as a stack of cards, one per row, each
+ * value labelled with its column name. This writes that name onto each cell
+ * (data-label), working out which header sits over which column even when
+ * headers span rows or columns. Tables that change are relabelled.
+ */
+function labelTable(t: HTMLTableElement) {
+  const labels: string[] = []
+  const taken: boolean[][] = []
+  Array.from(t.tHead?.rows ?? []).forEach((row, r) => {
+    let c = 0
+    for (const th of Array.from(row.cells)) {
+      while (taken[r]?.[c]) c++
+      const txt = (th.textContent || '').trim()
+      for (let i = 0; i < th.colSpan; i++) {
+        for (let j = 0; j < th.rowSpan; j++) (taken[r + j] ??= [])[c + i] = true
+        // A lower header row is more specific, so it wins; a group header
+        // ("Borne by…") only fills columns nothing more specific names.
+        if (txt && (th.colSpan === 1 || !labels[c + i])) labels[c + i] = txt
+      }
+      c += th.colSpan
+    }
+  })
+  for (const body of [...Array.from(t.tBodies), ...(t.tFoot ? [t.tFoot] : [])]) {
+    for (const row of Array.from(body.rows)) {
+      let c = 0
+      for (const td of Array.from(row.cells)) {
+        const l = td.colSpan > 1 && c === 0 ? '' : labels[c] ?? ''
+        if (td.getAttribute('data-label') !== l) td.setAttribute('data-label', l)
+        // A cell holding only a dash says "nothing here": the phone card skips it.
+        const blank = /^[—–-]?$/.test((td.textContent || '').trim()) && !td.querySelector('input, select, button, svg, img')
+        if (td.hasAttribute('data-blank') !== blank) td.toggleAttribute('data-blank', blank)
+        // Long or multi-part values (several chips, a sentence) get the card's full width.
+        const wide = (td.textContent || '').trim().length > 20 || td.querySelectorAll('.vg-chip, input:not([type="checkbox"]), select').length > 1
+        if (td.hasAttribute('data-wide') !== wide) td.toggleAttribute('data-wide', wide)
+        c += td.colSpan
+      }
+    }
+  }
+}
+function useTableLabels() {
+  useEffect(() => {
+    let raf = 0
+    const run = () => { raf = 0; document.querySelectorAll<HTMLTableElement>('table.vg-table').forEach(labelTable) }
+    const mo = new MutationObserver(() => { if (!raf) raf = requestAnimationFrame(run) })
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true })
+    run()
+    return () => { mo.disconnect(); cancelAnimationFrame(raf) }
+  }, [])
+}
+
 function useClickSound() {
   useEffect(() => {
     const on = (e: PointerEvent) => { if (e.button === 0 && e.isPrimary) sfx('click') }
@@ -161,6 +216,12 @@ function Dock({ items, active, onPick }: { items: DockItem[]; active?: string; o
     if (!motionOff()) { setBounce(id); setTimeout(() => setBounce(b => (b === id ? null : b)), 700) }
     onPick?.(id)
   }
+
+  // On a phone the tab bar scrolls; keep the open tab in view.
+  useEffect(() => {
+    if (!isPhone()) return
+    ref.current?.querySelector<HTMLElement>('.vg-dock-item[data-on="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [active])
 
   return (
     <nav ref={ref} className="vg-dock" aria-label="Sections"
@@ -246,11 +307,11 @@ function ControlCentre() {
           {swatches(light)}
           <h4 style={{ marginTop: 14 }}>Dark</h4>
           {swatches(dark)}
-          <div className="vg-cc-row">
+          <div className="vg-cc-row vg-cc-sound">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Volume2 className="h-4 w-4" /> Sounds</span>
             <button className="vg-switch" role="switch" aria-checked={sound} aria-label="Sounds" onClick={() => { write(SOUND_KEY, sound ? 'off' : 'on'); notify(); if (!sound) setTimeout(() => sfx('click'), 0) }} />
           </div>
-          <div className="vg-cc-row" style={{ borderTop: 0, marginTop: 0 }}>
+          <div className="vg-cc-row vg-cc-motion">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Sparkles className="h-4 w-4" /> Animations</span>
             <button className="vg-switch" role="switch" aria-checked={motion} aria-label="Animations" onClick={() => {
               write(MOTION_KEY, motion ? 'off' : 'on'); notify()
@@ -357,7 +418,7 @@ export function VaultTopBar({ items, active, onPick, me, onProfile, profileOn, s
   return (
     <>
       <Dock items={items} active={active} onPick={onPick} />
-      <FloatingControls status={status}>
+      <FloatingControls status={status} title={items.find(i => i.id === active)?.label ?? (profileOn ? 'Profile' : 'Vault')}>
         <ControlCentre />
         {me && <AvatarButton me={me} onClick={onProfile} on={profileOn} />}
         <SignOutButton />
@@ -372,7 +433,7 @@ const POS_KEY = 'vg-controls-pos'
  *  on the left edge by default and can be dragged anywhere by its grip.
  *  Where it was left is remembered (as a fraction of the screen, so it
  *  stays on screen when the window is resized). */
-function FloatingControls({ status, children }: { status?: 'idle' | 'saving' | 'saved' | 'conflict'; children: React.ReactNode }) {
+function FloatingControls({ status, title, children }: { status?: 'idle' | 'saving' | 'saved' | 'conflict'; title?: string; children: React.ReactNode }) {
   const pos = usePref(POS_KEY, '')
   const ref = useRef<HTMLDivElement | null>(null)
   const drag = useRef<{ dx: number; dy: number } | null>(null)
@@ -429,6 +490,9 @@ function FloatingControls({ status, children }: { status?: 'idle' | 'saving' | '
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onKeyDown={onKey} onDoubleClick={() => { write(POS_KEY, ''); notify() }}>
         <span /><span /><span /><span /><span /><span />
       </button>
+      {/* On a phone this strip is the fixed bar across the top, titled with
+          the section you are in (the title is hidden on a desktop). */}
+      {title && <span className="vg-fc-title">{title}</span>}
       {children}
       <span className="vg-fc-status" aria-live="polite">
         {status === 'saving' && <Loader2 className="h-3.5 w-3.5 vg-spin" aria-label="Saving" />}

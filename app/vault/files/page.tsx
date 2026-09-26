@@ -11,6 +11,8 @@ import { cookies } from 'next/headers'
 import { ArrowLeft } from 'lucide-react'
 import { getSession, VAULT_COOKIE } from '@/lib/vault-auth'
 import VaultExplorer from '@/components/vault-explorer'
+import { VaultAppsBar } from '@/components/vault/vault-chrome'
+import { findUser } from '@/lib/users'
 
 export const metadata: Metadata = {
   title: 'Files · Vault',
@@ -24,9 +26,14 @@ export default async function VaultFilesPage() {
   const session = await getSession(jar.get(VAULT_COOKIE)?.value)
   if (!session) redirect('/vault/login')
   if (session.r !== 'super') redirect('/vault')
+  const u = await findUser(session.u)
 
   return (
-    <div className="container-page py-10 sm:py-12">
+    <div className="container-page py-10 sm:py-12 vg-files-page">
+      {/* The phone app's top bar and tab bar (hidden on a desktop). */}
+      <div className="vg vg-phone-bars">
+        <VaultAppsBar active="files" me={{ firstName: u?.firstName, name: u?.name, username: session.u, avatar: u?.avatar }} />
+      </div>
       <Link
         href="/vault"
         className="mb-6 inline-flex items-center gap-2 text-sm text-signal-500 hover:underline"
