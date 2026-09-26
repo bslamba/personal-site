@@ -350,7 +350,7 @@ export interface Allowance {
 // server, and every action is logged as "X did this on behalf of Y".
 // ============================================================
 
-export const ACCESS_AREAS = ['expenses', 'income', 'accounts', 'savings', 'budgets', 'loans', 'investments', 'documents'] as const
+export const ACCESS_AREAS = ['expenses', 'income', 'accounts', 'savings', 'budgets', 'loans', 'investments', 'documents', 'approvals'] as const
 export type AccessArea = typeof ACCESS_AREAS[number]
 export const ACCESS_OPS = ['view', 'add', 'edit', 'delete'] as const
 export type AccessOp = typeof ACCESS_OPS[number]
@@ -358,6 +358,18 @@ export type AccessPerms = Partial<Record<AccessArea, AccessOp[]>>
 export const ACCESS_LABEL: Record<AccessArea, string> = {
   expenses: 'Expenses', income: 'Income', accounts: 'Bank accounts', savings: 'Savings & goals',
   budgets: 'Budgets', loans: 'Loans', investments: 'Investments', documents: 'Documents & receipts',
+  approvals: 'Approvals & settlement',
+}
+
+/** Everything the owner can do — what "act as them" grants by default. */
+export const FULL_ACCESS: AccessPerms = Object.fromEntries(ACCESS_AREAS.map(a => [a, [...ACCESS_OPS]])) as AccessPerms
+
+// A savings pot is an investment (locked away) or plain savings, which is
+// what separates the Savings and Investments permissions.
+const LOCKED = /(ppf|epf|pf\b|nps|gold|sgb|property|land|stock|share|equity|mf\b|mutual|elss|ulip|insurance|bond|crypto|pension)/i
+export function isLiquid(s: SavingItem): boolean {
+  if (s.liquid != null) return s.liquid
+  return !LOCKED.test(`${s.kind ?? ''} ${s.label}`)
 }
 export type DelegationStatus = 'pending' | 'active' | 'declined' | 'revoked' | 'cancelled'
 export interface Delegation {

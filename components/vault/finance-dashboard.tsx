@@ -16,7 +16,7 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Check,
   CalendarDays, Pencil, X, Camera, Users, PiggyBank, Wallet, SlidersHorizontal,
   Equal, Target, BellRing, ShieldCheck, Upload, FileSpreadsheet, KeyRound, Tag as TagIcon, Scale, WalletCards, Landmark, IndianRupee,
-  Gauge, Goal as GoalIcon, Telescope, UserCheck,
+  UserCheck,
 } from 'lucide-react'
 import {
   type FinanceDoc, type MonthData, type Item, type IncomeItem, type Entity,
@@ -34,9 +34,7 @@ import {
 } from '@/lib/finance-data'
 import { parseStatement, type StatementRow } from '@/lib/statement'
 import VaultLogout from '@/components/vault/logout-button'
-import { MoneyTab, GoalsTab, PlanTab, AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-plus'
-import { type Account } from '@/lib/finance-data'
-import { isLiquid } from '@/lib/finance-plan'
+import { AccessTab, SplitPreview, ProfileSwitcher, ActingBanner, ErrorToast, permFrom, type ActingInfo } from '@/components/vault/finance-access'
 import IdleLogout from '@/components/vault/idle-logout'
 
 const CAT_COLORS: Record<string, string> = {
@@ -208,10 +206,10 @@ function ExpenseTable({ rows, entities, shareCols, onEdit, onDelete, onTogglePai
   )
 }
 
-function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true, envelopes = [], accounts = [] }: {
+function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onClose, onDelete, allowNewCategory = true, envelopes = [] }: {
   item: Item; entities: Entity[]; categories: Category[]; onAddCategory: (name: string, color: string) => void
   onSave: (it: Item) => void; onClose: () => void; onDelete?: () => void; allowNewCategory?: boolean
-  envelopes?: Envelope[]; accounts?: Account[]
+  envelopes?: Envelope[]
 }) {
   const [d, setD] = useState<Item>(() => structuredClone(item))
   const pickEnvelope = (envId: string) => {
@@ -275,20 +273,11 @@ function ExpenseEditor({ item, entities, categories, onAddCategory, onSave, onCl
           </div>
           <div>
             <label className="vg-lbl">Who paid</label>
-            <select className="vg-select" value={d.paidBy} onChange={e => set({ paidBy: e.target.value, account: undefined })}>
+            <select className="vg-select" value={d.paidBy} onChange={e => set({ paidBy: e.target.value })}>
               {payers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
-        {accounts.some(a => a.owner === d.paidBy && !a.archived) && (
-          <div style={{ marginTop: '0.6rem' }}>
-            <label className="vg-lbl">Paid from account</label>
-            <select className="vg-select" value={d.account ?? ''} onChange={e => set({ account: e.target.value || undefined })}>
-              <option value="">Main account</option>
-              {accounts.filter(a => a.owner === d.paidBy && !a.archived).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-        )}
 
         {isEmi && (
           <>
@@ -420,12 +409,12 @@ function fileToB64(file: File): Promise<string> {
 }
 
 // ---------- main ------------------------------------------------
-type Tab = 'money' | 'month' | 'settle' | 'year' | 'goals' | 'plan' | 'loans' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags' | 'access'
+type Tab = 'month' | 'settle' | 'year' | 'loans' | 'approvals' | 'import' | 'entities' | 'setup' | 'profile' | 'tags' | 'access'
 interface Editing { item: Item; commit: (it: Item) => void; remove?: () => void }
 
 export default function FinanceDashboard({ initialRole }: { initialRole?: 'super' | 'member' }) {
   const [doc, setDoc] = useState<FinanceDoc | null>(null)
-  const [tab, setTab] = useState<Tab>('money')
+  const [tab, setTab] = useState<Tab>('month')
   const [key, setKey] = useState<string>(monthKey())
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'conflict'>('idle')
@@ -506,12 +495,9 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
   if (me.role === 'member') return <MemberApp initialDoc={doc} entityId={me.entityId ?? ''} profile={me} />
 
   const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
-    { id: 'money', label: 'Money', icon: Gauge },
     { id: 'month', label: 'This month', icon: CalendarDays },
     { id: 'settle', label: 'Settlement', icon: Scale },
     { id: 'year', label: 'Year', icon: Wallet },
-    { id: 'goals', label: 'Goals', icon: GoalIcon },
-    { id: 'plan', label: 'Plan', icon: Telescope },
     { id: 'loans', label: 'Loans', icon: Landmark },
     { id: 'tags', label: 'Tags', icon: TagIcon },
     { id: 'import', label: 'Import', icon: FileSpreadsheet },
@@ -533,9 +519,6 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 
   return (
     <Shell saveState={saveState} me={me} tabs={TABS} activeTab={tab} onTab={id => setTab(id as Tab)}>
-      {tab === 'money' && <MoneyTab doc={doc} viewer={null} me={superMe} action={runAction} goTo={t => setTab(t as Tab)} />}
-      {tab === 'goals' && <GoalsTab doc={doc} viewer={null} me={superMe} action={runAction} />}
-      {tab === 'plan' && <PlanTab doc={doc} viewer={null} action={runAction} />}
       {tab === 'access' && <AccessTab doc={doc} me={superMe} action={runAction} />}
       {tab === 'month' && <MonthTab doc={doc} k={key} setKey={setKey} patchMonth={patchMonth} openEditor={setEditing} action={runAction} />}
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={runAction} />}
@@ -560,7 +543,7 @@ export default function FinanceDashboard({ initialRole }: { initialRole?: 'super
 
       {editing && (
         <ExpenseEditor
-          item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} accounts={doc.accounts ?? []}
+          item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []}
           categories={doc.categories} onAddCategory={addCategory}
           onSave={it => { editing.commit(it); setEditing(null) }}
           onClose={() => setEditing(null)}
@@ -2728,23 +2711,22 @@ function MemberSavings({ doc, entityId, onSave }: { doc: FinanceDoc; entityId: s
         </div>
         <div className="vg-tablewrap">
           <table className="vg-table" style={{ minWidth: 560 }}>
-            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th className="num">Balance</th><th style={{ width: 92, textAlign: 'center' }} title="Counted in Available Money — money you could draw on this month">Can draw on</th><th>Note</th><th style={{ width: 36 }}></th></tr></thead>
+            <thead><tr><th>Name</th><th style={{ width: 110 }}>Type</th><th className="num">Balance</th><th>Note</th><th style={{ width: 36 }}></th></tr></thead>
             <tbody>
               {rows.map(s => (
                 <tr key={s.id}>
                   <td><input className="vg-input" value={s.label} onChange={e => upd(s.id, { label: e.target.value })} /></td>
                   <td><input className="vg-input" value={s.kind ?? ''} placeholder="FD / MF…" onChange={e => upd(s.id, { kind: e.target.value })} /></td>
                   <td className="num"><input className="vg-input vg-num" inputMode="numeric" value={String(s.balance)} onChange={e => upd(s.id, { balance: num(e.target.value) })} /></td>
-                  <td style={{ textAlign: 'center' }}><input type="checkbox" style={{ width: 17, height: 17, accentColor: '#6d4bd8' }} checked={isLiquid(s)} onChange={e => upd(s.id, { liquid: e.target.checked })} aria-label={`${s.label} can be drawn on`} /></td>
                   <td><input className="vg-input" value={s.note ?? ''} onChange={e => upd(s.id, { note: e.target.value })} /></td>
                   <td><button className="vg-icobtn" onClick={() => del(s.id)}><Trash2 className="h-4 w-4" /></button></td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={6} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={5} className="vg-muted" style={{ textAlign: 'center', padding: '1.2rem' }}>No savings yet. Add an FD, mutual fund, RD, gold, cash…</td></tr>}
             </tbody>
           </table>
         </div>
-        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Private to your profile — not other members, and not the family admin — unless you grant someone savings access under Access. “Can draw on” pots count towards Available Money; locked ones (PPF, MF, gold…) don’t.</p>
+        <p className="vg-muted" style={{ fontSize: '0.75rem', marginTop: '0.6rem' }}>Private to your profile — not other members, and not the family admin — unless you grant someone savings access under Access.</p>
       </div>
     </>
   )
@@ -3357,14 +3339,14 @@ function MemberApp({ initialDoc, entityId, profile }: { initialDoc: FinanceDoc; 
   )
 }
 
-type MemberTab = 'money' | 'month' | 'settle' | 'year' | 'goals' | 'plan' | 'loans' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'access' | 'profile'
+type MemberTab = 'month' | 'settle' | 'year' | 'loans' | 'tags' | 'savings' | 'import' | 'setup' | 'approvals' | 'access' | 'profile'
 
 function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, onSwitch, header }: {
   initialDoc: FinanceDoc; entityId: string; profile?: MeLite & { email?: string }
   acting?: ActingInfo | null; onDoc?: (d: FinanceDoc) => void; onSwitch?: (owner: string | null, why?: string) => void; header?: React.ReactNode
 }) {
   const [doc, setDoc] = useState<FinanceDoc>(initialDoc)
-  const [tab, setTab] = useState<MemberTab>('money')
+  const [tab, setTab] = useState<MemberTab>('month')
   const [budgetView, setBudgetView] = useState<BudgetView>('recurring')
   const [key, setKey] = useState(monthKey())
   const [year, setYear] = useState(new Date().getFullYear())
@@ -3397,34 +3379,28 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
     } catch { setActErr('Could not reach the server — check your connection.'); setBusy('idle'); return null }
   }
 
-  const pending = acting ? [] : (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
+  // Acting as someone, "waiting on you" means waiting on them.
+  const pending = (doc.proposals ?? []).filter(p => p.approvers.includes(entityId))
   const accessWaiting = acting ? 0 : (doc.delegations ?? []).filter(d => d.status === 'pending' && d.owner === entityId).length
   const allTabs: (ShellTab & { show: boolean })[] = [
-    { id: 'money', label: 'Money', icon: Gauge, show: true },
     { id: 'month', label: 'This month', icon: CalendarDays, show: perm('expenses', 'view') },
-    { id: 'settle', label: 'Settlement', icon: Scale, show: !acting },
+    { id: 'settle', label: 'Settlement', icon: Scale, show: perm('approvals', 'view') },
     { id: 'year', label: 'Year', icon: Wallet, show: perm('expenses', 'view') },
-    { id: 'goals', label: 'Goals', icon: GoalIcon, show: perm('savings', 'view') || !acting },
-    { id: 'plan', label: 'Plan', icon: Telescope, show: perm('income', 'view') },
     { id: 'loans', label: 'Loans', icon: Landmark, show: perm('loans', 'view') },
     { id: 'tags', label: 'Tags', icon: TagIcon, show: perm('expenses', 'view') },
     { id: 'savings', label: acting ? 'Savings' : 'My Savings', icon: PiggyBank, show: perm('savings', 'view') || perm('investments', 'view') },
     { id: 'import', label: 'Import', icon: FileSpreadsheet, show: perm('expenses', 'add') },
     { id: 'setup', label: 'Budget', icon: Target, show: perm('budgets', 'view') || perm('expenses', 'view') },
-    { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing, show: !acting },
+    { id: 'approvals', label: `Approvals${pending.length ? ` (${pending.length})` : ''}`, icon: BellRing, show: perm('approvals', 'view') },
     { id: 'access', label: `Access${accessWaiting ? ` (${accessWaiting})` : ''}`, icon: UserCheck, show: !acting },
   ]
   const TABS = allTabs.filter(t => t.show) as ShellTab[]
-  const goTo = (t: string) => setTab((TABS.some(x => x.id === t) ? t : 'money') as MemberTab)
 
   const shellMe: MeLite = { role: 'member', username: meState?.username, firstName: meState?.firstName, name: meState?.name, avatar: meState?.avatar }
 
   return (
     <Shell saveState={busy} me={shellMe} tabs={TABS} activeTab={tab} onTab={id => setTab(id as MemberTab)}>
       {header}
-      {tab === 'money' && <MoneyTab doc={doc} viewer={entityId} me={me} action={action} goTo={goTo} perm={perm} />}
-      {tab === 'goals' && <GoalsTab doc={doc} viewer={entityId} me={me} action={action} perm={perm} acting={!!acting} />}
-      {tab === 'plan' && <PlanTab doc={doc} viewer={entityId} action={action} perm={perm} />}
       {tab === 'access' && <AccessTab doc={doc} me={me} action={action} onSwitch={owner => onSwitch?.(owner)} />}
       {tab === 'month' && <MemberMonth doc={doc} entityId={entityId} k={key} setKey={setKey} action={action} openEditor={setEditing} />}
       {tab === 'settle' && <SettlementTab doc={doc} me={me} k={key} setKey={setKey} action={action} />}
@@ -3451,7 +3427,7 @@ function MemberDashboard({ initialDoc, entityId, profile, acting = null, onDoc, 
       <ErrorToast text={actErr} onClose={() => setActErr(null)} />
 
       {editing && (
-        <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} accounts={doc.accounts ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
+        <ExpenseEditor item={editing.item} entities={doc.entities} envelopes={doc.envelopes ?? []} categories={doc.categories} onAddCategory={() => {}} allowNewCategory={false}
           onSave={it => { editing.onSave(it); setEditing(null) }} onClose={() => setEditing(null)} />
       )}
     </Shell>

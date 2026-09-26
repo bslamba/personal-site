@@ -16,8 +16,7 @@ import { CopyObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCo
 import { getSession, VAULT_COOKIE, type Session } from '@/lib/vault-auth'
 import { findUser } from '@/lib/users'
 import { s3 } from '@/lib/storage'
-import { seedDoc, migrate, filterDocForMember, activeDelegation, can, type FinanceDoc, type Delegation } from '@/lib/finance-data'
-import { isLiquid } from '@/lib/finance-plan'
+import { seedDoc, migrate, filterDocForMember, activeDelegation, can, isLiquid, type FinanceDoc, type Delegation } from '@/lib/finance-data'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -148,11 +147,11 @@ export function viewForGrant(doc: FinanceDoc, g: Delegation): FinanceDoc {
   if (!seeSav) { v.goals = (v.goals ?? []).filter(x => x.owner === 'household'); v.allocations = []; v.allocRules = {} }
   if (!can(p, 'budgets', 'view')) v.budgets = { ...v.budgets, byEntity: {} }
   if (!seeExp) v.allowances = []
-  // Approvals are the owner's own consent to give; a delegate never decides them.
-  v.proposals = []
+  // The owner's approval queue — theirs to decide, so only with that grant.
+  if (!can(p, 'approvals', 'view')) v.proposals = []
   v.auditLog = (v.auditLog ?? []).filter(a => seeExp || a.onBehalfOf === g.owner)
   v.delegations = [g]
-  v.reminders = (v.reminders ?? []).filter(r => r.scope === 'common')
+  if (!seeExp) v.reminders = (v.reminders ?? []).filter(r => r.scope === 'common')
   return v
 }
 
