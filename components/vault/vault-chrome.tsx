@@ -8,8 +8,8 @@
 //                   icons that magnify under the cursor (it moves to the
 //                   bottom on a phone), Control Centre, avatar, sign-out
 //   · ControlCentre the theme picker (lib/vault-themes.ts), sounds, motion
-//   · SignOutButton an armoured mech core; signing out plays a robot
-//                   transformation with synthesised servo sound design
+//   · SignOutButton an armoured mech core; signing out transforms the page
+//                   itself into a robot (transform-out.ts, transform-sound.ts)
 //   · CountUp, Hello, ThemeSync — small touches used around the app
 //
 // Sounds are synthesised with Web Audio, so there are no audio files, and
@@ -17,10 +17,10 @@
 // ============================================================
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Great_Vibes, Cinzel } from 'next/font/google'
 import { AppIcon } from '@/components/vault/dock-icons'
+import { transformOut } from '@/components/vault/transform-out'
 import { Loader2, Check, SlidersHorizontal, Volume2, Sparkles, House, Wallet, Images, FolderLock, type LucideIcon } from 'lucide-react'
 import { VAULT_THEMES, DEFAULT_THEME, THEME_KEY } from '@/lib/vault-themes'
 
@@ -102,93 +102,11 @@ function click(a: AudioContext) {
   tick(0.018, 2400, 1100, 0.22)
 }
 
-/**
- * The transformation — sound design timed to the animation, not music:
- *   0.30  twelve armour plates slam onto the screen, clank by clank
- *   0.62  the seams charge up — a rising whine
- *   0.85  servos whirr as the plates break apart and fold inward
- *   1.28  fifteen helmet pieces lock into place, click by click
- *   1.70  the eyes ignite — an impact and a deep, cinematic brass swell
- *   2.50  power down — a falling tone as the screen collapses to a line
- * A limiter at the end keeps the heavy hits clean.
- */
-function mechSound(a: AudioContext) {
-  const t0 = a.currentTime + 0.02
-  const limit = a.createDynamicsCompressor()
-  limit.threshold.value = -10; limit.knee.value = 6; limit.ratio.value = 12; limit.attack.value = 0.003; limit.release.value = 0.2
-  limit.connect(a.destination)
-  const out = a.createGain(); out.gain.value = 0.7; out.connect(limit)
-
-  const burst = (at: number, dur: number, type: BiquadFilterType, f0: number, f1: number, q: number, vol: number) => {
-    const n = a.createBufferSource(); n.buffer = noise(a, dur)
-    const f = a.createBiquadFilter(); f.type = type; f.Q.value = q
-    f.frequency.setValueAtTime(f0, at); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), at + dur)
-    const g = a.createGain()
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.02, dur / 4)); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
-    n.connect(f).connect(g).connect(out); n.start(at)
-  }
-  const tone = (at: number, f0: number, f1: number, dur: number, vol: number, type: OscillatorType = 'sine', attack = 0.004, lp = 0) => {
-    const o = a.createOscillator(), g = a.createGain()
-    o.type = type; o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + dur)
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + attack); g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
-    if (lp) { const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f).connect(g) } else o.connect(g)
-    g.connect(out); o.start(at); o.stop(at + dur + 0.02)
-  }
-  // Struck metal rings at inharmonic partials — that's what makes it sound like steel.
-  const clank = (at: number, f: number, vol: number) => {
-    burst(at, 0.07, 'bandpass', 2200, 900, 1.8, vol)
-    tone(at, 95, 60, 0.12, vol * 0.9)
-    ;[1, 1.47, 2.09, 2.76].forEach((k, i) => tone(at, f * k, f * k * 0.995, 0.18 - i * 0.03, vol * 0.09 / (i + 1), 'triangle'))
-  }
-
-  // 1. Armour plates slam on.
-  for (let i = 0; i < 12; i++) clank(t0 + 0.3 + i * 0.03, 640 + ((i * 137) % 5) * 70, 0.32)
-  // 2. The seams charge: a rising, buzzing whine.
-  tone(t0 + 0.62, 90, 420, 0.28, 0.07, 'sawtooth', 0.2, 1400)
-  burst(t0 + 0.62, 0.28, 'bandpass', 600, 3200, 3, 0.08)
-  // 3. Servos whirr as the plates break apart and fold in.
-  ;[0, 0.11, 0.2, 0.31, 0.4].forEach((d, i) => {
-    const at = t0 + 0.85 + d, up = i % 2 === 0
-    tone(at, up ? 180 : 420, up ? 520 : 230, 0.12, 0.06, 'sawtooth', 0.01, 1800)
-    tone(at, up ? 360 : 840, up ? 1040 : 460, 0.12, 0.025, 'square', 0.01, 2400)
-  })
-  burst(t0 + 0.85, 0.45, 'bandpass', 900, 2400, 1.2, 0.1)
-  // 4. Helmet pieces lock into place.
-  for (let i = 0; i < 15; i++) {
-    const at = t0 + 1.28 + i * 0.026
-    burst(at, 0.02, 'highpass', 3000, 2500, 0.8, 0.26)
-    tone(at, 1300 + (i % 3) * 180, 1200, 0.04, 0.05, 'square')
-    tone(at, 150, 90, 0.06, 0.16)
-  }
-  // 5. Eyes ignite: a zap, a heavy impact, and a low brass swell (A1 + E2 + A2).
-  const ig = t0 + 1.7
-  tone(ig - 0.08, 300, 2400, 0.1, 0.05, 'sawtooth', 0.01, 5000)
-  tone(ig, 58, 32, 1.1, 0.95)
-  burst(ig, 0.35, 'lowpass', 1400, 80, 0.7, 0.5)
-  ;[55, 82.41, 110].forEach((f, i) => {
-    for (const det of [-9, 9]) {
-      const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter()
-      o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det
-      lp.type = 'lowpass'; lp.Q.value = 3
-      lp.frequency.setValueAtTime(180, ig); lp.frequency.exponentialRampToValueAtTime(1100, ig + 0.25); lp.frequency.exponentialRampToValueAtTime(220, ig + 0.8)
-      g.gain.setValueAtTime(0.0001, ig); g.gain.exponentialRampToValueAtTime(0.09 / (i + 1), ig + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, ig + 0.8)
-      o.connect(lp).connect(g).connect(out); o.start(ig); o.stop(ig + 0.85)
-    }
-  })
-  // 6. Power down: a falling tone and a hiss that closes, then one last tick.
-  const off = t0 + 2.5
-  tone(off, 900, 40, 0.45, 0.12, 'sine', 0.01)
-  tone(off, 1800, 80, 0.45, 0.03, 'square', 0.01, 3000)
-  burst(off, 0.45, 'highpass', 6000, 800, 0.7, 0.07)
-  burst(off + 0.45, 0.015, 'highpass', 3000, 3000, 0.7, 0.2)
-}
-
-/** click: any click anywhere in the vault · mech: signing out. */
-export function sfx(kind: 'click' | 'mech') {
+/** click: any click anywhere in the vault. */
+export function sfx(kind: 'click') {
   const a = audio()
   if (!a) return
   if (kind === 'click') click(a)
-  else mechSound(a)
 }
 
 /** Every click in the vault makes the click — installed once by ThemeSync. */
@@ -365,123 +283,35 @@ function AvatarButton({ me, onClick, on }: { me: BarUser; onClick?: () => void; 
 // ---------- Sign out ---------------------------------------------
 export function SignOutButton({ name }: { name?: string }) {
   const [down, setDown] = useState(false)
-  async function go() {
+  async function go(e: React.MouseEvent<HTMLButtonElement>) {
     if (down) return
-    sfx('mech')
     setDown(true)
-    document.querySelector('.vg')?.classList.add('vg-shutting')
+    const b = e.currentTarget.getBoundingClientRect()
     const req = fetch('/api/vault/logout', { method: 'POST' }).catch(() => undefined)
-    // Plates, transform, eyes, power down — then leave.
-    await Promise.all([req, new Promise(r => setTimeout(r, motionOff() ? 150 : 3100))])
+    // The page itself transforms (transform-out.ts), then we leave.
+    let wait = 150
+    if (!motionOff()) {
+      try { wait = transformOut({ name, origin: { x: b.left + b.width / 2, y: b.top + b.height / 2 }, audio: audio() }) } catch { wait = 150 }
+    }
+    await Promise.all([req, new Promise(r => setTimeout(r, wait))])
     // A full page load rather than a router push, so nothing from the
     // signed-in session survives in memory.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign('/vault/login')
   }
   return (
-    <>
-      {/* An armoured hex core: two plates with a glowing visor slit between
-          them. Hover and the plates part to show the power core; click and
-          they slam shut. */}
-      <button className="vg-mechbtn" data-locking={down} onClick={go} disabled={down} aria-label="Power down and sign out" title="Power down & sign out">
-        <span className="hex">
-          <span className="core">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v7.5" /><path d="M7 6.6a7 7 0 1 0 10 0" /></svg>
-          </span>
-          <span className="plate top" />
-          <span className="plate bot" />
+    // An armoured hex core: two plates with a glowing visor slit between
+    // them. Hover and the plates part to show the power core; click and
+    // they slam shut — and the whole page transforms.
+    <button className="vg-mechbtn" data-locking={down} onClick={go} disabled={down} aria-label="Power down and sign out" title="Power down & sign out">
+      <span className="hex">
+        <span className="core">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v7.5" /><path d="M7 6.6a7 7 0 1 0 10 0" /></svg>
         </span>
-      </button>
-      {down && typeof document !== 'undefined' && createPortal(<Transform name={name} />, document.body)}
-    </>
-  )
-}
-
-// A robot helmet cut into pieces (a 200 × 210 drawing). Left-hand pieces are
-// mirrored for the right. Each piece flies in from its own direction.
-type Pt = [number, number]
-const mirror = (pts: Pt[]): Pt[] => pts.map(([x, y]) => [200 - x, y])
-const HELMET: { id: string; pts: Pt[]; from: [number, number, number]; tone?: 'lite' | 'dark' }[] = (() => {
-  const side: { id: string; pts: Pt[]; from: [number, number, number]; tone?: 'lite' | 'dark' }[] = [
-    { id: 'fin', pts: [[32, 72], [16, 52], [14, 100], [34, 106]], from: [-220, -60, -140] },
-    { id: 'temple', pts: [[44, 42], [62, 64], [58, 100], [38, 118], [32, 72]], from: [-180, 40, 120] },
-    { id: 'brow', pts: [[97, 8], [88, 26], [94, 58], [62, 64], [44, 42], [68, 20]], from: [-120, -200, -90], tone: 'lite' },
-    { id: 'cheek', pts: [[38, 118], [58, 100], [86, 108], [78, 148], [52, 158]], from: [-200, 140, 160] },
-    { id: 'jaw', pts: [[52, 158], [78, 148], [90, 156], [100, 164], [100, 200], [72, 186]], from: [-90, 220, -180], tone: 'lite' },
-  ]
-  const out: typeof side = []
-  for (const p of side) {
-    out.push({ ...p, id: `${p.id}-l` })
-    out.push({ ...p, id: `${p.id}-r`, pts: mirror(p.pts), from: [-p.from[0], p.from[1], -p.from[2]] })
-  }
-  out.splice(4, 0, { id: 'crest', pts: [[100, 4], [112, 26], [106, 58], [94, 58], [88, 26]], from: [0, -260, 180], tone: 'lite' })
-  out.push({ id: 'visor', pts: [[62, 64], [138, 64], [142, 100], [100, 106], [58, 100]], from: [0, -40, 0], tone: 'dark' })
-  out.push({ id: 'mouth', pts: [[86, 108], [100, 106], [114, 108], [110, 156], [100, 164], [90, 156]], from: [0, 260, 90] })
-  return out
-})()
-const EYE: Pt[] = [[66, 76], [94, 80], [92, 90], [68, 90]]
-const ptsAttr = (pts: Pt[]) => pts.map(p => p.join(',')).join(' ')
-
-/**
- * Signing out transforms the vault: twelve armour plates slam over the
- * page, charge at the seams, break apart and fold inward, and the pieces
- * reassemble as a robot helmet. Its eyes ignite, a HUD spins up — then the
- * whole thing powers off like an old screen collapsing to a line.
- */
-function Transform({ name }: { name?: string }) {
-  const plates = Array.from({ length: 12 }, (_, i) => {
-    const r = Math.floor(i / 4), c = i % 4
-    const style = {
-      '--i': i,
-      '--fx': c < 2 ? -1 : 1, '--fy': r - 1, '--fr': `${(c < 2 ? -1 : 1) * (r === 1 ? 8 : 18)}deg`,
-      '--tx': `${(1.5 - c) * 100}%`, '--ty': `${(1 - r) * 100}%`,
-      '--o': Math.abs(1.5 - c) + Math.abs(1 - r),
-    } as React.CSSProperties
-    return <div key={i} className={`vg-tf-plate${i % 5 === 0 ? ' hazard' : ''}`} style={style} data-label={`${'ABC'[r]}-0${c + 1}`} />
-  })
-  return (
-    <div className="vg-tf" role="status" aria-live="polite">
-      <div className="vg-tf-plates" aria-hidden="true">{plates}</div>
-      <div className="vg-tf-stage">
-        <div className="vg-tf-head">
-          <svg viewBox="-40 -40 280 290" className="vg-tf-hud" aria-hidden="true">
-            <circle cx="100" cy="105" r="128" className="ring r1" />
-            <circle cx="100" cy="105" r="116" className="ring r2" />
-            <circle cx="100" cy="105" r="138" className="ring r3" />
-          </svg>
-          <svg viewBox="0 0 200 210" className="vg-tf-svg" aria-hidden="true">
-            <defs>
-              <linearGradient id="tf-metal" x1="0" y1="0" x2="0.4" y2="1">
-                <stop offset="0" stopColor="#9aa6b4" /><stop offset="0.45" stopColor="#4a525d" /><stop offset="1" stopColor="#1d2127" />
-              </linearGradient>
-              <linearGradient id="tf-lite" x1="0" y1="0" x2="0.3" y2="1">
-                <stop offset="0" stopColor="#dfe6ee" /><stop offset="0.5" stopColor="#8e99a6" /><stop offset="1" stopColor="#3b424b" />
-              </linearGradient>
-              <filter id="tf-glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="3.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
-              <clipPath id="tf-clip">{HELMET.map(p => <polygon key={p.id} points={ptsAttr(p.pts)} />)}</clipPath>
-            </defs>
-            {HELMET.map((p, i) => (
-              <g key={p.id} className="tf-part" style={{ '--dx': `${p.from[0]}px`, '--dy': `${p.from[1]}px`, '--r': `${p.from[2]}deg`, '--i': i } as React.CSSProperties}>
-                <polygon points={ptsAttr(p.pts)} fill={p.tone === 'dark' ? '#07090c' : p.tone === 'lite' ? 'url(#tf-lite)' : 'url(#tf-metal)'} />
-                {p.id === 'mouth' && [120, 130, 140, 150].map(y => <line key={y} x1="92" x2="108" y1={y} y2={y} className="slat" />)}
-              </g>
-            ))}
-            <g className="tf-eyes" filter="url(#tf-glow)">
-              <polygon points={ptsAttr(EYE)} />
-              <polygon points={ptsAttr(mirror(EYE))} />
-            </g>
-            <g clipPath="url(#tf-clip)"><rect className="tf-scan" x="0" y="0" width="200" height="14" /></g>
-          </svg>
-        </div>
-        <div className="vg-tf-text">
-          <p className="vg-tf-state"><span className="vg-tf-led" /><span className="vg-tf-words"><span className="t1">Transforming</span><span className="t2">Secured</span></span></p>
-          <p className="vg-tf-sub">{name ? `See you soon, ${name}` : 'See you soon'}</p>
-        </div>
-      </div>
-      <div className="vg-tf-line" aria-hidden="true" />
-    </div>
+        <span className="plate top" />
+        <span className="plate bot" />
+      </span>
+    </button>
   )
 }
 
